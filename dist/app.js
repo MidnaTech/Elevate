@@ -44,7 +44,8 @@ const attentionReasonMeta = {
   driver_reply: { label: 'Driver reply', shortLabel: 'Replies', action: 'Review reply', tone: 'reply' },
   reminders_exhausted: { label: 'Reminders exhausted', shortLabel: 'Reminders exhausted', action: 'Contact driver', tone: 'overdue' },
   repeat_after_coaching: { label: 'Repeat after coaching', shortLabel: 'Repeated', action: 'Review repeat', tone: 'repeat' },
-  delivery_blocked: { label: 'Delivery blocked', shortLabel: 'Delivery blocked', action: 'Relink identity', tone: 'issue' }
+  delivery_blocked: { label: 'Delivery blocked', shortLabel: 'Delivery blocked', action: 'Relink identity', tone: 'issue' },
+  session_needed: { label: 'Session needed', shortLabel: 'Session needed', action: 'Start session', tone: 'issue' }
 };
 
 function normalizeAttentionReason(reason) {
@@ -76,6 +77,16 @@ const driverNames = [
 ];
 
 const driverGroups = ['Long haul · North', 'Regional · East', 'Local delivery', 'Regional · West'];
+
+// Who coached: automation, or the manager who ran the one-on-one.
+function coachLabel(session) {
+  if (session.origin !== 'manual_override' && session.source === 'Automated') return 'Automated';
+  return session.owner && session.owner !== 'Unassigned' ? session.owner : 'Manager';
+}
+
+function inProgressLabel(origin) {
+  return origin === 'manual_override' || origin === 'One-on-one' ? 'One-on-one' : 'Automated';
+}
 
 function initials(name) {
   return name.split(' ').map((part) => part.charAt(0)).join('').slice(0, 2).toUpperCase();
@@ -420,7 +431,7 @@ const aiCoachInsights = [
   { id: 'ai-noah-braking', categoryId: 'braking', caseKind: 'quick', caseIndex: 1, safetyScore: 89, scoreChange: 2, criterion: 'Delivery blocked', attentionReason: 'issues', tone: 'watch', insight: 'The mapped braking lesson could not reach the driver because the Drive account identity is not linked.' },
   { id: 'ai-emery-distraction', categoryId: 'distraction', caseKind: 'directed', caseIndex: 1, safetyScore: 66, scoreChange: -2, criterion: 'Driver replied', attentionReason: 'reply', tone: 'watch', insight: 'The driver added context to the automated distraction session and is waiting for a manager response.' },
   { id: 'ai-riley-seatbelt', categoryId: 'seatbelt', caseKind: 'quick', caseIndex: 0, safetyScore: 68, scoreChange: 3, criterion: 'Overdue after reminder', attentionReason: 'overdue', tone: 'watch', insight: 'The seat-belt lesson was assigned and reminded automatically, but the acknowledgement is still overdue.' },
-  { id: 'ai-taylor-following', categoryId: 'following', caseKind: 'directed', caseIndex: 2, safetyScore: 64, scoreChange: -4, criterion: 'Repeated after coaching', attentionReason: 'repeat', tone: 'risk', insight: 'Following-distance events continued after earlier coaching, so the automated follow-up requires manager attention.' },
+  { id: 'ai-taylor-following', categoryId: 'following', caseKind: 'directed', caseIndex: 2, safetyScore: 64, scoreChange: -4, criterion: 'Repeated after coaching', attentionReason: 'repeat', tone: 'risk', insight: 'Following-distance events continued after earlier coaching, so the automated follow-up requires review.' },
   { id: 'ai-parker-traffic', categoryId: 'traffic', caseKind: 'quick', caseIndex: 0, safetyScore: 73, scoreChange: -1, criterion: 'Threshold met', tone: 'neutral', insight: 'The traffic-control threshold was reached in the current window with no recent coaching on record.' }
 ].map((seed) => {
   const category = categories.find((item) => item.id === seed.categoryId);
@@ -481,8 +492,9 @@ let sessions = [
     due: 'Today · 5:00 PM',
     summary: 'Two video-confirmed phone-use events were recorded in seven days. Rowan reviewed both clips and added context for the second event.',
     evidence: [
-      { title: 'Phone-use event', meta: 'Lytx · Sep 2 · 10:42 PM', duration: '0:18' },
-      { title: 'Navigation interaction', meta: 'Lytx · Sep 3 · 1:16 PM', duration: '0:12' }
+      // Fixture incident positions for the prototype's map viewer; no live GPS feed is connected.
+      { title: 'Phone-use event', meta: 'Lytx · Sep 2 · 10:42 PM', duration: '0:18', location: 'Airport Rd near Derry Rd, Mississauga', coordinates: { latitude: 43.70846, longitude: -79.65362 } },
+      { title: 'Navigation interaction', meta: 'Lytx · Sep 3 · 1:16 PM', duration: '0:12', location: 'Dixie Rd near Eglinton Ave, Mississauga', coordinates: { latitude: 43.63912, longitude: -79.62231 } }
     ],
     messages: [
       { author: 'system', text: 'Automated coach sent the mapped session with two clips for review.', time: 'Yesterday · 3:42 PM' },
@@ -669,7 +681,7 @@ sessions.push(
     due: 'Completed Sep 3',
     sla: 'Met · 1h 12m',
     slaTone: 'met',
-    source: 'Manual override',
+    source: 'One-on-one',
     automationRun: 'Outside weekly cycle',
     summary: 'Sam reviewed four events and agreed to use cruise control on open-highway segments. The 14-day outcome window is active.',
     goal: 'No speeding events above the configured threshold for 14 days.',
@@ -694,7 +706,7 @@ sessions.push(
     due: 'Today · 6:00 PM',
     sla: '2h 10m left',
     slaTone: 'due-soon',
-    source: 'Manual override',
+    source: 'One-on-one',
     automationRun: 'Outside weekly cycle',
     summary: 'A manager opened a manual follow-up after an in-person observation outside the automated event feed. It is waiting for the driver.',
     evidence: [],
@@ -735,7 +747,7 @@ sessions.push(
     due: 'Dismissed Aug 20',
     sla: 'Not applicable · event dismissed',
     slaTone: 'neutral',
-    source: 'Manual override',
+    source: 'One-on-one',
     automationRun: 'Outside weekly cycle',
     summary: 'The event was reviewed and dismissed because emergency braking prevented a collision. It remains in history for context.',
     evidence: [{ title: 'Emergency braking clip', meta: 'Lytx · Aug 20 · QEW near Oakville', duration: '0:16' }],
@@ -759,9 +771,9 @@ sessions = sessions.map((session) => {
     legacyState: session.state,
     state: lifecycleState,
     stateLabel: lifecycleState === 'manager_attention'
-      ? 'Needs manager attention'
+      ? 'Needs review'
       : lifecycleState === 'system_handling'
-        ? 'System handling'
+        ? inProgressLabel(origin)
         : session.stateLabel,
     attentionReason,
     origin
@@ -771,17 +783,17 @@ sessions = sessions.map((session) => {
 function auditSessionRecord({ id, person, category, categoryId, state, attentionReason = null, origin = 'automated', index = 0 }) {
   const stateCopy = {
     manager_attention: {
-      label: 'Needs manager attention',
+      label: 'Needs review',
       latest: attentionReasonMeta[attentionReason]?.label + ' · ' + (index + 1) + 'h ago',
       due: attentionReason === 'delivery_blocked' ? 'Before next shift' : index % 2 ? 'Within 24 hours' : 'Today',
       sla: attentionReason === 'reminders_exhausted' ? 'Overdue' : attentionReason === 'delivery_blocked' ? 'Blocked' : 'On track',
       slaTone: attentionReason === 'reminders_exhausted' ? 'overdue' : attentionReason === 'delivery_blocked' ? 'blocked' : 'due-soon'
     },
-    system_handling: { label: 'System handling', latest: 'Automation continuing · ' + (index + 1) + 'h ago', due: 'Within 3 days', sla: 'On track', slaTone: 'on-track' },
+    system_handling: { label: inProgressLabel(origin), latest: 'Automation continuing · ' + (index + 1) + 'h ago', due: 'Within 3 days', sla: 'On track', slaTone: 'on-track' },
     completed: { label: 'Completed', latest: 'Coaching completed · ' + ((index % 7) + 1) + 'd ago', due: 'Completed', sla: 'Met', slaTone: 'met' },
     archived: { label: 'Archived', latest: 'Archived · ' + ((index % 4) + 2) + ' weeks ago', due: 'Closed', sla: 'Met', slaTone: 'met' }
   }[state];
-  const source = origin === 'automated' ? 'Automated' : 'Manual override';
+  const source = origin === 'automated' ? 'Automated' : 'One-on-one';
   const attentionCopy = attentionReason ? attentionReasonMeta[attentionReason] : null;
   return {
     id,
@@ -801,6 +813,7 @@ function auditSessionRecord({ id, person, category, categoryId, state, attention
     slaTone: stateCopy.slaTone,
     source,
     automationRun: origin === 'automated' ? 'Week of Aug 31' : 'Outside weekly cycle',
+    weeksAgo: state === 'archived' ? 2 + (index % 6) : 0,
     summary: attentionCopy
       ? attentionCopy.label + ' requires ' + attentionCopy.action.toLowerCase() + ' before automation can continue.'
       : state === 'completed'
@@ -868,8 +881,25 @@ const directory = driverNames.slice(0, 14).map((name, index) => ({
   safetyScore: driverSafetyScores[index],
   scoreChange: driverScoreChanges[index],
   state: [4, 9, 10, 12].includes(index) ? 'attention' : index % 3 === 0 ? 'coached' : index % 4 === 1 ? 'outcome' : 'track',
-  stateLabel: [4, 9, 10, 12].includes(index) ? 'Needs attention' : index % 3 === 0 ? 'Coached' : index % 4 === 1 ? 'Outcome monitoring' : 'On track',
+  stateLabel: [4, 9, 10, 12].includes(index) ? 'Needs review' : index % 3 === 0 ? 'Automated' : index % 4 === 1 ? 'Completed' : 'On track',
   lastCoaching: index % 3 === 0 ? 'This week' : index % 4 === 1 ? '2 weeks ago' : '—'
+}));
+
+/*
+ * Dated daily driving observations for the driver spotlight: illustrative fixture data for
+ * the 13 scored directory drivers over one observed week (Aug 24–30) with miles and trips.
+ * Drivers without a record keep the "unavailable" state; unavailable is never rendered as zero.
+ */
+const driverActivityDays = ['Aug 24', 'Aug 25', 'Aug 26', 'Aug 27', 'Aug 28', 'Aug 29', 'Aug 30'];
+const driverActivity = Object.fromEntries(directory.filter((driver) => Number.isFinite(driver.safetyScore)).map((driver, index) => {
+  const seed = hashText(driver.name);
+  const restDays = new Set([5, 6, (seed + index) % 5]);
+  const days = driverActivityDays.map((date, dayIndex) => {
+    if (restDays.has(dayIndex)) return { date, miles: 0, trips: 0 };
+    const hours = 4 + ((seed >>> (dayIndex * 2)) % 6) + ((seed >>> dayIndex) % 10) / 10;
+    return { date, miles: Math.round(hours * (42 + ((seed >>> (dayIndex + 1)) % 19))), trips: 2 + ((seed >>> (dayIndex + 2)) % 9) };
+  });
+  return [driver.name, { week: 'Aug 24–30', days }];
 }));
 
 const driverDistributionBins = [
@@ -900,6 +930,8 @@ const lessons = [
 ];
 
 let queueStatus = 'needs';
+let queueLens = 'program';
+let coachingPeriod = 1;
 let activeCategory = null;
 let workflowTab = 'needs';
 let trainingExpanded = false;
@@ -913,15 +945,12 @@ let activeDriverScoreFilter = 'all';
 let activeDriverGroup = 'all';
 let activeDriverCategory = 'all';
 let driverSort = 'action';
-let phoneTab = 'training';
 let analyticsTab = 'activity';
 let outcomeTab = 'category';
 let composerMode = 'reply';
 let drawerOpener = null;
 let categoryDrawerOpener = null;
 let toastTimer;
-let activeAiInsightId = null;
-let showAllAiInsights = false;
 const dismissedAiInsightIds = new Set();
 const resolvedAttentionIds = new Set();
 let sessionDraft = null;
@@ -965,6 +994,58 @@ let draftAutomationMode = automationMode;
 let draftCadenceWeeks = cadenceWeeks;
 let settingsState = 'saved';
 let settingsPanelMode = null;
+
+// ---- Safety event types and coaching rules ------------------------------------
+// Event types decide what automation listens for; rules decide what it does when they match.
+// Both are drafted, previewed, and activated with the rest of the automation settings.
+function defaultEventTypeRules() {
+  return categories.flatMap((category) => (category.eventTypes || []).map((type, index) => {
+    const directed = type.path === 'Directed 1:1';
+    const severity = directed || /critical|after|repeat|phone|fatigue|drows/i.test(type.name) ? 'High' : index === 0 ? 'Medium' : 'Low';
+    return {
+      id: type.id,
+      programId: category.id,
+      name: type.name,
+      severity,
+      threshold: directed || category.id === 'distraction' ? 1 : 5,
+      videoRequired: category.id === 'distraction' || /repeat|after/i.test(type.name),
+      path: directed ? 'one_to_one' : 'lesson',
+      enabled: true
+    };
+  }));
+}
+function defaultCoachingRules() {
+  return [
+    { id: 'rule-repeat', scope: 'all', condition: 'repeat_after_coaching', count: 2, action: 'one_to_one' },
+    { id: 'rule-speeding-severe', scope: 'speeding', condition: 'severity_high', count: 1, action: 'one_to_one' },
+    { id: 'rule-distraction-video', scope: 'distraction', condition: 'video_confirmed', count: 1, action: 'lesson' },
+    { id: 'rule-volume', scope: 'all', condition: 'count_threshold', count: 8, action: 'manager_review' }
+  ];
+}
+const ruleConditionLabels = {
+  severity_high: 'a high-severity event',
+  repeat_after_coaching: 'a repeat after coaching',
+  video_confirmed: 'a video-confirmed event',
+  count_threshold: 'or more events in one cycle'
+};
+const ruleActionLabels = {
+  lesson: 'assign the mapped lesson',
+  one_to_one: 'schedule a one-to-one',
+  manager_review: 'hold for manager review',
+  none: 'take no coaching action'
+};
+const severityOptions = { Low: 'Low', Medium: 'Medium', High: 'High' };
+const coachingPathOptions = { lesson: 'Mapped lesson', one_to_one: 'One-to-one' };
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+let eventTypeRules = readSavedJson('elevate-event-types', null);
+if (!Array.isArray(eventTypeRules) || !eventTypeRules.length) eventTypeRules = defaultEventTypeRules();
+let coachingRules = readSavedJson('elevate-coaching-rules', null);
+if (!Array.isArray(coachingRules)) coachingRules = defaultCoachingRules();
+let draftEventTypeRules = cloneJson(eventTypeRules);
+let draftCoachingRules = cloneJson(coachingRules);
+let eventTypeFormOpen = false;
 let settingsSavedAt = readSavedSetting('elevate-settings-saved-at', 'Sep 4 · 9:12 AM');
 let settingsAuditHistory = readSavedJson('elevate-settings-audit', [
   { action: 'Configuration activated', detail: (automationMode === 'fully' ? 'Fully automated' : automationMode === 'semi' ? 'Semi-automated' : 'Manual') + ' · ' + (cadenceWeeks === 1 ? 'weekly' : 'every 2 weeks'), time: settingsSavedAt },
@@ -974,14 +1055,14 @@ if (!Array.isArray(settingsAuditHistory)) settingsAuditHistory = [];
 
 function scheduleForCadence(weeks) {
   return weeks === 1
-    ? { analysisWindow: 'Aug 25–31 · previous 7 days', nextRun: 'Monday, Sep 7 · 8:00 AM' }
-    : { analysisWindow: 'Aug 18–31 · previous 14 days', nextRun: 'Monday, Sep 14 · 8:00 AM' };
+    ? { analysisWindow: 'Aug 25–31 · previous 7 days', nextRun: 'Mon, Sep 7, 8:00 AM' }
+    : { analysisWindow: 'Aug 18–31 · previous 14 days', nextRun: 'Mon, Sep 14, 8:00 AM' };
 }
 const initialAutomationSchedule = scheduleForCadence(cadenceWeeks);
 /** @type {AutomationRunSummary} */
 const automationRunSummary = {
   analysisWindow: initialAutomationSchedule.analysisWindow,
-  lastRun: 'Monday, Aug 31 · 8:04 AM',
+  lastRun: 'Aug 31, 8:04 AM',
   nextRun: initialAutomationSchedule.nextRun,
   mode: automationMode,
   cadenceWeeks,
@@ -1002,8 +1083,6 @@ const driverTierTotals = document.getElementById('driver-tier-totals');
 const driverFilterState = document.getElementById('driver-filter-state');
 const trainingDialog = document.getElementById('training-dialog');
 const trainingDialogContent = document.getElementById('training-dialog-content');
-const driverAppDialog = document.getElementById('driver-app-dialog');
-const phoneContent = document.getElementById('phone-content');
 categoryDrawer.inert = true;
 driverDrawer.inert = true;
 
@@ -1027,59 +1106,175 @@ function outcomeFor(category) {
   return outcomes[category.id] || outcomes.following;
 }
 
-function categoryRow(category) {
-  const selected = activeCategory?.id === category.id && categoryDrawer.classList.contains('is-open');
-  const movementClass = category.eventChange < 0 ? 'improving' : category.eventChange > 0 ? 'worsening' : '';
-  const movement = (category.eventChange > 0 ? '+' : '') + category.eventChange + '%';
+// One vocabulary everywhere: Automated and One-on-one are the two in-progress states,
+// Needs review is where a person must act, Completed closes the cycle. Every table reads the
+// same session ledger, so Programs, Groups, Drivers, and the stat band add up.
+function sessionWeeksAgo(session) {
+  return Number.isFinite(session.weeksAgo) ? session.weeksAgo : session.state === 'archived' ? 3 : 0;
+}
+
+// Archived records are earlier completions; widening the period brings them back as completed.
+function sessionInPeriod(session) {
+  if (session.state !== 'archived') return true;
+  return coachingPeriod > 1 && sessionWeeksAgo(session) < coachingPeriod;
+}
+
+function sessionsInPeriod(predicate) {
+  return allSessionRecords().filter((session) => sessionInPeriod(session) && predicate(session));
+}
+
+function sessionTab(session) {
+  if (session.state === 'manager_attention') return 'needs';
+  if (session.state === 'completed' || session.state === 'archived') return 'completed';
+  return session.origin === 'manual_override' ? 'one_to_one' : 'automated';
+}
+
+function periodLabel() {
+  return coachingPeriod === 1 ? 'This week' : 'Last ' + coachingPeriod + ' weeks';
+}
+
+function coachingCounts(predicate) {
+  const counts = { automated: 0, one_to_one: 0, needs_review: 0, completed: 0, total: 0 };
+  allSessionRecords().forEach((session) => {
+    if (!sessionInPeriod(session) || !predicate(session)) return;
+    counts.total += 1;
+    if (session.state === 'archived') { counts.completed += 1; return; }
+    if (session.state === 'manager_attention') counts.needs_review += 1;
+    else if (session.state === 'completed') counts.completed += 1;
+    else if (session.origin === 'manual_override') counts.one_to_one += 1;
+    else counts.automated += 1;
+  });
+  return counts;
+}
+
+function driverOrigin(name) {
+  return sessions.some((session) => session.person === name && session.state !== 'archived' && session.origin === 'manual_override') ? 'manual_override' : 'automated';
+}
+
+function driverMatchesStatus(item, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'automated') return item.state === 'coached' && driverOrigin(item.name) !== 'manual_override';
+  if (filter === 'one_to_one') return item.state === 'coached' && driverOrigin(item.name) === 'manual_override';
+  if (filter === 'completed' || filter === 'outcome') return item.state === 'outcome';
+  if (filter === 'coached') return item.state === 'coached';
+  return item.state === filter;
+}
+
+function groupForPerson(name) {
+  const profile = directory.find((item) => item.name === name);
+  if (profile) return profile.group;
+  return driverGroups[Math.max(0, driverNames.indexOf(name)) % driverGroups.length];
+}
+
+function movementCopy(change) {
+  return (change > 0 ? '+' : change < 0 ? '−' : '') + Math.abs(change) + '%';
+}
+
+function coachingRowCells(counts, change) {
+  const movementClass = change < 0 ? 'improving' : change > 0 ? 'worsening' : '';
   return [
-    '<button class="queue-row' + (selected ? ' is-selected' : '') + '" type="button" data-open-category="' + category.id + '">',
+    '<span class="queue-number' + (counts.automated ? '' : ' is-zero') + '"><strong>' + counts.automated + '</strong></span>',
+    '<span class="queue-number' + (counts.one_to_one ? '' : ' is-zero') + '"><strong>' + counts.one_to_one + '</strong></span>',
+    '<span class="queue-attention' + (counts.needs_review ? ' has-attention' : '') + '"><strong>' + counts.needs_review + '</strong></span>',
+    '<span class="queue-number' + (counts.completed ? '' : ' is-zero') + '"><strong>' + counts.completed + '</strong></span>',
+    '<span class="risk-change ' + movementClass + '" data-tooltip="Events per 1,000 trips over 8 weeks. Lower is safer."><strong>' + movementCopy(change) + '</strong></span>',
+    '<span class="row-arrow" aria-hidden="true">›</span>'
+  ].join('');
+}
+
+function coachingRowLabel(name, counts, change) {
+  return name + '. ' + counts.automated + ' automated, ' + counts.one_to_one + ' one-on-one, ' + counts.needs_review + ' need review, ' + counts.completed + ' completed. Event change ' + movementCopy(change) + ' over 8 weeks; lower is safer.';
+}
+
+function categoryRow(category, counts) {
+  const selected = activeCategory?.id === category.id && categoryDrawer.classList.contains('is-open');
+  return [
+    '<button class="queue-row' + (selected ? ' is-selected' : '') + '" type="button" data-open-category="' + category.id + '" aria-label="' + escapeHtml(coachingRowLabel(category.name, counts, category.eventChange)) + '">',
       '<span class="behavior-cell">',
-        '<span class="behavior-title-line"><h3>' + category.name + '</h3>' + (category.priority === 'critical' ? '<i class="priority-label">High</i>' : '') + '</span>',
+        '<span class="behavior-title-line"><h3>' + category.name + '</h3>' + (category.priority === 'critical' ? '<span class="program-priority icon-hint" data-tooltip="High-priority coaching program" aria-label="High priority">' + uiIcon('alert') + '</span>' : '') + '</span>',
       '</span>',
-      '<span class="queue-number"><strong>' + category.coached + '</strong></span>',
-      '<span class="queue-number"><strong>' + category.completed + '</strong></span>',
-      '<span class="queue-attention' + (category.attention ? ' has-attention' : '') + '"><strong>' + category.attention + '</strong><span>' + (category.attention ? 'review' : 'clear') + '</span></span>',
-      '<span class="risk-change ' + movementClass + '"><strong>' + movement + '</strong><span>' + (category.eventChange < 0 ? 'decreasing' : category.eventChange > 0 ? 'increasing' : 'steady') + '</span></span>',
-      '<span class="row-arrow" aria-hidden="true">›</span>',
+      coachingRowCells(counts, category.eventChange),
     '</button>'
   ].join('');
 }
 
-function renderQueue() {
-  const visibleCategories = (queueStatus === 'all' ? categories : categories.filter((item) => item.attention > 0))
-    .slice()
-    .sort((a, b) => b.attention - a.attention || b.coached - a.coached);
-  const totalAttention = categories.reduce((sum, category) => sum + category.attention, 0);
-  const activePrograms = categories.filter((category) => category.coached > 0).length;
-  const attentionPrograms = categories.filter((category) => category.attention > 0).length;
-  const columns = document.getElementById('queue-columns');
-  if (columns) columns.innerHTML = '<span>Program</span><span>Coached</span><span>Completed</span><span>Attention</span><span>8-week event change</span><span></span>';
-  const summary = document.getElementById('queue-summary');
-  if (summary) summary.textContent = queueStatus === 'all' ? '142 coached across ' + activePrograms + ' programs' : totalAttention + ' attention items across ' + attentionPrograms + ' programs';
-  const sidebarCount = document.getElementById('sidebar-queue-count');
-  if (sidebarCount) sidebarCount.textContent = totalAttention;
-  queueNode.innerHTML = visibleCategories.length
-    ? visibleCategories.map(categoryRow).join('')
-    : '<div class="empty-state queue-empty"><strong>No unresolved attention</strong><span>All attention items are closed or back in the automated flow. Switch to All programs to review activity and outcomes.</span></div>';
+function groupRow(name, group, counts) {
+  return [
+    '<button class="queue-row" type="button" data-open-group="' + escapeHtml(name) + '" aria-label="' + escapeHtml(coachingRowLabel(name, counts, group.change)) + '">',
+      '<span class="behavior-cell"><span class="behavior-title-line"><h3>' + escapeHtml(name) + '</h3></span></span>',
+      coachingRowCells(counts, group.change),
+    '</button>'
+  ].join('');
 }
 
-function aiInsightRationale(insight) {
-  const eventWord = insight.events === 1 ? 'event' : 'events';
-  const tripWord = insight.trips === 1 ? 'trip' : 'trips';
-  const clipCopy = insight.clips ? ' A representative clip is available.' : '';
-  const scoreCopy = insight.scoreChange === 0
-    ? 'unchanged from the prior period'
-    : (insight.scoreChange > 0 ? 'up ' : 'down ') + Math.abs(insight.scoreChange) + ' points from the prior period';
-  return insight.name + ' recorded ' + insight.events + ' ' + insight.categoryName.toLowerCase() + ' ' + eventWord + ' across ' + insight.trips + ' ' + tripWord + '.' + clipCopy + ' ' + insight.insight + ' Safety score is ' + insight.safetyScore + ', ' + scoreCopy + '. Automation made ' + insight.automationAttempts + ' ' + (insight.automationAttempts === 1 ? 'attempt' : 'attempts') + '; manager action is due ' + insight.dueTime.toLowerCase() + '.';
+function coachingSummaryCopy(counts) {
+  return periodLabel() + ' · ' + counts.total + ' sessions · ' + counts.automated + ' automated · ' + counts.one_to_one + ' one-on-one · ' + counts.needs_review + ' need review · ' + counts.completed + ' completed';
+}
+
+function syncQueueLensControl() {
+  document.querySelectorAll('[data-queue-lens]').forEach((node) => {
+    const active = node.dataset.queueLens === queueLens;
+    node.classList.toggle('is-active', active);
+    node.setAttribute('aria-checked', String(active));
+    node.tabIndex = active ? 0 : -1;
+  });
+}
+
+function renderQueue() {
+  const byGroup = queueLens === 'group';
+  const totals = coachingCounts(() => true);
+  const columns = document.getElementById('queue-columns');
+  if (columns) columns.innerHTML = '<span>' + (byGroup ? 'Group' : 'Program') + '</span><span>Automated</span><span>One-on-one</span><span>Needs review</span><span>Completed</span><span>8-week event change</span><span></span>';
+  const title = document.getElementById('queue-lens-title');
+  if (title) title.textContent = byGroup ? 'Coaching by group' : 'Coaching programs';
+  const sidebarCount = document.getElementById('sidebar-queue-count');
+  if (sidebarCount) sidebarCount.textContent = totals.needs_review;
+  const byActivity = (a, b) => b.counts.needs_review - a.counts.needs_review || (b.counts.automated + b.counts.one_to_one) - (a.counts.automated + a.counts.one_to_one) || b.counts.completed - a.counts.completed;
+  let rows = '';
+  if (byGroup) {
+    rows = Object.entries(groupComparisonData)
+      .map(([name, group]) => ({ name, group, counts: coachingCounts((session) => groupForPerson(session.person) === name) }))
+      .sort(byActivity)
+      .map((entry) => groupRow(entry.name, entry.group, entry.counts)).join('');
+  } else {
+    rows = categories
+      .map((category) => ({ category, counts: coachingCounts((session) => session.categoryId === category.id) }))
+      .filter((entry) => entry.counts.total > 0 || entry.category.coached > 0)
+      .sort(byActivity)
+      .map((entry) => categoryRow(entry.category, entry.counts)).join('');
+  }
+  const summary = document.getElementById('queue-summary');
+  if (summary) summary.textContent = coachingSummaryCopy(totals);
+  const completedStat = document.getElementById('automation-completed-count');
+  if (completedStat) completedStat.textContent = totals.completed;
+  document.querySelectorAll('[data-coaching-period]').forEach((control) => { control.value = String(coachingPeriod); });
+  queueNode.innerHTML = rows || '<div class="empty-state queue-empty"><strong>No coaching activity</strong><span>Nothing has been assigned in this cycle yet.</span></div>';
 }
 
 function updateAiCommandPreview() {
   const available = attentionAiInsights.filter((insight) => !dismissedAiInsightIds.has(insight.id));
   const unresolved = attentionAiInsights.filter((insight) => !resolvedAttentionIds.has(insight.id));
   const first = available[0];
+  const avatar = document.getElementById('ai-priority-avatar');
   const name = document.getElementById('ai-priority-name');
   const score = document.getElementById('ai-priority-score');
   const meta = document.getElementById('ai-priority-meta');
+  if (avatar) {
+    avatar.textContent = first ? initials(first.name) : '✓';
+    avatar.classList.toggle('is-clear', !first);
+  }
+  document.querySelectorAll('[data-open-driver-record]').forEach((node) => {
+    node.dataset.openDriverRecord = first ? first.name : '';
+    node.disabled = !first;
+  });
+  const clipPill = document.getElementById('ai-priority-clips');
+  if (clipPill) {
+    const spotlightSession = first ? sessions.find((session) => session.person === first.name && session.categoryId === first.categoryId && session.state === 'manager_attention') : null;
+    const clipCount = spotlightSession ? sessionClips(spotlightSession).length : 0;
+    clipPill.hidden = !clipCount;
+    clipPill.innerHTML = playGlyph + clipCount + (clipCount === 1 ? ' clip' : ' clips');
+    clipPill.setAttribute('aria-label', 'Play ' + clipCount + (clipCount === 1 ? ' clip' : ' clips') + (first ? ' for ' + first.name : ''));
+  }
   if (name) name.textContent = first ? first.name : unresolved.length ? 'All insights reviewed' : 'Automation clear';
   if (score) score.textContent = first ? 'Score ' + first.safetyScore : '';
   if (meta) meta.textContent = first
@@ -1089,63 +1284,11 @@ function updateAiCommandPreview() {
       : 'No attention items remain in this coaching cycle';
 }
 
-function updateAiToggleLabel(expanded) {
-  const remaining = attentionAiInsights.filter((insight) => !dismissedAiInsightIds.has(insight.id)).length;
-  const unresolved = attentionAiInsights.filter((insight) => !resolvedAttentionIds.has(insight.id)).length;
-  const label = document.querySelector('[data-ai-toggle-label]');
-  const text = expanded ? 'Hide prioritized attention' : remaining ? 'View ' + remaining + ' prioritized items' : unresolved ? 'All items reviewed' : 'No attention items';
-  if (label) label.innerHTML = text + ' <b aria-hidden="true">' + (expanded ? '⌃' : '›') + '</b>';
-}
-
-function renderCoachNextTray() {
-  const node = document.getElementById('coach-next-list');
-  if (!node) return;
-  const available = attentionAiInsights.filter((insight) => !dismissedAiInsightIds.has(insight.id));
-  if (activeAiInsightId && !available.some((insight) => insight.id === activeAiInsightId)) activeAiInsightId = null;
-  const visible = showAllAiInsights ? available : available.slice(0, 5);
-  const items = visible.map((insight) => {
-    const rank = available.indexOf(insight) + 1;
-    const expanded = activeAiInsightId === insight.id;
-    const route = insight.caseKind === 'directed' ? 'Automated one-to-one' : 'Automated lesson';
-    const reasonMeta = attentionReasonMeta[insight.reason];
-    return [
-      '<article class="ai-insight-item' + (expanded ? ' is-open' : '') + '">',
-        '<div class="ai-insight-row">',
-          '<span class="coach-next-rank">' + rank + '</span>',
-          '<span class="person-avatar" aria-hidden="true">' + escapeHtml(insight.initials) + '</span>',
-          '<span class="ai-insight-main"><strong>' + escapeHtml(insight.name) + '</strong><span class="ai-insight-tags"><i class="ai-category-chip">' + escapeHtml(insight.program.name) + '</i><i class="ai-criterion-chip ' + reasonMeta.tone + '">' + escapeHtml(reasonMeta.label) + '</i></span></span>',
-          '<button class="ai-why-button" type="button" data-ai-insight-why="' + insight.id + '" aria-expanded="' + expanded + '"><span aria-hidden="true">' + (expanded ? '⌃' : '↳') + '</span> Why</button>',
-          '<button class="primary-button ai-coach-button" type="button" data-ai-insight-coach="' + insight.id + '">' + escapeHtml(insight.recommendedAction) + '</button>',
-        '</div>',
-        expanded ? [
-          '<div class="ai-insight-detail">',
-            '<div class="ai-insight-detail-top"><span class="ai-label">Why this needs attention</span><small>Current weekly cycle</small></div>',
-            '<p>' + escapeHtml(aiInsightRationale(insight)) + '</p>',
-            '<div class="ai-insight-detail-foot"><span>Ranked by: <strong>' + escapeHtml(insight.rankingFactors.join(' · ')) + '</strong><br>Automation route: <strong>' + route + '</strong></span><button class="secondary-button" type="button" data-ai-insight-dismiss="' + insight.id + '">Mark reviewed</button></div>',
-          '</div>'
-        ].join('') : '',
-      '</article>'
-    ].join('');
-  }).join('');
-  const footer = available.length > 5
-    ? '<div class="coach-next-footer"><button type="button" data-ai-insights-more>' + (showAllAiInsights ? 'Show top 5' : 'Show all ' + available.length) + ' <span aria-hidden="true">' + (showAllAiInsights ? '⌃' : '⌄') + '</span></button></div>'
-    : '';
-  const unresolved = attentionAiInsights.some((insight) => !resolvedAttentionIds.has(insight.id));
-  const empty = unresolved
-    ? '<div class="ai-insight-empty"><strong>No unreviewed priority items</strong><span>Unresolved items remain in Programs and Sessions until handled.</span></div>'
-    : '<div class="ai-insight-empty"><strong>All attention resolved</strong><span>No automation outliers remain in this coaching cycle.</span></div>';
-  node.innerHTML = (items || empty) + footer;
-  updateAiCommandPreview();
-  const detail = document.getElementById('coach-next-detail');
-  updateAiToggleLabel(Boolean(detail && !detail.hidden));
-}
-
 function openAiCoach(insightId) {
   const insight = attentionAiInsights.find((item) => item.id === insightId);
   if (!insight) return;
   const category = categories.find((item) => item.id === insight.categoryId);
   const target = category && category[insight.caseKind + 'Cases'].find((item) => item.id === insight.caseId);
-  setCoachNextExpanded(false);
   openCategoryDrawer(insight.categoryId);
   openDriverDrawer(insight.caseId, insight.caseKind);
 }
@@ -1154,8 +1297,7 @@ function markAttentionReviewed(insightId) {
   const insight = attentionAiInsights.find((item) => item.id === insightId);
   if (!insight || dismissedAiInsightIds.has(insightId)) return;
   dismissedAiInsightIds.add(insightId);
-  activeAiInsightId = null;
-  renderCoachNextTray();
+  updateAiCommandPreview();
   showToast('Priority item marked reviewed');
 }
 
@@ -1168,13 +1310,12 @@ function clearAttentionForSession(session) {
   if (!insight) return;
   resolvedAttentionIds.add(insight.id);
   dismissedAiInsightIds.add(insight.id);
-  activeAiInsightId = null;
   const category = categories.find((item) => item.id === insight.categoryId);
   if (category) category.attention = Math.max(0, category.attention - 1);
   updateGroupAttention(insight, false);
   syncFleetSessionCounts();
   syncDirectoryAttentionState(session.person);
-  renderCoachNextTray();
+  updateAiCommandPreview();
   renderQueue();
   if (activeCategory && category && activeCategory.id === category.id) renderCategory();
 }
@@ -1185,7 +1326,7 @@ function relinkDeliverySession(session) {
   const previousReason = session.attentionReason;
   session.deliveryRelinked = true;
   session.state = 'system_handling';
-  session.stateLabel = 'System handling';
+  session.stateLabel = inProgressLabel(session.origin);
   session.attentionReason = null;
   session.latest = 'Identity linked · delivery retry queued';
   session.due = 'Retrying now';
@@ -1211,7 +1352,6 @@ function resolveAttentionInsight(insightId) {
   }
   resolvedAttentionIds.add(insightId);
   dismissedAiInsightIds.add(insightId);
-  activeAiInsightId = null;
   const category = categories.find((item) => item.id === insight.categoryId);
   if (category) {
     category.attention = Math.max(0, category.attention - 1);
@@ -1236,7 +1376,7 @@ function resolveAttentionInsight(insightId) {
     adjustSessionFleetTotals('manager_attention', 'completed', 'Automated', insight.reason, null);
   }
   syncDirectoryAttentionState(insight.name);
-  renderCoachNextTray();
+  updateAiCommandPreview();
   renderQueue();
   if (activeCategory && category && activeCategory.id === category.id) renderCategory();
   showToast('Attention item resolved');
@@ -1255,7 +1395,7 @@ const internalViewNames = Object.fromEntries(Object.entries(routeViewNames).map(
 
 function updateUrlState(replace = false) {
   const url = new URL(window.location.href);
-  ['session', 'origin', 'analytics', 'outcome', 'queue', 'driverStatus', 'group', 'program', 'score', 'sort', 'view', 'q', 'record'].forEach((key) => url.searchParams.delete(key));
+  ['session', 'origin', 'analytics', 'outcome', 'queue', 'driverStatus', 'group', 'program', 'score', 'sort', 'view', 'q', 'record', 'driver'].forEach((key) => url.searchParams.delete(key));
   if (currentView === 'inbox') {
     url.searchParams.set('session', activeSessionFilter);
     url.searchParams.set('origin', activeSessionSource);
@@ -1265,6 +1405,8 @@ function updateUrlState(replace = false) {
     if (analyticsTab === 'outcomes') url.searchParams.set('outcome', outcomeTab);
   } else if (currentView === 'coaching') {
     url.searchParams.set('queue', queueStatus);
+    if (queueLens !== 'program') url.searchParams.set('lens', queueLens);
+    if (coachingPeriod !== 1) url.searchParams.set('period', String(coachingPeriod));
   } else if (currentView === 'drivers') {
     url.searchParams.set('driverStatus', activeDriverFilter);
     if (activeDriverGroup !== 'all') url.searchParams.set('group', activeDriverGroup);
@@ -1275,6 +1417,7 @@ function updateUrlState(replace = false) {
     if (driverTerm) url.searchParams.set('q', driverTerm);
   }
   if (activeSessionId) url.searchParams.set('record', activeSessionId);
+  if (activeDriverProfile && currentView === 'drivers') url.searchParams.set('driver', activeDriverProfile);
   url.hash = routeViewNames[currentView];
   const next = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : '') + url.hash;
   const current = window.location.pathname + window.location.search + window.location.hash;
@@ -1298,6 +1441,8 @@ function applyUrlState() {
   analyticsTab = 'activity';
   outcomeTab = 'category';
   queueStatus = 'needs';
+  queueLens = 'program';
+  coachingPeriod = 1;
   activeDriverFilter = 'all';
   activeDriverGroup = 'all';
   activeDriverCategory = 'all';
@@ -1311,13 +1456,14 @@ function applyUrlState() {
   if (['activity', 'outcomes'].includes(params.get('analytics'))) analyticsTab = params.get('analytics');
   if (['category', 'cohort', 'driver'].includes(params.get('outcome'))) outcomeTab = params.get('outcome');
   if (['needs', 'all'].includes(params.get('queue'))) queueStatus = params.get('queue');
-  if (['all', 'attention', 'coached', 'outcome', 'track'].includes(params.get('driverStatus'))) activeDriverFilter = params.get('driverStatus');
+  if (['program', 'group'].includes(params.get('lens'))) queueLens = params.get('lens');
+  if (['1', '4', '8'].includes(params.get('period'))) coachingPeriod = Number(params.get('period'));
+  if (['all', 'attention', 'automated', 'one_to_one', 'completed', 'coached', 'outcome', 'track'].includes(params.get('driverStatus'))) activeDriverFilter = params.get('driverStatus');
   if (params.get('group') && (params.get('group') === 'all' || driverGroups.includes(params.get('group')))) activeDriverGroup = params.get('group');
   if (params.get('program') && (params.get('program') === 'all' || categories.some((program) => program.name === params.get('program')))) activeDriverCategory = params.get('program');
   if (params.get('score') && (params.get('score') === 'all' || driverDistributionBins.some((bin) => bin.key === params.get('score')) || ['risk', 'watch', 'safe'].includes(params.get('score')))) activeDriverScoreFilter = params.get('score');
-  if (['action', 'lowest', 'decline', 'recent'].includes(params.get('sort'))) driverSort = params.get('sort');
+  if (['action', 'lowest', 'decline'].includes(params.get('sort'))) driverSort = params.get('sort');
   if (view === 'inbox') sessionSearch = params.get('q') || '';
-  setView(view, { updateUrl: false, focusHeading: false });
   const sessionSearchInput = document.getElementById('session-search');
   const driverSearchInput = document.getElementById('driver-search');
   if (sessionSearchInput) sessionSearchInput.value = sessionSearch;
@@ -1328,15 +1474,20 @@ function applyUrlState() {
   if (groupSelect) groupSelect.value = activeDriverGroup;
   if (programSelect) programSelect.value = activeDriverCategory;
   if (sortSelect) sortSelect.value = driverSort;
+  setView(view, { updateUrl: false, focusHeading: false });
   const requestedRecord = params.get('record');
+  const requestedDriver = view === 'drivers' && directory.some(driver => driver.name === params.get('driver')) ? params.get('driver') : null;
+  if (requestedDriver) openDriverProfile(requestedDriver);
   if (requestedRecord && sessions.some((session) => session.id === requestedRecord)) {
-    openSessionDrawer(requestedRecord, { type: 'deep-link' });
+    const fromProfile = requestedDriver && sessions.some(session => session.id === requestedRecord && session.person === requestedDriver);
+    openSessionDrawer(requestedRecord, fromProfile ? { type: 'driver-profile', driverName: requestedDriver } : { type: 'deep-link' });
   }
 }
 
 function setView(view, options = {}) {
   view = internalViewNames[view] || view;
   if (!routeViewNames[view]) view = 'coaching';
+  document.querySelectorAll('[data-filter-sheet].is-open').forEach((sheet) => closeFilterSheet(sheet, false));
   if (categoryDrawer.classList.contains('is-open')) closeCategoryDrawer(false);
   if (driverDrawer.classList.contains('is-open')) closeDrawer(false);
   currentView = view;
@@ -1363,6 +1514,7 @@ function setView(view, options = {}) {
       node.setAttribute('aria-checked', String(active));
       node.removeAttribute('aria-pressed');
     });
+    syncQueueLensControl();
     renderQueue();
   }
   if (view === 'drivers') {
@@ -1418,7 +1570,7 @@ function closeCategoryDrawer(restoreFocus = true) {
     renderQueue();
     if (!restoreFocus) return;
     const target = categoryDrawerReturnTarget?.type === 'group'
-      ? Array.from(document.querySelectorAll('[data-open-group]')).find((node) => node.dataset.openGroup === categoryDrawerReturnTarget.id)
+      ? (categoryDrawerOpener?.dataset.openGroup === categoryDrawerReturnTarget.id && document.contains(categoryDrawerOpener) ? categoryDrawerOpener : Array.from(document.querySelectorAll('[data-open-group]')).find((node) => node.dataset.openGroup === categoryDrawerReturnTarget.id))
       : Array.from(document.querySelectorAll('[data-open-category]')).find((node) => node.dataset.openCategory === categoryDrawerReturnTarget?.id);
     if (target) target.focus();
     else if (categoryDrawerOpener && document.contains(categoryDrawerOpener)) categoryDrawerOpener.focus();
@@ -1440,21 +1592,67 @@ const groupDisplayIds = {
   'Regional · West': 'west'
 };
 
+function renderGroupOverview() {
+  const overview = document.getElementById('groups-overview');
+  if (!overview) return;
+  const groups = Object.entries(groupComparisonData);
+  if (!groups.length) {
+    overview.innerHTML = '<div class="overview-panel"><span class="overview-heading">Group highlights</span><strong class="overview-person">No group data yet</strong></div>';
+    return;
+  }
+  const workloadGroups = groups.slice().sort((a, b) => b[1].coached - a[1].coached);
+  const maxWorkload = Math.max(1, ...workloadGroups.map(([, group]) => group.coached));
+  const currentWeek = weeklyCoachingActivity[weeklyCoachingActivity.length - 1];
+  const mostImproved = groups.slice().sort((a, b) => a[1].change - b[1].change)[0];
+  const worsening = groups.filter(([, group]) => group.change > 0).sort((a, b) => b[1].change - a[1].change)[0];
+  const changeLabel = (change) => (change > 0 ? '+' : change < 0 ? '−' : '') + Math.abs(change) + '%';
+  const trendPanel = ([name, group], label, action) => {
+    const tone = group.change > 0 ? 'negative' : group.change < 0 ? 'positive' : 'neutral';
+    const chartLabel = name + ': ' + group.weeklyRates.join(', ') + ' events per 1,000 trips, weekly from July 13 to August 31. Lower is safer.';
+    return '<button class="overview-panel" type="button" data-open-group="' + escapeHtml(name) + '" aria-label="' + escapeHtml(label + ': ' + name + ', events ' + changeLabel(group.change) + ' from July 13 to August 31. Open group details.') + '">' +
+      '<span class="overview-heading">' + label + '</span>' +
+      '<span class="overview-chart-row"><strong class="overview-value is-' + tone + '">' + changeLabel(group.change) + '</strong>' + overviewSparkline(group.weeklyRates, { label: chartLabel, tone }) + '</span>' +
+      '<strong class="overview-person">' + escapeHtml(name) + '</strong>' +
+      '<span class="overview-foot"><span>Events / 1K trips · lower is safer</span><span>' + action + uiIcon('chevron') + '</span></span>' +
+      '</button>';
+  };
+  overview.innerHTML = [
+    '<article class="overview-panel overview-workload-panel" aria-labelledby="group-workload-title">',
+      '<header class="overview-heading"><h2 id="group-workload-title">Coaching by group <button class="info-hint" type="button" aria-label="About coaching workload by group" data-tooltip="Automated coaching assignments in the latest weekly cycle, not unique drivers. Select a group to review its coaching activity and programs.">' + uiIcon('info') + '</button></h2></header>',
+      '<span class="overview-scope" id="group-workload-scope">Automated assignments · week of ' + escapeHtml(currentWeek.label) + '</span>',
+      '<div class="overview-workload" id="group-coaching-workload" role="group" aria-label="Automated assignments by group">',
+        workloadGroups.map(([name, group]) => '<button class="overview-workload-row" type="button" data-open-group="' + escapeHtml(name) + '" aria-label="' + escapeHtml(name + ': ' + group.coached + ' automated assignments, week of ' + currentWeek.label + '. Open group details.') + '"><span>' + escapeHtml(name) + '</span><span class="overview-bar-track" aria-hidden="true"><i style="width:' + (group.coached / maxWorkload * 100) + '%"></i></span><strong>' + group.coached + '</strong></button>').join(''),
+      '</div>',
+    '</article>',
+    trendPanel(mostImproved, mostImproved[1].change < 0 ? 'Most improved' : 'Smallest event change', 'Open'),
+    worsening ? trendPanel(worsening, 'Worsening trend', 'Review') : '<div class="overview-panel"><span class="overview-heading">Worsening trend</span><strong class="overview-value">0</strong><strong class="overview-person">No worsening groups</strong><span class="overview-foot">Events / 1K trips · Jul 13–Aug 31</span></div>'
+  ].join('');
+}
+
+function groupComparisonRow(name, group) {
+  const counts = coachingCounts((session) => groupForPerson(session.person) === name);
+  const scoreTone = group.score < 60 ? 'risk' : group.score < 80 ? 'watch' : 'good';
+  const label = name + ': ' + group.drivers + ' drivers, safety score ' + group.score + ', ' + counts.automated + ' automated, ' + counts.one_to_one + ' one-on-one, ' + counts.needs_review + ' need review, ' + counts.completed + ' completed. Events ' + (group.change > 0 ? 'increased ' : 'decreased ') + Math.abs(group.change) + ' percent. Open group details.';
+  return '<button class="group-row" type="button" data-open-group="' + escapeHtml(name) + '" aria-label="' + escapeHtml(label) + '">'
+    + '<strong data-label="Group">' + escapeHtml(name) + '</strong>'
+    + '<span data-label="Drivers">' + group.drivers + '</span>'
+    + '<b class="' + scoreTone + '" data-label="Safety score">' + group.score + '</b>'
+    + '<span data-label="Automated">' + counts.automated + '</span>'
+    + '<span data-label="One-on-one">' + counts.one_to_one + '</span>'
+    + '<em class="' + (counts.needs_review >= 4 ? 'risk' : '') + '" data-label="Needs review">' + counts.needs_review + '</em>'
+    + '<span data-label="Completed">' + counts.completed + '</span>'
+    + '<i class="' + (group.change > 0 ? 'negative' : 'positive') + '" data-label="Event change">' + movementCopy(group.change) + '</i>'
+    + '</button>';
+}
+
 function syncGroupDisplay() {
-  Object.entries(groupDisplayIds).forEach(([groupName, id]) => {
-    const group = groupComparisonData[groupName];
-    const completedNode = document.getElementById('group-' + id + '-completed');
-    const attentionNode = document.getElementById('group-' + id + '-attention');
-    if (completedNode) completedNode.textContent = group.completed;
-    if (attentionNode) {
-      attentionNode.textContent = group.attention;
-      attentionNode.classList.toggle('risk', group.attention >= 4);
-    }
-  });
+  renderGroupOverview();
+  const rows = document.getElementById('group-rows');
+  if (rows) rows.innerHTML = Object.entries(groupComparisonData).map(([name, group]) => groupComparisonRow(name, group)).join('');
   const priority = Object.entries(groupComparisonData).sort((a, b) => b[1].attention - a[1].attention)[0];
   const priorityName = document.getElementById('groups-priority-name');
   const priorityCount = document.getElementById('groups-priority-count');
-  if (priorityName) priorityName.textContent = priority[1].attention ? priority[0] : 'No groups need attention';
+  if (priorityName) priorityName.textContent = priority[1].attention ? priority[0] : 'No groups need review';
   if (priorityCount) priorityCount.textContent = priority[1].attention;
 }
 
@@ -1480,13 +1678,14 @@ function openGroupDrawer(groupName) {
   sessionDraft = null;
   categoryDrawer.classList.remove('is-composer');
   const chartCategory = { id: 'group-' + groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name: groupName, weeklyRates: group.weeklyRates };
+  const groupCounts = coachingCounts((session) => groupForPerson(session.person) === groupName);
   categoryContent.innerHTML = [
     '<header class="category-panel-header"><div><p class="eyebrow">Group comparison</p><div class="panel-title-line"><h1 id="category-title">' + escapeHtml(groupName) + '</h1></div></div><button class="icon-button" type="button" data-close-category aria-label="Close group">×</button></header>',
     '<div class="category-panel-scroll group-detail-drawer">',
-      '<div class="category-facts"><strong>' + group.score + '<span>safety score</span></strong><strong>' + group.coached + '<span>coached</span></strong><strong>' + group.completed + '<span>completed</span></strong><strong>' + group.attention + '<span>need attention</span></strong></div>',
+      '<div class="category-facts"><strong>' + group.score + '<span>safety score</span></strong><strong>' + groupCounts.automated + '<span>automated</span></strong><strong>' + groupCounts.one_to_one + '<span>one-on-one</span></strong><strong>' + groupCounts.needs_review + '<span>need review</span></strong><strong>' + groupCounts.completed + '<span>completed</span></strong></div>',
       '<section class="group-detail-summary"><div><span>Weekly result</span><h2>' + (group.change > 0 ? 'Coached events increased ' + group.change + '%' : 'Coached events decreased ' + Math.abs(group.change) + '%') + '</h2><p>' + (group.change > 0 ? 'This group is the first priority for program review.' : 'The group is moving in the intended direction.') + '</p></div><button class="secondary-button" type="button" data-view-link="drivers" data-driver-group-link="' + escapeHtml(groupName) + '">View ' + group.drivers + ' drivers</button></section>',
       '<section class="signal-panel"><div class="signal-heading"><div><h2>Weekly coached events</h2><span>Events per 1,000 trips · eight coaching cycles</span></div><div class="signal-value ' + (group.change > 0 ? 'is-negative' : '') + '"><strong>' + (group.change > 0 ? '+' : '') + group.change + '%</strong><span>since Jul 13</span></div></div><div class="category-progress-chart">' + categoryWeeklyChartSvg(chartCategory) + '</div><div class="chart-axis"><span>Jul 13</span><span>Aug 10</span><span>Aug 31</span></div></section>',
-      '<section class="group-programs"><header><div><h2>Programs in this group</h2><span>Attention first</span></div></header><div class="group-program-head"><span>Program</span><span>Coached</span><span>Completed</span><span>Attention</span><span>Event change</span></div>' + group.programs.slice().sort((a, b) => b[3] - a[3]).map((program) => '<div class="group-program-row"><strong>' + escapeHtml(program[0]) + '</strong><span>' + program[1] + '</span><span>' + program[2] + '</span><em class="' + (program[3] ? 'risk' : '') + '">' + program[3] + '</em><i class="' + (program[4] > 0 ? 'negative' : 'positive') + '">' + (program[4] > 0 ? '+' : '−') + Math.abs(program[4]) + '%</i></div>').join('') + '</section>',
+      '<section class="group-programs"><header><div><h2>Programs in this group</h2><span>' + escapeHtml(periodLabel()) + ' · needs review first</span></div></header><div class="group-program-head"><span>Program</span><span>Automated</span><span>One-on-one</span><span>Needs review</span><span>Completed</span><span>Event change</span></div>' + categories.map((program) => ({ program, counts: coachingCounts((session) => groupForPerson(session.person) === groupName && session.categoryId === program.id) })).filter((entry) => entry.counts.total > 0).sort((a, b) => b.counts.needs_review - a.counts.needs_review || b.counts.total - a.counts.total).map(({ program, counts }) => '<div class="group-program-row"><strong>' + escapeHtml(program.name) + '</strong><span>' + counts.automated + '</span><span>' + counts.one_to_one + '</span><span>' + counts.needs_review + '</span><span>' + counts.completed + '</span><i class="' + (program.eventChange > 0 ? 'negative' : 'positive') + '">' + movementCopy(program.eventChange) + '</i></div>').join('') + '</section>',
     '</div>'
   ].join('');
   categoryBackdrop.hidden = false;
@@ -1498,28 +1697,104 @@ function openGroupDrawer(groupName) {
   setTimeout(() => categoryDrawer.querySelector('[data-close-category]')?.focus(), 100);
 }
 
+function beforeAfterRows() {
+  if (outcomeTab === 'cohort') {
+    return Object.entries(groupComparisonData).map(([name, group]) => ({
+      label: name,
+      before: group.weeklyRates[0],
+      after: group.weeklyRates[group.weeklyRates.length - 1],
+      change: group.change
+    }));
+  }
+  if (outcomeTab === 'driver') {
+    return outcomeDetailViews.driver.rows.map((row) => ({
+      label: row[0],
+      meta: row[1],
+      before: Number(row[2]),
+      after: Number(row[3]),
+      change: parseInt(row[4].replace('−', '-'), 10)
+    }));
+  }
+  return categories
+    .filter((category) => category.coached > 0)
+    .sort((a, b) => b.coached - a.coached)
+    .map((category) => {
+      const outcome = outcomeFor(category);
+      return { label: category.name, before: outcome.before, after: outcome.after, change: outcome.change };
+    });
+}
+
+function formatRate(value) {
+  return (Math.round(value * 10) / 10).toFixed(1);
+}
+
+// One row per program, group, or driver: a hollow dot where it started, a solid dot where it is now.
+function beforeAfterChartSvg(rows, availableWidth) {
+  const width = Math.max(280, Math.min(960, availableWidth || 720));
+  const compact = width < 520;
+  const rowHeight = 36;
+  const top = 6;
+  const height = top + rows.length * rowHeight + 6;
+  const labelWidth = compact ? 108 : 156;
+  const changeWidth = compact ? 52 : 60;
+  const left = labelWidth + 10;
+  const right = changeWidth + 10;
+  const plotWidth = width - left - right;
+  const peak = Math.max(1, ...rows.flatMap((row) => [row.before, row.after]));
+  const max = Math.ceil(peak * 1.15 * 2) / 2;
+  const x = (value) => left + value / max * plotWidth;
+  const maxLabelChars = compact ? 14 : 20;
+  const body = rows.map((row, index) => {
+    const y = top + index * rowHeight + rowHeight / 2;
+    const tone = row.after < row.before ? 'improved' : row.after > row.before ? 'worse' : 'flat';
+    const label = row.label.length > maxLabelChars ? row.label.slice(0, maxLabelChars - 1).trimEnd() + '…' : row.label;
+    const beforeX = x(row.before);
+    const afterX = x(row.after);
+    const afterLeft = afterX <= beforeX;
+    const values = compact ? '' : [
+      '<text class="ba-value" x="' + (afterLeft ? beforeX + 10 : beforeX - 10).toFixed(1) + '" y="' + (y + 4) + '" text-anchor="' + (afterLeft ? 'start' : 'end') + '">' + formatRate(row.before) + '</text>',
+      '<text class="ba-value after" x="' + (afterLeft ? afterX - 10 : afterX + 10).toFixed(1) + '" y="' + (y + 4) + '" text-anchor="' + (afterLeft ? 'end' : 'start') + '">' + formatRate(row.after) + '</text>'
+    ].join('');
+    return [
+      '<g class="ba-row ' + tone + '">',
+        '<title>' + escapeHtml(row.label) + (row.meta ? ' · ' + escapeHtml(row.meta) : '') + ': ' + formatRate(row.before) + ' before, ' + formatRate(row.after) + ' after coaching (' + movementCopy(row.change) + '). Events per 1,000 trips; lower is safer.</title>',
+        '<text class="ba-label" x="0" y="' + (y + 4) + '">' + escapeHtml(label) + '</text>',
+        '<line class="ba-track" x1="' + left + '" y1="' + y + '" x2="' + (left + plotWidth) + '" y2="' + y + '"/>',
+        '<line class="ba-link" x1="' + beforeX.toFixed(1) + '" y1="' + y + '" x2="' + afterX.toFixed(1) + '" y2="' + y + '"/>',
+        '<circle class="ba-before" cx="' + beforeX.toFixed(1) + '" cy="' + y + '" r="5"/>',
+        '<circle class="ba-after" cx="' + afterX.toFixed(1) + '" cy="' + y + '" r="5.5"/>',
+        values,
+        '<text class="ba-change" x="' + width + '" y="' + (y + 4) + '" text-anchor="end">' + movementCopy(row.change) + '</text>',
+      '</g>'
+    ].join('');
+  }).join('');
+  return '<svg class="before-after-chart" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-labelledby="outcome-chart-title outcome-chart-summary">' + body + '</svg>';
+}
+
 function renderOutcomeProgressChart() {
   const node = document.getElementById('outcome-progress-chart');
   if (!node) return;
-  node.innerHTML = programProgressChartSvg();
+  const rows = beforeAfterRows();
+  node.innerHTML = beforeAfterChartSvg(rows, node.clientWidth);
+  const lensLabel = { category: 'by program', cohort: 'by group', driver: 'by driver' }[outcomeTab] || 'by program';
+  const lens = document.getElementById('outcome-chart-lens');
+  if (lens) lens.textContent = lensLabel;
+  const text = 'Events per 1,000 trips before and after coaching, ' + lensLabel + ': ' + rows.map((row) => row.label + ' ' + formatRate(row.before) + ' to ' + formatRate(row.after) + ' (' + movementCopy(row.change) + ')').join('; ') + '. Lower is safer.';
+  ['outcome-chart-summary', 'outcome-chart-summary-text'].forEach((id) => {
+    const summary = document.getElementById(id);
+    if (summary) summary.textContent = text;
+  });
 }
 
 const weeklyCoachingActivity = [
-  { label: 'Jul 13', identified: 118, coached: 113, completed: 101, escalated: 12 },
-  { label: 'Jul 20', identified: 121, coached: 116, completed: 104, escalated: 12 },
-  { label: 'Jul 27', identified: 124, coached: 119, completed: 106, escalated: 13 },
-  { label: 'Aug 3', identified: 133, coached: 128, completed: 114, escalated: 14 },
-  { label: 'Aug 10', identified: 139, coached: 134, completed: 121, escalated: 13 },
-  { label: 'Aug 17', identified: 136, coached: 131, completed: 118, escalated: 13 },
-  { label: 'Aug 24', identified: 151, coached: 147, completed: 132, escalated: 15 },
-  { label: 'Aug 31', identified: 148, coached: 142, completed: 128, escalated: 14 }
-];
-
-/** @type {OutcomeSeries[]} */
-const outcomeSeries = [
-  { id: 'following', label: 'Following distance', values: weeklyCycleStats.following.weeklyRates, unit: 'events_per_1000_trips', exposureTrips: 14290, sampleSize: 42, direction: 'lower_is_better' },
-  { id: 'speeding', label: 'Speeding', values: weeklyCycleStats.speeding.weeklyRates, unit: 'events_per_1000_trips', exposureTrips: 26840, sampleSize: 31, direction: 'lower_is_better' },
-  { id: 'braking', label: 'Harsh braking', values: weeklyCycleStats.braking.weeklyRates, unit: 'events_per_1000_trips', exposureTrips: 19870, sampleSize: 18, direction: 'lower_is_better' }
+  { label: 'Jul 13', identified: 118, coached: 113, oneToOne: 2, completed: 101, escalated: 12 },
+  { label: 'Jul 20', identified: 121, coached: 116, oneToOne: 3, completed: 104, escalated: 12 },
+  { label: 'Jul 27', identified: 124, coached: 119, oneToOne: 2, completed: 106, escalated: 13 },
+  { label: 'Aug 3', identified: 133, coached: 128, oneToOne: 3, completed: 114, escalated: 14 },
+  { label: 'Aug 10', identified: 139, coached: 134, oneToOne: 4, completed: 121, escalated: 13 },
+  { label: 'Aug 17', identified: 136, coached: 131, oneToOne: 3, completed: 118, escalated: 13 },
+  { label: 'Aug 24', identified: 151, coached: 147, oneToOne: 5, completed: 132, escalated: 15 },
+  { label: 'Aug 31', identified: 148, coached: 142, oneToOne: 4, completed: 128, escalated: 14 }
 ];
 
 function pointsPath(values, width, height, left, right, top, bottom, min, max) {
@@ -1536,19 +1811,20 @@ function linePath(points) {
   return points.map((point, index) => (index ? 'L' : 'M') + point.x.toFixed(1) + ' ' + point.y.toFixed(1)).join(' ');
 }
 
-function coachingActivityChartSvg() {
-  const width = 760;
+function coachingActivityChartSvg(availableWidth) {
+  const width = Math.max(300, Math.min(760, availableWidth || 760));
   const height = 230;
-  const left = 42;
-  const right = 22;
+  const left = width < 450 ? 29 : 42;
+  const right = width < 450 ? 5 : 22;
   const top = 20;
   const bottom = 34;
   const max = 160;
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
   const groupWidth = plotWidth / weeklyCoachingActivity.length;
-  const barWidth = 10;
-  const dataSummary = weeklyCoachingActivity.map((week) => week.label + ': ' + week.identified + ' identified, ' + week.coached + ' automatically coached, ' + week.completed + ' completed, ' + week.escalated + ' escalated').join('. ');
+  const barWidth = Math.min(10, (groupWidth - 11) / 5);
+  const barStep = barWidth + 2;
+  const dataSummary = weeklyCoachingActivity.map((week) => week.label + ': ' + week.identified + ' identified, ' + week.coached + ' automated, ' + week.oneToOne + ' one-on-one, ' + week.completed + ' completed, ' + week.escalated + ' need review').join('. ');
   return [
     '<svg class="activity-line-chart weekly-activity-chart" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-labelledby="weekly-activity-title weekly-activity-desc">',
       '<title id="weekly-activity-title">Weekly coaching throughput</title>',
@@ -1559,42 +1835,19 @@ function coachingActivityChartSvg() {
       }).join('') + '</g>',
       '<g class="weekly-bars">' + weeklyCoachingActivity.map((week, index) => {
         const center = left + groupWidth * index + groupWidth / 2;
+        const showWeekLabel = width >= 450 || [0, 2, 4, weeklyCoachingActivity.length - 1].includes(index);
         const bars = [
-          { value: week.identified, tone: 'identified', label: 'identified', x: center - 22 },
-          { value: week.coached, tone: 'coached', label: 'automatically coached', x: center - 10 },
-          { value: week.completed, tone: 'completed', label: 'completed', x: center + 2 },
-          { value: week.escalated, tone: 'escalated', label: 'escalated', x: center + 14 }
+          { value: week.identified, tone: 'identified', label: 'identified', x: center - barStep * 2 - barWidth / 2 },
+          { value: week.coached, tone: 'coached', label: 'automated', x: center - barStep - barWidth / 2 },
+          { value: week.oneToOne, tone: 'one-to-one', label: 'one-on-one', x: center - barWidth / 2 },
+          { value: week.completed, tone: 'completed', label: 'completed', x: center + barStep - barWidth / 2 },
+          { value: week.escalated, tone: 'escalated', label: 'need review', x: center + barStep * 2 - barWidth / 2 }
         ];
         return bars.map((bar) => {
           const barHeight = bar.value / max * plotHeight;
           return '<rect class="activity-bar ' + bar.tone + '" x="' + bar.x.toFixed(1) + '" y="' + (top + plotHeight - barHeight).toFixed(1) + '" width="' + barWidth + '" height="' + barHeight.toFixed(1) + '" rx="3"><title>' + week.label + ': ' + bar.value + ' ' + bar.label + '</title></rect>';
-        }).join('') + '<text class="activity-week-label" x="' + center.toFixed(1) + '" y="' + (height - 8) + '" text-anchor="middle">' + week.label + '</text>';
+        }).join('') + (showWeekLabel ? '<text class="activity-week-label" x="' + center.toFixed(1) + '" y="' + (height - 8) + '" text-anchor="middle">' + week.label + '</text>' : '');
       }).join('') + '</g>',
-    '</svg>'
-  ].join('');
-}
-
-function programProgressChartSvg() {
-  const width = 720;
-  const height = 220;
-  const left = 42;
-  const right = 22;
-  const top = 20;
-  const bottom = 26;
-  const series = outcomeSeries;
-  const max = 6;
-  return [
-    '<svg class="program-progress-chart" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-labelledby="program-progress-title program-progress-desc">',
-      '<title id="program-progress-title">Weekly coached event rates by program</title>',
-      '<desc id="program-progress-desc">Weekly events per 1,000 trips; lower is safer. Following distance uses 14,290 trips and 42 drivers, speeding uses 26,840 trips and 31 drivers, and harsh braking uses 19,870 trips and 18 drivers.</desc>',
-      '<g class="trend-grid">' + [6, 3, 0].map((tick, index) => {
-        const y = top + index * (height - top - bottom) / 2;
-        return '<line x1="' + left + '" y1="' + y + '" x2="' + (width - right) + '" y2="' + y + '"/><text x="4" y="' + (y + 4) + '">' + tick + '</text>';
-      }).join('') + '</g>',
-      series.map((item) => {
-        const points = pointsPath(item.values, width, height, left, right, top, bottom, 0, max);
-        return '<path class="program-line ' + item.id + '" d="' + linePath(points) + '"/><g class="program-points ' + item.id + '">' + points.map((point, index) => '<circle cx="' + point.x.toFixed(1) + '" cy="' + point.y.toFixed(1) + '" r="3"><title>Week ' + (index + 1) + ': ' + item.label + ' ' + point.value + ' events per 1,000 trips; lower is safer</title></circle>').join('') + '</g>';
-      }).join(''),
     '</svg>'
   ].join('');
 }
@@ -1622,9 +1875,21 @@ function categoryWeeklyChartSvg(category) {
   ].join('');
 }
 
+// Program performance reads the same ledger as the Automation Centre and Groups tables.
+function renderAnalyticsProgramTable() {
+  const body = document.getElementById('analytics-program-rows');
+  if (!body) return;
+  body.innerHTML = categories
+    .map((category) => ({ category, counts: coachingCounts((session) => session.categoryId === category.id) }))
+    .filter((entry) => entry.counts.total > 0 || entry.category.coached > 0)
+    .sort((a, b) => b.counts.total - a.counts.total)
+    .map(({ category, counts }) => '<tr><th scope="row">' + escapeHtml(category.name) + '</th><td>' + counts.automated + '</td><td>' + counts.one_to_one + '</td><td>' + counts.needs_review + '</td><td>' + counts.completed + '</td><td class="' + (category.eventChange > 0 ? 'analytics-review-value' : 'positive') + '">' + movementCopy(category.eventChange) + '</td></tr>')
+    .join('');
+}
+
 function renderCoachingActivityChart() {
   const node = document.getElementById('coaching-activity-chart');
-  if (node) node.innerHTML = coachingActivityChartSvg();
+  if (node) node.innerHTML = coachingActivityChartSvg(node.clientWidth);
 }
 
 function renderAnalytics() {
@@ -1637,6 +1902,24 @@ function renderAnalytics() {
   });
   const activity = document.getElementById('analytics-activity');
   const outcomes = document.getElementById('analytics-outcomes');
+  const reportScope = document.getElementById('analytics-report-scope');
+  if (reportScope) reportScope.textContent = analyticsTab === 'activity' ? 'Week of Aug 31' : 'Last 8 weeks';
+  if (activity && !activity.dataset.chartsObserved && typeof ResizeObserver !== 'undefined') {
+    const chartObserver = new ResizeObserver((entries) => {
+      entries.forEach(({ target, contentRect }) => {
+        const width = Math.round(contentRect.width);
+        if (!width || target.dataset.chartWidth === String(width)) return;
+        target.dataset.chartWidth = String(width);
+        if (target.id === 'coaching-activity-chart') renderCoachingActivityChart();
+        else renderOutcomeProgressChart();
+      });
+    });
+    ['coaching-activity-chart', 'outcome-progress-chart'].forEach((id) => {
+      const chart = document.getElementById(id);
+      if (chart) chartObserver.observe(chart);
+    });
+    activity.dataset.chartsObserved = 'true';
+  }
   if (activity) activity.hidden = analyticsTab !== 'activity';
   if (outcomes) outcomes.hidden = analyticsTab !== 'outcomes';
   if (analyticsTab === 'activity') renderCoachingActivityChart();
@@ -1644,6 +1927,11 @@ function renderAnalytics() {
     renderOutcomeProgressChart();
     renderOutcomeTable();
   }
+  document.querySelectorAll('[data-analytics-completion-hint]').forEach((hint) => {
+    const description = document.getElementById('outcome-completion-count').textContent + ' completed coaching.';
+    hint.dataset.tooltip = description;
+    hint.setAttribute('aria-label', description);
+  });
 }
 
 function quickTrainingBlock(category) {
@@ -1696,7 +1984,7 @@ function directedBlock(category) {
   if (!cases.length) return '<div class="empty-state compact"><strong>No attention needed</strong><span>Every outlier in this program has been reviewed.</span></div>';
   return [
     '<section class="directed-section attention-section">',
-      '<header><div><h3>Needs attention <b>' + scope.attention + '</b></h3><p>Only drivers automation could not resolve.</p></div></header>',
+      '<header><div><h3>Needs review <b>' + scope.attention + '</b></h3><p>Only drivers automation could not resolve.</p></div></header>',
       '<div class="directed-columns"><span>Driver</span><span>Why</span><span>Evidence</span><span></span></div>',
       cases.map(({ item, insight }) => [
         '<div class="directed-row">',
@@ -1741,7 +2029,8 @@ function progressBlock(category, type) {
 
 function outcomesBlock(category) {
   const outcome = outcomeFor(category);
-  const currentCompletion = Math.round(category.completed / Math.max(1, category.coached) * 100);
+  const completionCounts = coachingCounts((session) => session.categoryId === category.id);
+  const currentCompletion = completionCounts.total ? Math.round(completionCounts.completed / completionCounts.total * 100) : 0;
   return [
     '<section class="category-outcomes">',
       '<div class="outcome-result">',
@@ -1754,14 +2043,45 @@ function outcomesBlock(category) {
   ].join('');
 }
 
+function periodOptions() {
+  return [[1, 'This week'], [4, 'Last 4 weeks'], [8, 'Last 8 weeks']].map(([weeks, label]) => '<option value="' + weeks + '"' + (weeks === coachingPeriod ? ' selected' : '') + '>' + label + '</option>').join('');
+}
+
+function workflowTabButton(tab, label, count) {
+  const active = workflowTab === tab;
+  return '<button class="' + (active ? 'is-active' : '') + '" type="button" role="tab" data-workflow-tab="' + tab + '" aria-selected="' + active + '" tabindex="' + (active ? '0' : '-1') + '">' + label + ' ' + count + '</button>';
+}
+
+// The drawer lists the same session records the table counted, grouped by the same words.
+function drawerSessionRows(list, tab) {
+  if (!list.length) {
+    const copy = { needs: 'Nothing needs review in this period.', automated: 'No automated coaching in progress in this period.', one_to_one: 'No one-on-one coaching in progress in this period.', completed: 'Nothing completed in this period.' }[tab];
+    return '<div class="empty-state compact"><strong>' + copy + '</strong><span>Change the period to widen the view.</span></div>';
+  }
+  return '<div class="drawer-session-head" aria-hidden="true"><span>Driver</span><span>Status</span><span>Coach</span><span>Latest</span><span>Due</span><span></span></div>' + list.map((session) => {
+    const [icon, status] = compactSessionStatus(session);
+    const clips = sessionClipBadge(session);
+    const trailing = tab === 'needs' ? '<span class="row-action">' + reviewActionLabel(session) + '</span>' : '<span class="row-arrow" aria-hidden="true">' + uiIcon('chevron') + '</span>';
+    return '<button class="drawer-session-row' + (session.candidate ? ' is-candidate' : '') + '" type="button" ' + (session.candidate ? 'data-start-session-for="' + session.id + '"' : 'data-open-session="' + session.id + '"') + ' aria-label="' + escapeHtml(session.person + '. ' + status + '. Coach ' + coachLabel(session) + '. ' + session.latest + '. Due ' + (session.due || '—') + '. ' + (session.candidate ? 'Start session.' : 'View session.')) + '">'
+      + '<span class="drawer-session-person"><span class="person-avatar" aria-hidden="true">' + session.initials + '</span><strong>' + escapeHtml(session.person) + '</strong>' + clips + '</span>'
+      + '<span class="drawer-session-status ' + sessionStatusClass(session) + '">' + uiIcon(icon) + '<span>' + status + '</span></span>'
+      + '<span class="drawer-session-coach">' + uiIcon(coachLabel(session) === 'Automated' ? 'bolt' : 'user') + '<span>' + escapeHtml(coachLabel(session)) + '</span></span>'
+      + '<span class="drawer-session-meta">' + escapeHtml(session.latest) + '</span>'
+      + '<span class="drawer-session-meta">' + escapeHtml(session.due || '—') + '</span>'
+      + trailing + '</button>';
+  }).join('');
+}
+
 function workflowBody(category) {
-  if (workflowTab === 'needs') return directedBlock(category) + quickTrainingBlock(category);
-  if (workflowTab === 'active') return progressBlock(category, 'active');
-  if (workflowTab === 'completed') return progressBlock(category, 'completed');
-  return outcomesBlock(category);
+  if (workflowTab === 'outcomes') return outcomesBlock(category);
+  if (!['needs', 'automated', 'one_to_one', 'completed'].includes(workflowTab)) workflowTab = 'needs';
+  const list = sessionsInPeriod((session) => session.categoryId === category.id && sessionTab(session) === workflowTab)
+    .sort((a, b) => sessionWeeksAgo(a) - sessionWeeksAgo(b));
+  return drawerSessionRows(list, workflowTab);
 }
 
 function categoryCoachRecommendation(category) {
+  const reviewCount = coachingCounts((session) => session.categoryId === category.id).needs_review;
   const lesson = category.training.split(' · ')[0];
   const movement = category.eventChange > 0
     ? 'Events up ' + category.eventChange + '%'
@@ -1783,7 +2103,7 @@ function categoryCoachRecommendation(category) {
         '<h2>' + recommendation + '</h2>',
         '<p>' + signals + '</p>',
       '</div>',
-      (category.attention ? '<button class="secondary-button" type="button" data-workflow-tab="needs">Review ' + category.attention + ' outliers</button>' : '<span class="automation-complete-status"><i>✓</i> No attention needed</span>'),
+      (reviewCount ? '<button class="secondary-button" type="button" data-workflow-tab="needs">Review ' + reviewCount + ' outliers</button>' : '<span class="automation-complete-status"><i>✓</i> No attention needed</span>'),
     '</section>'
   ].join('');
 }
@@ -1792,14 +2112,15 @@ function renderCategory() {
   const category = activeCategory;
   if (!category) return;
   const outcome = outcomeFor(category);
-  const completionRate = Math.round(category.completed / Math.max(1, category.coached) * 100);
+  const counts = coachingCounts((session) => session.categoryId === category.id);
+  const completionRate = counts.total ? Math.round(counts.completed / counts.total * 100) : 0;
   categoryContent.innerHTML = [
     '<header class="category-panel-header">',
       '<div><div class="panel-title-line"><h1 id="category-title">' + category.name + '</h1>' + (category.priority === 'critical' ? '<span class="priority-label">High</span>' : '') + '</div></div>',
-      '<div class="category-header-actions"><button class="icon-button" type="button" data-close-category aria-label="Close program">×</button></div>',
+      '<div class="category-header-actions"><label class="filter-button period-control"><span class="sr-only">Coaching period</span><select id="category-period" data-coaching-period aria-label="Coaching period">' + periodOptions() + '</select></label><button class="secondary-button" type="button" data-manual-session>Start one-on-one coaching</button><button class="icon-button" type="button" data-close-category aria-label="Close program">×</button></div>',
     '</header>',
     '<div class="category-panel-scroll">',
-      '<div class="category-facts"><strong>' + category.coached + '<span>coached</span></strong><strong>' + category.completed + '<span>completed</span></strong><strong>' + category.attention + '<span>need attention</span></strong><strong>' + category.active + '<span>active</span></strong></div>',
+      '<div class="category-facts"><strong>' + counts.automated + '<span>automated</span></strong><strong>' + counts.one_to_one + '<span>one-on-one</span></strong><strong>' + counts.needs_review + '<span>need review</span></strong><strong>' + counts.completed + '<span>completed</span></strong></div>',
       categoryCoachRecommendation(category),
       '<section class="signal-panel">',
         '<div class="signal-heading"><div><h2>Weekly coached events</h2><span>Events per 1,000 trips · eight coaching cycles</span></div><div class="signal-value ' + (category.eventChange > 0 ? 'is-negative' : '') + '"><strong>' + (category.eventChange > 0 ? '+' : '') + category.eventChange + '%</strong><span>since Jul 13</span></div></div>',
@@ -1809,9 +2130,10 @@ function renderCategory() {
       '<button class="outcome-snapshot" type="button" data-workflow-tab="outcomes"><span>Measured outcome</span><strong>' + completionRate + '% completed</strong><b class="' + (category.eventChange < 0 ? 'positive' : 'negative') + '">' + (category.eventChange > 0 ? '+' : '') + category.eventChange + '% events</b><em>' + outcome.label + '</em><i>View detail ›</i></button>',
       '<section class="workflow-card" id="coaching-work">',
         '<div class="workflow-tabs" role="tablist" aria-label="Coaching stage">',
-          '<button class="' + (workflowTab === 'needs' ? 'is-active' : '') + '" type="button" role="tab" data-workflow-tab="needs" aria-selected="' + (workflowTab === 'needs') + '" tabindex="' + (workflowTab === 'needs' ? '0' : '-1') + '">Needs attention ' + category.attention + '</button>',
-          '<button class="' + (workflowTab === 'active' ? 'is-active' : '') + '" type="button" role="tab" data-workflow-tab="active" aria-selected="' + (workflowTab === 'active') + '" tabindex="' + (workflowTab === 'active' ? '0' : '-1') + '">Active ' + category.active + '</button>',
-          '<button class="' + (workflowTab === 'completed' ? 'is-active' : '') + '" type="button" role="tab" data-workflow-tab="completed" aria-selected="' + (workflowTab === 'completed') + '" tabindex="' + (workflowTab === 'completed' ? '0' : '-1') + '">Completed ' + category.completed + '</button>',
+          workflowTabButton('needs', 'Needs review', counts.needs_review),
+          workflowTabButton('automated', 'Automated', counts.automated),
+          workflowTabButton('one_to_one', 'One-on-one', counts.one_to_one),
+          workflowTabButton('completed', 'Completed', counts.completed),
           '<button class="' + (workflowTab === 'outcomes' ? 'is-active' : '') + '" type="button" role="tab" data-workflow-tab="outcomes" aria-selected="' + (workflowTab === 'outcomes') + '" tabindex="' + (workflowTab === 'outcomes' ? '0' : '-1') + '">Outcomes</button>',
         '</div>',
         '<div class="workflow-body" role="tabpanel">' + workflowBody(category) + '</div>',
@@ -1853,7 +2175,7 @@ function openDriverDrawer(caseId, kind) {
   const matchingSession = needsAttention
     ? sessions.find((session) => session.person === item.name && session.categoryId === category.id && isAttentionSessionState(session.state))
     : null;
-  const stateLabel = progressStage === 'active' ? 'Active' : progressStage === 'completed' ? 'Completed' : progressStage === 'outcomes' ? 'Outcome monitoring' : needsAttention ? 'Needs attention' : 'Coached';
+  const stateLabel = progressStage === 'active' ? 'Automated' : progressStage === 'completed' ? 'Completed' : progressStage === 'outcomes' ? 'Completed' : needsAttention ? 'Needs review' : 'Automated';
   const eventName = category.name;
   const knownProfile = directory.find((profile) => profile.name === item.name);
   const driverIndex = Math.max(0, driverNames.indexOf(item.name));
@@ -1865,7 +2187,7 @@ function openDriverDrawer(caseId, kind) {
     : progressStage === 'completed'
       ? 'Completion recorded'
       : progressStage === 'outcomes'
-        ? 'Outcome monitoring'
+        ? 'Completed'
         : needsAttention
           ? 'Manager attention'
           : 'Automated lesson';
@@ -1895,7 +2217,7 @@ function openDriverDrawer(caseId, kind) {
       : progressStage === 'outcomes'
         ? '<button class="primary-button" type="button" data-toast="Matched outcome opened">Review outcome</button>'
         : needsAttention
-          ? (matchingSession ? '<button class="primary-button" type="button" data-open-attention-session="' + matchingSession.id + '">' + escapeHtml(attentionInsight.recommendedAction) + '</button>' : '<button class="primary-button" type="button" data-start-session="' + item.id + '">' + escapeHtml(attentionInsight.recommendedAction) + '</button>') + '<button class="secondary-button" type="button" data-start-session="' + item.id + '">Start manual coaching</button>'
+          ? (matchingSession ? '<button class="primary-button" type="button" data-open-attention-session="' + matchingSession.id + '">' + escapeHtml(attentionInsight.recommendedAction) + '</button>' : '<button class="primary-button" type="button" data-start-session="' + item.id + '">' + escapeHtml(attentionInsight.recommendedAction) + '</button>') + '<button class="secondary-button" type="button" data-start-session="' + item.id + '">Start one-on-one coaching</button>'
           : '<button class="primary-button" type="button" data-toast="Assignment activity opened">View activity</button>';
   categoryContent.innerHTML = [
     '<header class="category-panel-header nested-detail-header"><div><button class="scope-link" type="button" data-back-category>← ' + category.name + '</button><div class="panel-title-line"><h1 id="category-title">' + item.name + '</h1></div></div><button class="icon-button" type="button" data-close-category aria-label="Close program">×</button></header>',
@@ -1912,8 +2234,14 @@ function openDriverDrawer(caseId, kind) {
 }
 
 function closeDrawer(restoreFocus = true) {
+  saveSessionWorkspaceDraft();
+  document.getElementById('session-event-browser')?.close();
+  document.getElementById('session-details')?.close();
   const closingSession = driverDrawer.classList.contains('is-session');
+  const closingProfile = Boolean(activeDriverProfile);
+  const closingDriverName = activeDriverProfile;
   const closingOrigin = sessionDrawerOrigin;
+  activeDriverProfile = null;
   driverDrawer.classList.remove('is-open', 'is-profile', 'is-session');
   driverDrawer.setAttribute('aria-hidden', 'true');
   driverDrawer.inert = true;
@@ -1922,31 +2250,34 @@ function closeDrawer(restoreFocus = true) {
   if (closingSession) {
     activeSessionId = null;
     sessionDrawerOrigin = null;
-    if (restoreFocus) updateUrlState();
   }
+  if (restoreFocus && (closingSession || closingProfile)) updateUrlState();
   setTimeout(() => {
+    if (driverDrawer.classList.contains('is-open')) return;
     drawerBackdrop.hidden = true;
     if (!restoreFocus) return;
-    if (closingOrigin?.type === 'automation-centre') document.querySelector('[data-toggle-ai-brief]')?.focus();
+    if (closingOrigin?.type === 'automation-centre') document.getElementById('ai-priority-review')?.focus();
     else if (closingOrigin?.type === 'global-search') document.getElementById('global-search-trigger')?.focus();
     else if (drawerOpener && document.contains(drawerOpener)) drawerOpener.focus();
+    else if (closingDriverName) Array.from(document.querySelectorAll('.directory-person[data-open-driver-profile]')).find(button => button.dataset.openDriverProfile === closingDriverName)?.focus();
     else document.getElementById('inbox-title')?.focus();
   }, 220);
 }
 
-function openManualSessionDialog() {
+function openManualSessionDialog(prefill = null) {
+  if (!prefill) pendingCandidateId = null;
   const dialogEyebrow = trainingDialog.querySelector('.eyebrow');
   const dialogTitle = document.getElementById('training-dialog-title');
   if (dialogEyebrow) dialogEyebrow.textContent = 'Manager initiated';
-  if (dialogTitle) dialogTitle.textContent = 'Start manual coaching';
+  if (dialogTitle) dialogTitle.textContent = 'Start one-on-one coaching';
   trainingDialogContent.innerHTML = [
     '<div class="assignment-dialog-body">',
-      '<div class="manual-override-note"><strong>Start manual coaching</strong><span>Use this when a manager needs to intervene outside the weekly automation cycle. The resulting session is recorded with a Manual override origin.</span></div>',
-      '<label class="dialog-field">Driver<select id="manual-driver-select">' + directory.map((driver) => '<option>' + escapeHtml(driver.name) + '</option>').join('') + '</select></label>',
-      '<label class="dialog-field">Program<select id="manual-category-select">' + categories.filter((category) => category.coached).map((category) => '<option value="' + category.id + '">' + escapeHtml(category.name) + '</option>').join('') + '</select></label>',
-      '<label class="dialog-field">Reason<textarea id="manual-session-reason">Manager follow-up required outside the normal automated cycle.</textarea></label>',
+      '<div class="manual-override-note"><strong>Start one-on-one coaching</strong><span>Use this when a manager needs to intervene outside the weekly automation cycle. The resulting session is recorded with a One-on-one origin.</span></div>',
+      '<label class="dialog-field">Driver<select id="manual-driver-select">' + (prefill && !directory.some((driver) => driver.name === prefill.person) ? '<option selected>' + escapeHtml(prefill.person) + '</option>' : '') + directory.map((driver) => '<option' + (prefill && driver.name === prefill.person ? ' selected' : '') + '>' + escapeHtml(driver.name) + '</option>').join('') + '</select></label>',
+      '<label class="dialog-field">Program<select id="manual-category-select">' + categories.filter((category) => category.coached).map((category) => '<option value="' + category.id + '"' + (prefill && category.id === prefill.categoryId ? ' selected' : '') + '>' + escapeHtml(category.name) + '</option>').join('') + '</select></label>',
+      '<label class="dialog-field">Reason<textarea id="manual-session-reason">' + escapeHtml(prefill?.reason || 'Manager follow-up required outside the normal automated cycle.') + '</textarea></label>',
     '</div>',
-    '<footer class="dialog-footer"><button class="secondary-button" value="cancel">Cancel</button><button class="primary-button" type="button" data-confirm-manual-session>Start manual coaching</button></footer>'
+    '<footer class="dialog-footer"><button class="secondary-button" value="cancel">Cancel</button><button class="primary-button" type="button" data-confirm-manual-session>Start one-on-one coaching</button></footer>'
   ].join('');
   trainingDialog.showModal();
 }
@@ -1969,7 +2300,7 @@ function createManualSession() {
     categoryId: category.id,
     eventType: category.name,
     state: 'system_handling',
-    stateLabel: 'System handling',
+    stateLabel: 'One-on-one',
     attentionReason: null,
     origin: 'manual_override',
     latest: 'Manual session created · just now',
@@ -1977,20 +2308,32 @@ function createManualSession() {
     due: 'Within 7 days',
     sla: '7d left',
     slaTone: 'on-track',
-    source: 'Manual override',
+    source: 'One-on-one',
     automationRun: 'Outside weekly cycle',
     summary: reason || 'Manager follow-up created outside the normal automated cycle.',
     evidence: [],
     messages: [{ author: 'manager', text: reason || 'Please review this follow-up and reply with context.', time: 'Just now' }],
     history: [['Manual session created', 'Just now']]
   });
-  adjustSessionFleetTotals(null, 'system_handling', 'Manual override');
+  const startedFlag = reviewCandidates.find((flag) => flag.id === pendingCandidateId && !flag.started);
+  if (startedFlag) {
+    startedFlag.started = true;
+    const created = sessions[0];
+    created.summary = startedFlag.trigger + ': ' + startedFlag.detail + '. ' + created.summary;
+    created.history.push(['Flagged for review', startedFlag.flagged]);
+    created.latest = 'Session started from flagged review · just now';
+  }
+  pendingCandidateId = null;
+  adjustSessionFleetTotals(null, 'system_handling', 'One-on-one');
+  syncDirectoryAttentionState(person, false);
+  renderQueue();
+  syncGroupDisplay();
   trainingDialog.close();
   activeSessionFilter = 'system_handling';
   activeSessionSource = 'manual_override';
   renderInbox();
   setView('inbox');
-  showToast('Manual session created for ' + person);
+  showToast(startedFlag ? 'Session started for ' + person : 'Manual session created for ' + person);
 }
 
 function sessionEvidenceOptions(item, category) {
@@ -2097,7 +2440,7 @@ function renderSessionComposer() {
   categoryDrawer.classList.add('is-composer');
   categoryContent.innerHTML = [
     '<header class="category-panel-header session-composer-header">',
-      '<div><button class="scope-link" type="button" data-back-driver-case>← ' + escapeHtml(item.name) + '</button><div class="panel-title-line"><h1 id="category-title">Start manual coaching</h1><span class="draft-state">Manual override</span></div></div>',
+      '<div><button class="scope-link" type="button" data-back-driver-case>← ' + escapeHtml(item.name) + '</button><div class="panel-title-line"><h1 id="category-title">Start one-on-one coaching</h1><span class="draft-state">One-on-one</span></div></div>',
       '<button class="icon-button" type="button" data-close-category aria-label="Close coaching composer">×</button>',
     '</header>',
     '<div class="session-composer-layout">',
@@ -2143,7 +2486,7 @@ function renderSessionComposer() {
         '</section>',
       '</aside>',
     '</div>',
-    '<footer class="session-draft-footer"><span><strong>' + selected.length + '</strong> ' + (selected.length === 1 ? 'event' : 'events') + ' attached' + (sessionDraft.includeLesson ? ' · lesson included' : '') + '</span><div><button class="secondary-button" type="button" data-back-driver-case>Cancel</button><button class="primary-button" type="button" data-send-session-draft>Start manual coaching</button></div></footer>'
+    '<footer class="session-draft-footer"><span><strong>' + selected.length + '</strong> ' + (selected.length === 1 ? 'event' : 'events') + ' attached' + (sessionDraft.includeLesson ? ' · lesson included' : '') + '</span><div><button class="secondary-button" type="button" data-back-driver-case>Cancel</button><button class="primary-button" type="button" data-send-session-draft>Start one-on-one coaching</button></div></footer>'
   ].join('');
 }
 
@@ -2190,7 +2533,7 @@ function sendSessionDraft() {
     goal: sessionDraft.goal,
     lesson: sessionDraft.includeLesson ? activeCategory.training : null,
     state: 'system_handling',
-    stateLabel: 'System handling',
+    stateLabel: 'One-on-one',
     attentionReason: null,
     origin: 'manual_override',
     latest: 'Manual session created · just now',
@@ -2198,7 +2541,7 @@ function sendSessionDraft() {
     due: 'Within 3 days',
     sla: '3h 45m left',
     slaTone: 'on-track',
-    source: 'Manual override',
+    source: 'One-on-one',
     automationRun: 'Outside weekly cycle',
     summary: item.reason + '. Goal: ' + sessionDraft.goal + '.',
     evidence: attachedEvidence,
@@ -2206,7 +2549,7 @@ function sendSessionDraft() {
     history: [['Manual session created', 'Just now'], [attachedEvidence.length + ' evidence ' + (attachedEvidence.length === 1 ? 'item' : 'items') + ' attached', 'Just now']]
   };
   sessions.unshift(session);
-  adjustSessionFleetTotals(null, 'system_handling', 'Manual override');
+  adjustSessionFleetTotals(null, 'system_handling', 'One-on-one');
   const driverName = item.name;
   sessionDraft = null;
   activeSessionId = session.id;
@@ -2230,14 +2573,73 @@ function emptySessionTotals() {
     driver_reply: 0,
     reminders_exhausted: 0,
     repeat_after_coaching: 0,
-    delivery_blocked: 0
+    delivery_blocked: 0,
+    session_needed: 0
   };
+}
+
+// Flagged reviews: automation matched a rule that needs a person to start the session
+// (repeat offender, critical event). They count as Needs review until a session exists.
+const reviewCandidates = [
+  { id: 'flag-casey-speeding', person: 'Casey Patel', categoryId: 'speeding', trigger: 'Critical event', detail: 'Speeding 15+ over the limit · high severity · Aug 31', flagged: '2h ago' },
+  { id: 'flag-frankie-following', person: 'Frankie Diaz', categoryId: 'following', trigger: 'Repeat offender', detail: 'Third following-distance event after coaching', flagged: '5h ago' },
+  { id: 'flag-marley-distraction', person: 'Marley Stewart', categoryId: 'distraction', trigger: 'Critical event', detail: 'Phone handling · video-confirmed · Aug 30', flagged: 'Yesterday' }
+].map((flag) => {
+  const category = categories.find((item) => item.id === flag.categoryId);
+  return {
+    ...flag,
+    candidate: true,
+    started: false,
+    initials: initials(flag.person),
+    category: category ? category.name : flag.categoryId,
+    eventType: flag.detail.split(' · ')[0],
+    state: 'manager_attention',
+    stateLabel: 'Needs review',
+    attentionReason: 'session_needed',
+    origin: 'automated',
+    source: 'Automated',
+    owner: 'Unassigned',
+    latest: flag.trigger + ' flagged · ' + flag.flagged,
+    due: 'Start before next shift',
+    sla: 'Session not started',
+    slaTone: 'due-soon',
+    automationRun: 'Week of Aug 31',
+    summary: flag.trigger + ': ' + flag.detail + '. Automation rules require a manager to start this session.',
+    evidence: [],
+    messages: [{ author: 'system', text: 'Automation flagged this driver for review: ' + flag.detail.toLowerCase() + '.', time: flag.flagged }],
+    history: [['Flagged for review', flag.flagged]],
+    weeksAgo: 0
+  };
+});
+let pendingCandidateId = null;
+
+function activeCandidates() {
+  return reviewCandidates.filter((flag) => !flag.started);
+}
+
+function allSessionRecords() {
+  return sessions.concat(activeCandidates());
+}
+
+function candidateFor(name) {
+  return activeCandidates().find((flag) => flag.person === name) || null;
+}
+
+function reviewActionLabel(record) {
+  return record.candidate ? 'Start session' : 'View session';
+}
+
+function startSessionForCandidate(id) {
+  const flag = reviewCandidates.find((item) => item.id === id && !item.started);
+  if (!flag) return;
+  pendingCandidateId = flag.id;
+  openManualSessionDialog({ person: flag.person, categoryId: flag.categoryId, reason: flag.trigger + ' · ' + flag.detail + '. Start the one-on-one and agree on one behavior change.' });
 }
 
 function calculateSessionTotals() {
   const fleet = emptySessionTotals();
   const byOrigin = { automated: emptySessionTotals(), manual_override: emptySessionTotals() };
-  sessions.forEach((session) => {
+  allSessionRecords().forEach((session) => {
     const origin = session.origin === 'manual_override' || session.source !== 'Automated' ? 'manual_override' : 'automated';
     session.origin = origin;
     const originTotals = byOrigin[origin];
@@ -2293,23 +2695,25 @@ function syncFleetSessionCounts() {
     'attention-overdue-count': sessionFleetTotals.reminders_exhausted,
     'attention-repeat-count': sessionFleetTotals.repeat_after_coaching,
     'attention-issues-count': sessionFleetTotals.delivery_blocked,
+    'attention-session-needed-count': sessionFleetTotals.session_needed,
     'sla-reply-count': sessionFleetTotals.driver_reply,
     'sla-overdue-count': sessionFleetTotals.reminders_exhausted,
     'sla-repeat-count': sessionFleetTotals.repeat_after_coaching,
     'sla-issues-count': sessionFleetTotals.delivery_blocked,
-    'driver-attention-button-count': automationTotals.attention,
-    'driver-attention-filter-count': automationTotals.attention,
+    'driver-attention-button-count': sessionFleetTotals.manager_attention,
+    'driver-attention-filter-count': sessionFleetTotals.manager_attention,
     'analytics-identified-count': automationRunSummary.counts.identified,
     'analytics-coached-count': automationTotals.coached,
     'analytics-system-count': sessionFleetTotals.system_handling,
-    'analytics-escalated-count': automationTotals.attention
+    'analytics-escalated-count': sessionFleetTotals.manager_attention,
+    'analytics-one-to-one-count': coachingCounts((session) => session.origin === 'manual_override').total
   };
   Object.entries(values).forEach(([id, value]) => {
     const node = document.getElementById(id);
     if (node) node.textContent = value;
   });
   const attentionTotalButton = document.getElementById('attention-total-button');
-  if (attentionTotalButton) attentionTotalButton.setAttribute('aria-label', 'Open all ' + sessionFleetTotals.manager_attention + ' sessions needing manager attention');
+  if (attentionTotalButton) attentionTotalButton.setAttribute('aria-label', 'Open all ' + sessionFleetTotals.manager_attention + ' sessions needing review');
   const completionRate = Math.round(automationTotals.completed / Math.max(1, automationTotals.coached) * 100);
   const attentionRate = Math.round(automationTotals.attention / Math.max(1, automationTotals.coached) * 100);
   const completedBar = document.getElementById('automation-completed-bar');
@@ -2318,7 +2722,7 @@ function syncFleetSessionCounts() {
   if (attentionBar) attentionBar.style.width = attentionRate + '%';
   const analyticsValues = {
     'analytics-completed-count': automationTotals.completed,
-    'analytics-completed-rate': completionRate + '% of automated coaching',
+    'analytics-completed-rate': completionRate + '%',
     'analytics-outlier-count': automationTotals.attention,
     'outcome-completion-rate': completionRate + '%',
     'outcome-completion-count': automationTotals.completed + ' of ' + automationTotals.coached + ' coached drivers'
@@ -2341,9 +2745,11 @@ function syncFleetSessionCounts() {
   automationRunSummary.counts.escalated = automationTotals.attention;
   if (currentWeek) {
     currentWeek.completed = automationTotals.completed;
-    currentWeek.escalated = automationTotals.attention;
+    currentWeek.escalated = sessionFleetTotals.manager_attention;
+    currentWeek.oneToOne = coachingCounts((session) => session.origin === 'manual_override').total;
   }
-  const activitySummary = 'Across eight weekly cycles, identified, automatically coached, and completed assignments generally increased. For the week of Aug 31: ' + automationRunSummary.counts.identified + ' identified, ' + automationRunSummary.counts.coached + ' automatically coached, ' + automationTotals.completed + ' completed, and ' + sessionFleetTotals.manager_attention + ' escalated.';
+  renderAnalyticsProgramTable();
+  const activitySummary = 'Across eight weekly cycles, identified, automated, one-on-one, and completed assignments generally increased. For the week of Aug 31: ' + automationRunSummary.counts.identified + ' identified, ' + automationRunSummary.counts.coached + ' automated, ' + coachingCounts((session) => session.origin === 'manual_override').total + ' one-on-one, ' + automationTotals.completed + ' completed, and ' + sessionFleetTotals.manager_attention + ' need review.';
   const activitySummaryNode = document.getElementById('activity-chart-summary');
   const activitySummaryVisible = document.querySelector('.chart-data-summary p');
   if (activitySummaryNode) activitySummaryNode.textContent = activitySummary;
@@ -2362,6 +2768,8 @@ function syncFleetSessionCounts() {
     if (node) node.textContent = value;
   });
   renderCoachingActivityChart();
+  renderSessionOverview();
+  renderDriverCoachingOverview();
 }
 
 function sessionMatchesFilter(session, filter) {
@@ -2371,34 +2779,44 @@ function sessionMatchesFilter(session, filter) {
   return session.state === filter;
 }
 
-function sessionLifecycleStrip() {
+function sessionViewTabs() {
   const totals = activeSessionSource === 'all' ? sessionFleetTotals : sessionOriginTotals[activeSessionSource];
   const activeLifecycle = attentionReasonMeta[activeSessionFilter] ? 'manager_attention' : activeSessionFilter;
-  const manual = activeSessionSource === 'manual_override';
-  const automated = activeSessionSource === 'automated';
-  const items = [
-    ['manager_attention', 'Needs manager attention', totals.manager_attention, manual ? 'Manual sessions needing a response' : 'Replies · reminders exhausted · repeats · blocked'],
-    ['system_handling', 'System handling', totals.system_handling, manual ? 'Manual overrides in progress' : automated ? 'Automation is continuing' : 'Automation or manager coaching in progress'],
-    ['completed', 'Completed', totals.completed, manual ? 'Manually completed sessions' : automated ? 'This weekly cycle' : 'Automated cycle + manual overrides'],
-    ['archived', 'Archived', totals.archived, 'Retained history']
-  ];
-  return '<div class="session-lifecycle-strip" role="radiogroup" aria-label="Session lifecycle">' + items.map((item) => {
-    const active = activeLifecycle === item[0];
-    return '<button class="' + (active ? 'is-active' : '') + '" type="button" role="radio" data-session-filter="' + item[0] + '" aria-checked="' + active + '" tabindex="' + (active ? '0' : '-1') + '"><span>' + item[1] + '</span><strong>' + item[2] + '</strong><small>' + item[3] + '</small></button>';
-  }).join('') + '</div>';
+  const labels = { all: 'All', manager_attention: 'Needs review', system_handling: 'In progress', completed: 'Completed', archived: 'Archived' };
+  return Object.entries(labels).map(([key, label]) =>
+    '<button type="button" role="radio" data-session-filter="' + key + '" class="' + (key === activeLifecycle ? 'is-active' : '') + '" aria-checked="' + (key === activeLifecycle) + '" tabindex="' + (key === activeLifecycle ? '0' : '-1') + '">' + label + '<b>' + totals[key] + '</b></button>'
+  ).join('');
 }
 
 function sessionFilters() {
-  const totals = activeSessionSource === 'all' ? sessionFleetTotals : sessionOriginTotals[activeSessionSource];
-  const labels = { manager_attention: 'Needs manager attention', system_handling: 'System handling', completed: 'Completed', archived: 'Archived', all: 'All' };
-  const filters = ['manager_attention', 'system_handling', 'completed', 'archived', 'all'];
-  const attentionReasons = (activeSessionFilter === 'manager_attention' || attentionReasonMeta[activeSessionFilter])
-    ? '<div class="attention-reason-summary" aria-label="Attention reasons"><button class="' + (activeSessionFilter === 'driver_reply' ? 'is-active' : '') + '" type="button" data-session-filter="driver_reply" aria-pressed="' + (activeSessionFilter === 'driver_reply') + '"><i class="reply"></i>' + totals.driver_reply + ' replies</button><button class="' + (activeSessionFilter === 'reminders_exhausted' ? 'is-active' : '') + '" type="button" data-session-filter="reminders_exhausted" aria-pressed="' + (activeSessionFilter === 'reminders_exhausted') + '"><i class="overdue"></i>' + totals.reminders_exhausted + ' reminders exhausted</button><button class="' + (activeSessionFilter === 'repeat_after_coaching' ? 'is-active' : '') + '" type="button" data-session-filter="repeat_after_coaching" aria-pressed="' + (activeSessionFilter === 'repeat_after_coaching') + '"><i class="repeat"></i>' + totals.repeat_after_coaching + ' repeated</button><button class="' + (activeSessionFilter === 'delivery_blocked' ? 'is-active' : '') + '" type="button" data-session-filter="delivery_blocked" aria-pressed="' + (activeSessionFilter === 'delivery_blocked') + '"><i class="issue"></i>' + totals.delivery_blocked + ' delivery blocked</button></div>'
-    : '';
-  return '<div class="session-filter-bar"><div class="inbox-filters" role="radiogroup" aria-label="Session filters">' + filters.map((key) => {
-    const active = key === 'manager_attention' ? activeSessionFilter === 'manager_attention' || Boolean(attentionReasonMeta[activeSessionFilter]) : activeSessionFilter === key;
-    return '<button class="' + (active ? 'is-active' : '') + '" type="button" role="radio" data-session-filter="' + key + '" aria-checked="' + active + '" tabindex="' + (active ? '0' : '-1') + '">' + labels[key] + '<b>' + totals[key] + '</b></button>';
-  }).join('') + '</div><div class="session-source-filter" role="radiogroup" aria-label="Session origin"><button class="' + (activeSessionSource === 'all' ? 'is-active' : '') + '" type="button" role="radio" data-session-source="all" aria-checked="' + (activeSessionSource === 'all') + '" tabindex="' + (activeSessionSource === 'all' ? '0' : '-1') + '">All origins</button><button class="' + (activeSessionSource === 'automated' ? 'is-active' : '') + '" type="button" role="radio" data-session-source="automated" aria-checked="' + (activeSessionSource === 'automated') + '" tabindex="' + (activeSessionSource === 'automated' ? '0' : '-1') + '">Automated</button><button class="' + (activeSessionSource === 'manual_override' ? 'is-active' : '') + '" type="button" role="radio" data-session-source="manual_override" aria-checked="' + (activeSessionSource === 'manual_override') + '" tabindex="' + (activeSessionSource === 'manual_override' ? '0' : '-1') + '">Manual override</button></div></div>' + attentionReasons;
+  const reason = attentionReasonMeta[activeSessionFilter] ? activeSessionFilter : 'all';
+  const count = Number(activeSessionSource !== 'all') + Number(reason !== 'all');
+  const option = (value, label, selected) => '<option value="' + value + '"' + (selected === value ? ' selected' : '') + '>' + label + '</option>';
+  return '<div class="filter-sheet" data-filter-sheet="sessions">' +
+    '<button class="filter-sheet-trigger" type="button" data-filter-sheet-trigger aria-expanded="false" aria-controls="session-filters">' + uiIcon('filter') + '<span>Filters</span>' + (count ? '<b class="filter-count">' + count + '</b>' : '') + '</button>' +
+    '<button class="filter-sheet-backdrop" type="button" data-filter-sheet-close tabindex="-1" aria-label="Close session filters"></button>' +
+    '<div class="filter-sheet-content" id="session-filters"><div class="filter-sheet-header"><strong>Session filters</strong><button class="icon-button" type="button" data-filter-sheet-close aria-label="Close session filters">' + uiIcon('close') + '</button></div>' +
+    '<label class="refined-filter-field" for="session-origin-filter">Origin<select id="session-origin-filter">' + option('all', 'All origins', activeSessionSource) + option('automated', 'Automated', activeSessionSource) + option('manual_override', 'One-on-one', activeSessionSource) + '</select></label>' +
+    '<label class="refined-filter-field" for="session-reason-filter">Review reason<select id="session-reason-filter">' + option('all', 'All reasons', reason) + Object.entries(attentionReasonMeta).map(([key, value]) => option(key, value.label, reason)).join('') + '</select></label>' +
+    '<div class="filter-sheet-actions"><button class="text-action" type="button" data-clear-session-filters' + (count ? '' : ' disabled') + '>Reset</button><button class="primary-button" type="button" data-filter-sheet-close>Done</button></div></div></div>';
+}
+
+function renderSessionAppliedFilters() {
+  const filters = [activeSessionSource === 'all' ? '' : activeSessionSource === 'automated' ? 'Automated' : 'One-on-one', attentionReasonMeta[activeSessionFilter]?.label].filter(Boolean);
+  const summary = document.getElementById('session-applied-filters');
+  summary.hidden = !filters.length;
+  summary.innerHTML = filters.length ? '<span>' + filters.join(' · ') + '</span><button type="button" data-clear-session-filters>Clear filters</button>' : '';
+}
+
+function compactSessionStatus(session) {
+  if (session.state === 'system_handling' && !session.attentionReason) return session.origin === 'manual_override' ? ['user', 'One-on-one'] : ['bolt', 'Automated'];
+  const states = {
+    driver_reply: ['message', 'Replied'], reminders_exhausted: ['clock', 'Overdue'],
+    repeat_after_coaching: ['repeat', 'Repeated'], delivery_blocked: ['alert', 'Blocked'],
+    session_needed: ['alert', 'Needs review'], manager_attention: ['alert', 'Needs review'], system_handling: ['clock', 'In progress'],
+    completed: ['check', 'Completed'], archived: ['archive', 'Archived']
+  };
+  return states[session.attentionReason] || states[session.state] || ['info', session.stateLabel];
 }
 
 function sessionStatusClass(session) {
@@ -2411,149 +2829,96 @@ function sessionStatusClass(session) {
 
 function renderSessionList() {
   const lifecyclePriority = { manager_attention: 0, system_handling: 1, completed: 2, archived: 3 };
-  const reasonPriority = { driver_reply: 0, reminders_exhausted: 1, repeat_after_coaching: 2, delivery_blocked: 3 };
+  const reasonPriority = { session_needed: 0, driver_reply: 1, reminders_exhausted: 2, repeat_after_coaching: 3, delivery_blocked: 4 };
   const normalizedSearch = sessionSearch.trim().toLowerCase();
-  const filtered = sessions
+  const filtered = allSessionRecords()
     .filter((item) => sessionMatchesFilter(item, activeSessionFilter))
     .filter((item) => activeSessionSource === 'all' || item.origin === activeSessionSource)
     .filter((item) => !normalizedSearch || [item.person, item.category, item.eventType, item.stateLabel, attentionReasonMeta[item.attentionReason]?.label, item.source, item.owner, item.latest, item.automationRun, item.due, item.sla].join(' ').toLowerCase().includes(normalizedSearch))
     .slice()
     .sort((a, b) => (lifecyclePriority[a.state] ?? 9) - (lifecyclePriority[b.state] ?? 9) || (reasonPriority[a.attentionReason] ?? 9) - (reasonPriority[b.attentionReason] ?? 9));
-  const filterLabel = {
-    manager_attention: 'Sessions needing manager attention',
-    system_handling: 'Sessions the system is handling',
-    driver_reply: 'Driver replies',
-    reminders_exhausted: 'Sessions with reminders exhausted',
-    repeat_after_coaching: 'Repeated after coaching',
-    delivery_blocked: 'Delivery blocked',
-    completed: 'Completed sessions',
-    archived: 'Archived sessions',
-    all: 'All session history'
-  }[activeSessionFilter] || 'Sessions';
-  const sortLabel = activeSessionFilter === 'all' ? 'Attention first' : ['completed', 'archived'].includes(activeSessionFilter) ? 'Newest first' : 'Sorted by urgency';
   const scopedTotals = activeSessionSource === 'all' ? sessionFleetTotals : sessionOriginTotals[activeSessionSource];
   const scopedCount = scopedTotals[activeSessionFilter] ?? 0;
-  const originLabel = activeSessionSource === 'all' ? '' : activeSessionSource === 'automated' ? ' automated' : ' manual override';
   return [
-    sessionLifecycleStrip(),
-    sessionFilters(),
-    '<section class="session-list-card">',
-      '<div class="session-list-title"><div><h2>' + filterLabel + '</h2><span>' + sortLabel + '</span></div></div>',
-      '<div class="session-list-head"><span>Driver</span><span>Program</span><span>Origin</span><span>Status</span><span>Due</span><span>Latest activity</span><span></span></div>',
-      (filtered.length ? filtered.map((session) => [
-        '<button class="session-row" type="button" data-open-session="' + session.id + '" aria-haspopup="dialog">',
-          '<span class="session-person"><span class="person-avatar">' + session.initials + '</span><span class="session-copy"><strong>' + escapeHtml(session.person) + '</strong><small>' + escapeHtml(session.owner) + '</small></span></span>',
-          '<span class="session-topic"><strong>' + escapeHtml(session.category) + '</strong><small>' + escapeHtml(session.automationRun || '—') + '</small></span>',
-          '<span class="session-origin ' + (session.source === 'Automated' ? 'automated' : 'manual') + '">' + escapeHtml(session.source || 'Automated') + '</span>',
-          '<span class="session-status-stack"><span class="state-pill ' + sessionStatusClass(session) + '">' + escapeHtml(session.stateLabel) + '</span>' + (session.attentionReason ? '<small class="attention-reason-chip ' + attentionReasonMeta[session.attentionReason].tone + '">' + escapeHtml(attentionReasonMeta[session.attentionReason].label) + '</small>' : '') + '</span>',
-          '<span class="session-sla ' + (session.slaTone || '') + '">' + escapeHtml(session.due || '—') + '</span>',
-          '<span class="latest-activity">' + escapeHtml(session.latest) + '</span>',
-          '<span class="row-arrow">›</span>',
-        '</button>'
-      ].join('')).join('') : '<div class="empty-state">No sessions match this view.</div>'),
-      '<footer class="session-footer"><span>Showing ' + filtered.length + ' of ' + scopedCount + originLabel + ' matching sessions</span><span>' + sessionFleetTotals.all + ' total across the fleet</span></footer>',
+    '<section class="session-list-card refined-sessions" aria-label="Coaching sessions">',
+      '<div class="session-list-head" aria-hidden="true"><span>Driver</span><span>Program</span><span>Status</span><span>Coach</span><span>Due</span><span>Updated</span><span></span></div>',
+      (filtered.length ? filtered.map((session) => {
+        const [icon, status] = compactSessionStatus(session);
+        const fullStatus = session.stateLabel + (session.attentionReason ? ' · ' + attentionReasonMeta[session.attentionReason].label : '');
+        const activity = session.latest.split('·').map(part => part.trim());
+        const updated = activity.length > 1 ? activity.at(-1) : /No response for (\d+) days/.test(session.latest) ? session.latest.match(/(\d+) days/)[1] + 'd inactive' : session.latest;
+        const due = session.due === 'Resolve before next shift' ? 'Next shift' : session.due || '—';
+        const origin = session.origin === 'manual_override' ? 'One-on-one' : 'Automated';
+        const context = [session.person, session.category, fullStatus, origin, 'Coach: ' + coachLabel(session), 'Owner: ' + session.owner, session.automationRun, 'Due: ' + session.due, session.latest].filter(Boolean).join('. ');
+        const rowAction = session.state === 'manager_attention' ? '<span class="row-action">' + reviewActionLabel(session) + '</span>' : '<span class="row-arrow" aria-hidden="true">' + uiIcon('chevron') + '</span>';
+        return '<button class="session-row' + (session.candidate ? ' is-candidate' : '') + '" type="button" ' + (session.candidate ? 'data-start-session-for="' + session.id + '"' : 'data-open-session="' + session.id + '"') + ' aria-haspopup="dialog" aria-label="' + escapeHtml(context + (session.state === 'manager_attention' ? '. ' + reviewActionLabel(session) : '')) + '">' +
+          '<span class="session-person"><span class="person-avatar" aria-hidden="true">' + session.initials + '</span><strong>' + escapeHtml(session.person) + '</strong></span>' +
+          '<span class="session-topic"><span class="icon-hint session-origin-icon" data-tooltip="' + escapeHtml(origin + ' · ' + (session.automationRun || 'Current cycle')) + '" aria-label="' + origin + '">' + uiIcon(origin === 'Automated' ? 'bolt' : 'user') + '</span><span>' + escapeHtml(session.category) + '</span>' + sessionClipBadge(session) + '</span>' +
+          '<span class="session-status compact-status ' + sessionStatusClass(session) + '" data-tooltip="' + escapeHtml(fullStatus) + '">' + uiIcon(icon) + '<span>' + status + '</span></span>' +
+          '<span class="session-coach" data-tooltip="' + escapeHtml(coachLabel(session) === 'Automated' ? 'Coached by automation' : 'One-on-one coached by ' + coachLabel(session)) + '">' + uiIcon(coachLabel(session) === 'Automated' ? 'bolt' : 'user') + '<span>' + escapeHtml(coachLabel(session)) + '</span></span>' +
+          '<span class="session-sla ' + (session.slaTone || '') + '" data-tooltip="' + escapeHtml([session.due, session.sla].filter(Boolean).join(' · ')) + '">' + escapeHtml(due) + '</span>' +
+          '<span class="latest-activity" data-tooltip="' + escapeHtml(session.latest) + '">' + escapeHtml(updated) + '</span>' +
+          rowAction + '</button>';
+      }).join('') : '<div class="empty-state">No sessions found.<br><small>Try another search or clear your filters.</small></div>'),
+      '<footer class="session-footer"><span>' + filtered.length + ' of ' + scopedCount + ' sessions</span><span>' + (activeSessionFilter === 'all' ? 'Attention first' : ['completed', 'archived'].includes(activeSessionFilter) ? '' : 'Grouped by reason') + '</span></footer>',
     '</section>'
   ].join('');
 }
 
-function evidenceCards(session) {
-  if (!session.evidence.length) {
-    const emptyCopy = session.attentionReason === 'delivery_blocked'
-      ? 'No event attachment is required for this delivery issue.'
-      : session.source === 'Automated'
-        ? 'No clip attached; this session is based on the detected event pattern.'
-        : 'No evidence is attached to this manual session.';
-    return '<p class="heading-summary">' + emptyCopy + '</p>';
-  }
-  return '<div class="evidence-grid">' + session.evidence.map((item) => [
-    '<button class="evidence-card" type="button" data-toast="Event evidence opened">',
-      '<span class="evidence-thumb">' + (item.video === false ? 'DATA' : '▶ ' + item.duration) + '</span>',
-      '<div><strong>' + escapeHtml(item.title) + '</strong><small>' + escapeHtml(item.meta) + '</small></div>',
-      '<span>Open</span>',
-    '</button>'
-  ].join('')).join('') + '</div>';
+// Source fixtures and compatibility helpers for the event-owned evidence model.
+// Staging is local to the reply; driver/session associations change only on Send.
+const playGlyph = '<svg class="ui-icon clip-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5Z" fill="currentColor" stroke="none"/></svg>';
+const pauseGlyph = '<svg class="ui-icon clip-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor" stroke="none"/></svg>';
+const searchGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>';
+function hashText(text) {
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+  return hash;
 }
 
-function messageList(session) {
-  return session.messages.map((message) => {
-    if (message.author === 'system') return '<p class="system-message">' + escapeHtml(message.text) + '</p>';
-    return '<div class="message ' + message.author + '"><span>' + escapeHtml(message.text) + '</span><small>' + escapeHtml(message.time) + '</small></div>';
-  }).join('');
+function categoryNameFor(id) {
+  return categories.find((category) => category.id === id)?.name || id;
 }
 
-function renderSessionDetail(session) {
-  const exception = session.state === 'manager_attention' && session.attentionReason === 'delivery_blocked';
-  const completed = session.state === 'completed';
-  const archived = session.state === 'archived';
-  const readOnly = completed || archived;
-  const automatedWaiting = session.source === 'Automated' && session.state === 'system_handling';
-  const deliveryRetrying = Boolean(session.deliveryRelinked && session.state === 'system_handling');
-  const methodLabel = session.method === 'in-person' ? 'In person' : session.method === 'phone' ? 'Phone' : 'App conversation';
-  const headerAction = exception
-    ? session.deliveryRelinked
-      ? '<span class="automation-complete-status"><i>↻</i> Automatic retry queued</span>'
-      : '<span class="state-pill issue">Identity link required</span>'
-    : completed
-      ? '<button class="secondary-button" type="button" data-archive-session>Archive</button>'
-      : archived
-        ? '<button class="secondary-button" type="button" data-restore-session>Restore</button>'
-        : automatedWaiting
-          ? '<span class="automation-complete-status"><i>↻</i> ' + (deliveryRetrying ? 'Automatic delivery retry queued' : 'Automatic reminders active') + '</span>'
-          : '<button class="secondary-button" type="button" data-complete-session>Complete session</button>';
-  const nextStep = exception
-    ? session.deliveryRelinked
-      ? 'No manager action required. The system is retrying delivery and will close this item when the assignment reaches the driver.'
-      : 'Reconnect the driver identity. The system will retry delivery automatically.'
-    : completed
-      ? 'No action required. The system is measuring the 14-day outcome window.'
-      : archived
-        ? 'No action is required. Restore the record if coaching needs to resume.'
-        : deliveryRetrying
-          ? 'No manager action required. The system is retrying delivery and will close this item when the assignment reaches the driver.'
-          : session.attentionReason === 'driver_reply'
-          ? 'Review the driver response and agree on one behavior change.'
-          : session.attentionReason === 'repeat_after_coaching'
-            ? 'Review the repeated behavior and decide whether a manual conversation is needed.'
-            : session.attentionReason === 'reminders_exhausted'
-              ? 'Automatic reminders did not produce a response. Contact the driver or begin a manual follow-up.'
-              : 'No action required. Automatic reminders remain active.';
-  return [
-    '<div class="session-drawer-shell">',
-      '<header class="drawer-header session-drawer-header">',
-        '<div class="session-drawer-title">',
-          '<p class="eyebrow">Session</p>',
-          '<div class="session-driver"><span class="person-avatar">' + session.initials + '</span><div><h2 id="driver-drawer-title">' + escapeHtml(session.person) + '</h2><small>' + escapeHtml(session.category + ' · ' + session.stateLabel) + '</small></div></div>',
-        '</div>',
-        '<div class="session-drawer-actions">' + headerAction + '<button class="icon-button" type="button" data-close-drawer aria-label="Close session">×</button></div>',
-      '</header>',
-      '<section class="session-workspace">',
-      '<div class="session-main">',
-        '<div class="session-scroll" id="session-scroll">',
-          '<section class="case-summary-card"><p class="eyebrow">' + (session.attentionReason ? attentionReasonMeta[session.attentionReason].label : deliveryRetrying ? 'Delivery retry queued' : readOnly ? 'Coaching record' : session.source === 'Automated' ? 'Automated session' : 'Manual coaching') + '</p><h2>' + escapeHtml(session.category) + '</h2><p>' + escapeHtml(session.summary) + '</p>' + evidenceCards(session) + '</section>',
-          '<div class="conversation-label">Coaching activity</div>',
-          (exception ? '<div class="empty-state">Resolve the identity link. Delivery retries automatically after the fix.</div>' : deliveryRetrying ? '<div class="empty-state">Identity linked. Automatic delivery retry is queued.</div>' : '<div class="messages" id="message-list">' + messageList(session) + '</div>'),
-        '</div>',
-        (deliveryRetrying
-          ? '<div class="session-record-footer"><span>Identity linked. Automatic delivery retry is queued.</span></div>'
-          : exception
-            ? '<div class="composer"><div class="composer-footer"><span>Link the matching Drive account; delivery retries automatically.</span><button class="primary-button" type="button" data-relink-driver>Relink driver</button></div></div>'
-          : readOnly
-            ? '<div class="session-record-footer"><span>' + (completed ? 'Completion retained with a 14-day outcome window.' : 'Archived records remain searchable and read-only.') + '</span></div>'
-            : '<div class="composer"><label class="sr-only" for="reply-text">' + (composerMode === 'note' ? 'Private coaching note' : 'Reply to ' + escapeHtml(session.person)) + '</label><textarea id="reply-text" placeholder="' + (composerMode === 'note' ? 'Add a private note…' : 'Message ' + escapeHtml(session.person.split(' ')[0]) + '…') + '"></textarea><div class="composer-footer"><div class="composer-modes"><button class="' + (composerMode === 'reply' ? 'is-active' : '') + '" type="button" data-composer-mode="reply" aria-pressed="' + (composerMode === 'reply') + '">Reply to driver</button><button class="' + (composerMode === 'note' ? 'is-active' : '') + '" type="button" data-composer-mode="note" aria-pressed="' + (composerMode === 'note') + '">Private note</button><button type="button" data-toast="Evidence picker opened">Attach evidence</button></div><button class="primary-button" type="button" data-send-reply>' + (composerMode === 'note' ? 'Add note' : 'Send reply') + '</button></div></div>'),
-      '</div>',
-      '<aside class="session-rail">',
-        '<section class="rail-section"><h3>Session</h3><div class="rail-field"><span>Program</span><strong>' + escapeHtml(session.category) + '</strong></div><div class="rail-field"><span>Origin</span><strong>' + escapeHtml(session.source || 'Automated') + '</strong></div><div class="rail-field"><span>Method</span><strong>' + methodLabel + '</strong></div><div class="rail-field"><span>Status</span><strong>' + escapeHtml(session.stateLabel) + '</strong></div>' + (session.attentionReason ? '<div class="rail-field"><span>Attention reason</span><strong>' + escapeHtml(attentionReasonMeta[session.attentionReason].label) + '</strong></div>' : '') + '<div class="rail-field"><span>Owner</span><strong>' + escapeHtml(session.owner) + '</strong></div><div class="rail-field"><span>Due</span><strong>' + escapeHtml(session.due) + '</strong></div><div class="rail-field"><span>Due status</span><strong class="rail-sla ' + (session.slaTone || '') + '">' + escapeHtml(session.sla || '—') + '</strong></div></section>',
-        (session.goal ? '<section class="rail-section"><h3>Goal</h3><p class="heading-summary">' + escapeHtml(session.goal) + '</p>' + (session.lesson ? '<div class="rail-field"><span>Lesson</span><strong>' + escapeHtml(session.lesson) + '</strong></div>' : '') + '</section>' : ''),
-        '<section class="rail-section"><h3>Next step</h3><p class="heading-summary">' + nextStep + '</p></section>',
-        '<section class="rail-section"><h3>Session history</h3><div class="history-list">' + session.history.map((item) => '<div class="history-item"><strong>' + escapeHtml(item[0]) + '</strong><small>' + escapeHtml(item[1]) + '</small></div>').join('') + '</div></section>',
-      '</aside>',
-      '</section>',
-    '</div>'
-  ].join('');
+const unassignedClips = [
+  { id: 'unassigned-1', categoryId: 'distraction', eventType: 'Phone handling', severity: 'High', duration: '0:14', time: 'Sep 4 · 7:32 AM', location: 'Airport Rd near Derry', vehicle: 'Unit 412-08421' },
+  { id: 'unassigned-2', categoryId: 'following', eventType: 'Following distance under 2 sec', severity: 'Low', duration: '0:18', time: 'Sep 3 · 10:30 PM', location: 'QEW near Oakville', vehicle: 'Unit 415-03714' },
+  { id: 'unassigned-3', categoryId: 'traffic', eventType: 'Rolling stop', severity: 'Medium', duration: '0:11', time: 'Sep 3 · 6:12 PM', location: 'Steeles Ave at Keele', vehicle: 'Unit 404-56145' },
+  { id: 'unassigned-4', categoryId: 'fatigue', eventType: 'Drowsiness detected', severity: 'High', duration: '0:20', time: 'Sep 2 · 11:48 PM', location: 'Hwy 400 northbound', vehicle: 'Unit 414-33437' },
+  { id: 'unassigned-5', categoryId: 'cornering', eventType: 'Harsh cornering', severity: 'Medium', duration: '0:13', time: 'Sep 2 · 3:36 PM', location: 'Bramalea Rd at Clark', vehicle: 'Unit 408-77109' },
+  { id: 'unassigned-6', categoryId: 'distraction', eventType: 'Eyes off road', severity: 'Medium', duration: '0:16', time: 'Sep 2 · 8:05 AM', location: 'Hwy 401 near Milton', vehicle: 'Unit 415-03714' },
+  { id: 'unassigned-7', categoryId: 'speeding', eventType: 'Speeding 15+ over limit', severity: 'High', duration: '0:15', time: 'Sep 1 · 5:27 PM', location: 'Hwy 407 near Vaughan', vehicle: 'Unit 411-05233' },
+  { id: 'unassigned-8', categoryId: 'braking', eventType: 'Emergency braking', severity: 'High', duration: '0:12', time: 'Sep 1 · 9:40 AM', location: 'Dixie Rd at Courtneypark', vehicle: 'Unit 409-01288' },
+  { id: 'unassigned-9', categoryId: 'seatbelt', eventType: 'Seat belt unfastened', severity: 'Low', duration: '0:10', time: 'Aug 31 · 1:12 PM', location: 'Local route 18', vehicle: 'Unit 413-07690' },
+  { id: 'unassigned-10', categoryId: 'distraction', eventType: 'Phone handling', severity: 'Low', duration: '0:13', time: 'Aug 31 · 7:58 AM', location: 'Airport Rd near Derry', vehicle: 'Unit 412-08421' }
+].map((clip) => ({ ...clip, categoryName: categoryNameFor(clip.categoryId), source: 'Lytx', video: true, assigned: false, person: null, sessionId: null }));
+
+function sessionClips(session) { return sessionEvidenceClips(session); }
+function findClip(id) { return evidenceClip(id); }
+function attachedClipsFor(session) { return selectedWorkspaceEvents(session).flatMap(eventClips); }
+let pendingFootageFocus = false;
+
+function sessionClipBadge(session) {
+  const count = sessionClips(session).length;
+  if (!count) return '';
+  return '<span class="session-clips icon-hint" data-tooltip="' + count + (count === 1 ? ' clip attached' : ' clips attached') + '" aria-label="' + count + (count === 1 ? ' clip' : ' clips') + '">' + playGlyph + count + '</span>';
 }
 
 function renderInbox() {
+  renderSessionOverview();
+  const controls = document.getElementById('session-filter-controls');
+  const sheet = controls.querySelector('[data-filter-sheet].is-open');
+  const focusedId = document.activeElement?.id;
+  if (sheet) closeFilterSheet(sheet, false);
+  document.getElementById('session-view-tabs').innerHTML = sessionViewTabs();
+  controls.innerHTML = sessionFilters();
+  renderSessionAppliedFilters();
   inboxContent.innerHTML = renderSessionList();
+  if (sheet) {
+    openFilterSheet(controls.querySelector('[data-filter-sheet-trigger]'));
+    requestAnimationFrame(() => document.getElementById(focusedId)?.focus());
+  }
+  syncRadioGroups();
 }
 
 function renderSessionDrawer() {
@@ -2562,7 +2927,7 @@ function renderSessionDrawer() {
     closeDrawer();
     return;
   }
-  driverDrawerContent.innerHTML = renderSessionDetail(session);
+  mountSessionWorkspace(session);
   driverDrawer.classList.remove('is-profile');
   driverDrawer.classList.add('is-session');
   driverDrawer.scrollTop = 0;
@@ -2573,9 +2938,17 @@ function openSessionDrawer(sessionId, origin) {
   if (!session) return;
   const drawerWasOpen = driverDrawer.classList.contains('is-open');
   if (!drawerWasOpen) drawerOpener = document.activeElement;
+  saveSessionWorkspaceDraft();
   activeSessionId = session.id;
-  composerMode = 'reply';
-  sessionDrawerOrigin = { type: origin?.type || 'sessions' };
+  const workspace = sessionWorkspaceState(session);
+  composerMode = workspace.mode;
+  if (pendingFootageFocus) {
+    const first = sessionEvidenceEvents(session).find(event => eventClips(event).length);
+    if (first) { workspace.eventId = first.id; workspace.clipId = eventClips(first)[0].id; }
+  }
+  pendingFootageFocus = false;
+  sessionDrawerOrigin = { type: origin?.type || 'sessions', driverName: origin?.driverName || null };
+  if (sessionDrawerOrigin.type !== 'driver-profile') activeDriverProfile = null;
   renderSessionDrawer();
   drawerBackdrop.hidden = false;
   driverDrawer.inert = false;
@@ -2584,7 +2957,9 @@ function openSessionDrawer(sessionId, origin) {
   document.getElementById('app-shell').inert = true;
   document.body.style.overflow = 'hidden';
   updateUrlState(true);
-  setTimeout(() => driverDrawer.querySelector('[data-close-drawer]')?.focus(), 100);
+  setTimeout(() => {
+    if (driverDrawer.classList.contains('is-session') && activeSessionId === sessionId) driverDrawer.querySelector('[data-close-drawer]')?.focus();
+  }, 100);
 }
 
 function driverMatchesScore(item, filter) {
@@ -2608,23 +2983,56 @@ function driverScoreFilterLabel(filter) {
 function renderDriverDistribution() {
   if (!driverDistribution || !driverTierTotals) return;
   const max = Math.max.apply(null, driverDistributionBins.map((bin) => bin.count));
-  driverTierTotals.innerHTML = driverTierCounts.map((tier) => [
-    '<button class="driver-tier-total ' + tier.tone + (activeDriverScoreFilter === tier.key ? ' is-active' : '') + '" type="button" data-driver-score-filter="' + tier.key + '" aria-pressed="' + (activeDriverScoreFilter === tier.key) + '">',
-      '<i aria-hidden="true"></i><strong>' + tier.count + '</strong><span>' + tier.label + '</span>',
-    '</button>'
-  ].join('')).join('');
-  driverDistribution.innerHTML = driverDistributionBins.map((bin) => {
-    const selected = activeDriverScoreFilter === bin.key;
-    const height = Math.max(8, Math.round(bin.count / max * 100));
-    return [
-      '<button class="driver-distribution-bin ' + bin.tone + (selected ? ' is-active' : '') + '" type="button" data-driver-score-filter="' + bin.key + '" aria-label="' + bin.label + ', ' + bin.count + ' drivers" aria-pressed="' + selected + '">',
-        '<span class="driver-bin-count">' + bin.count + '</span>',
-        '<span class="driver-bin-track"><i style="height:' + height + '%"></i></span>',
+  const tierDescriptions = { unscored: 'Safety score unavailable', risk: 'Safety score below 60', watch: 'Safety score 60–79', safe: 'Safety score 80–100' };
+  const tiers = ['risk', 'watch', 'safe', 'unscored'].map((key) => driverTierCounts.find((tier) => tier.key === key));
+  const safetyMix = document.getElementById('driver-safety-mix');
+  const fleetTotal = tiers.reduce((total, tier) => total + tier.count, 0);
+  document.getElementById('driver-safety-scope').textContent = 'All ' + fleetTotal.toLocaleString('en-US') + ' drivers';
+
+  // Mount controls once: filtering must preserve keyboard focus and the open score disclosure.
+  if (!driverTierTotals.children.length) {
+    driverTierTotals.innerHTML = tiers.map((tier) => [
+      '<button class="overview-key-button driver-tier-total ' + tier.tone + ' overview-tone-' + tier.tone + '" type="button" data-driver-score-filter="' + tier.key + '">',
+        '<i aria-hidden="true"></i><span>' + tier.label + '</span><strong></strong>',
+      '</button>'
+    ].join('')).join('');
+  }
+  if (safetyMix && !safetyMix.children.length) {
+    safetyMix.innerHTML = tiers.map((tier) => '<button class="overview-tone-' + tier.tone + '" type="button" data-driver-score-filter="' + tier.key + '"></button>').join('');
+  }
+  tiers.forEach((tier) => {
+    const label = tier.label + ': ' + tier.count + ' of ' + fleetTotal + ' fleet drivers. ' + tierDescriptions[tier.key] + '. Filter the directory.';
+    [driverTierTotals, safetyMix].filter(Boolean).forEach((container) => {
+      const button = container.querySelector('[data-driver-score-filter="' + tier.key + '"]');
+      button.setAttribute('aria-label', label);
+      button.dataset.tooltip = tier.label + ' · ' + tier.count + ' drivers · ' + tierDescriptions[tier.key];
+      if (container === safetyMix) button.style.flexGrow = tier.count;
+      else button.querySelector('strong').textContent = tier.count;
+    });
+  });
+
+  if (!driverDistribution.children.length) {
+    driverDistribution.innerHTML = driverDistributionBins.map((bin) => [
+      '<button class="driver-distribution-bin ' + bin.tone + '" type="button" data-driver-score-filter="' + bin.key + '">',
+        '<span class="driver-bin-count"></span><span class="driver-bin-track"><i></i></span>',
         '<span class="driver-bin-label">' + bin.label + '</span>',
       '</button>'
-    ].join('');
-  }).join('');
+    ].join('')).join('');
+  }
+  driverDistributionBins.forEach((bin) => {
+    const button = driverDistribution.querySelector('[data-driver-score-filter="' + bin.key + '"]');
+    button.setAttribute('aria-label', bin.label + ', ' + bin.count + ' fleet drivers. Filter the directory.');
+    button.querySelector('.driver-bin-count').textContent = bin.count;
+    button.querySelector('.driver-bin-track i').style.height = Math.max(8, Math.round(bin.count / max * 100)) + '%';
+  });
+  document.querySelectorAll('#view-drivers [data-driver-score-filter]').forEach((button) => {
+    const selected = button.dataset.driverScoreFilter === activeDriverScoreFilter;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+  renderDriverCoachingOverview();
 }
+
 
 function renderDriverFilterState() {
   if (!driverFilterState) return;
@@ -2633,9 +3041,41 @@ function renderDriverFilterState() {
   if (activeDriverGroup !== 'all') tokens.push(['group', activeDriverGroup]);
   if (activeDriverCategory !== 'all') tokens.push(['program', activeDriverCategory]);
   driverFilterState.innerHTML = tokens.length
-    ? '<span>Filtered by</span>' + tokens.map((token) => '<button type="button" data-clear-driver-filter="' + token[0] + '">' + escapeHtml(token[1]) + ' <b aria-hidden="true">×</b></button>').join('') + '<button class="clear-driver-filters" type="button" data-clear-driver-filter="all">Clear all</button>'
+    ? tokens.map((token) => '<button type="button" data-clear-driver-filter="' + token[0] + '" aria-label="Remove ' + escapeHtml(token[1]) + ' filter">' + escapeHtml(token[1]) + ' <b aria-hidden="true">×</b></button>').join('') + '<button class="clear-driver-filters" type="button" data-clear-driver-filter="all">Reset</button>'
     : '';
   driverFilterState.hidden = !tokens.length;
+  const activeCount = tokens.length + (driverSort !== 'action' ? 1 : 0);
+  const count = document.getElementById('driver-active-filter-count');
+  if (count) {
+    count.textContent = activeCount;
+    count.hidden = !activeCount;
+  }
+  const trigger = document.querySelector('[data-filter-sheet="drivers"] [data-filter-sheet-trigger]');
+  trigger?.setAttribute('aria-label', 'Driver filters' + (activeCount ? ', ' + activeCount + ' active' : ''));
+  const reset = document.getElementById('driver-reset-filters');
+  if (reset) reset.disabled = !activeCount && activeDriverFilter === 'all' && !document.getElementById('driver-search').value.trim();
+  document.querySelectorAll('[data-driver-filter]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.driverFilter === activeDriverFilter)));
+}
+
+function driverDirectoryStatus(item) {
+  const states = {
+    coached: driverOrigin(item.name) === 'manual_override'
+      ? { label: 'One-on-one', icon: 'user', tone: 'neutral', description: 'Manager-led coaching in progress.' }
+      : { label: 'Automated', icon: 'bolt', tone: 'neutral', description: 'Automated coaching in progress.' },
+    outcome: { label: 'Completed', icon: 'check', tone: 'neutral', description: 'Coaching completed; the outcome window is being measured.' },
+    track: { label: 'On track', icon: 'check', tone: 'good', description: 'No review needed.' }
+  };
+  if (item.state !== 'attention') return states[item.state] || states.track;
+  const session = allSessionRecords().find((record) => record.person === item.name && record.state === 'manager_attention');
+  const insight = attentionAiInsights.find((record) => record.name === item.name && !resolvedAttentionIds.has(record.id));
+  const reason = session?.attentionReason || insight?.reason;
+  return ({
+    session_needed: { label: 'Needs review', icon: 'alert', tone: 'issue', description: 'Automation flagged this driver; no session exists yet. Start the session.' },
+    driver_reply: { label: 'Replied', icon: 'message', tone: 'reply', description: 'A driver response needs your review.' },
+    reminders_exhausted: { label: 'Overdue', icon: 'clock', tone: 'issue', description: 'Automatic reminders are exhausted. Contact the driver.' },
+    repeat_after_coaching: { label: 'Repeated', icon: 'repeat', tone: 'warning', description: 'The behavior repeated after coaching. Review the latest event.' },
+    delivery_blocked: { label: 'Blocked', icon: 'alert', tone: 'issue', description: 'Assignment delivery is blocked. Relink the driver identity.' }
+  })[reason] || { label: 'Needs review', icon: 'alert', tone: 'issue', description: 'A coaching record needs review.' };
 }
 
 function renderDirectory() {
@@ -2643,38 +3083,39 @@ function renderDirectory() {
   renderDriverFilterState();
   const term = document.getElementById('driver-search').value.trim().toLowerCase();
   const filtered = directory.filter((item) => {
-    const statusMatches = activeDriverFilter === 'all' || item.state === activeDriverFilter;
+    const statusMatches = driverMatchesStatus(item, activeDriverFilter);
     const groupMatches = activeDriverGroup === 'all' || item.group === activeDriverGroup;
     const categoryMatches = activeDriverCategory === 'all' || item.focus === activeDriverCategory;
     return statusMatches && groupMatches && categoryMatches && driverMatchesScore(item, activeDriverScoreFilter) && item.name.toLowerCase().includes(term);
   }).sort((a, b) => {
     if (driverSort === 'lowest') return (Number.isFinite(a.safetyScore) ? a.safetyScore : 101) - (Number.isFinite(b.safetyScore) ? b.safetyScore : 101);
     if (driverSort === 'decline') return (Number.isFinite(a.scoreChange) ? a.scoreChange : 99) - (Number.isFinite(b.scoreChange) ? b.scoreChange : 99);
-    if (driverSort === 'recent') return directory.indexOf(a) - directory.indexOf(b);
     const priority = { attention: 0, coached: 1, outcome: 2, track: 3 };
     return priority[a.state] - priority[b.state] || (Number.isFinite(a.safetyScore) ? a.safetyScore : 101) - (Number.isFinite(b.safetyScore) ? b.safetyScore : 101);
   });
   const rows = filtered.map((item) => {
     const scored = Number.isFinite(item.safetyScore);
     const scoreTone = !scored ? 'unscored' : item.safetyScore < 60 ? 'risk' : item.safetyScore < 80 ? 'watch' : 'good';
-    const changeLabel = scored && Number.isFinite(item.scoreChange) ? (item.scoreChange > 0 ? '+' : '') + item.scoreChange : 'Unscored';
-    const scoreLabel = scored ? 'Safety score ' + item.safetyScore + ', change ' + changeLabel : 'Safety score unavailable';
-    const action = item.state === 'attention'
-      ? '<button class="directory-review" type="button" data-open-attention-driver="' + escapeHtml(item.name) + '">Review</button>'
-      : '<span class="directory-automation-status">' + (item.state === 'coached' ? 'Automatic' : '—') + '</span>';
+    const hasChange = scored && Number.isFinite(item.scoreChange);
+    const changeLabel = hasChange ? (item.scoreChange > 0 ? '+' : '') + item.scoreChange : '';
+    const scoreLabel = scored ? 'Safety score ' + item.safetyScore + (hasChange ? '. Change: ' + changeLabel + ' points from the prior period.' : '') : 'Safety score unavailable';
+    const coachingLabel = item.lastCoaching === '—' ? 'No recent coaching recorded' : 'Last coaching: ' + item.lastCoaching;
+    const status = driverDirectoryStatus(item);
+    const action = '<button class="directory-review" type="button" data-open-driver-profile="' + escapeHtml(item.name) + '" aria-label="View driver ' + escapeHtml(item.name) + '">View' + uiIcon('chevron') + '</button>';
     return [
-      '<div class="directory-row">',
-        '<span class="directory-person"><span class="person-avatar">' + item.initials + '</span><span class="person-copy"><strong>' + escapeHtml(item.name) + '</strong><small>' + escapeHtml(item.group) + '</small></span></span>',
-        '<span>' + escapeHtml(item.focus) + '</span>',
-        '<span>' + escapeHtml(item.lastCoaching) + '</span>',
-        '<span class="driver-score ' + scoreTone + '" aria-label="' + scoreLabel + '"><strong>' + (scored ? item.safetyScore : '—') + '</strong><small class="' + (scored && item.scoreChange >= 0 ? 'up' : scored ? 'down' : '') + '">' + changeLabel + '</small></span>',
-        '<span class="state-pill ' + (item.state === 'track' || item.state === 'outcome' ? 'complete' : item.state === 'coached' ? 'reply' : 'issue') + '">' + escapeHtml(item.stateLabel) + '</span>',
+      // The whole row opens the driver; the name and View buttons remain the keyboard openers.
+      '<div class="directory-row" data-open-driver-profile="' + escapeHtml(item.name) + '">',
+        '<button class="directory-person" type="button" data-open-driver-profile="' + escapeHtml(item.name) + '" aria-haspopup="dialog" aria-label="Open driver profile for ' + escapeHtml(item.name) + '"><span class="person-avatar" aria-hidden="true">' + item.initials + '</span><span class="person-copy"><strong>' + escapeHtml(item.name) + '</strong></span></button>',
+        '<span class="driver-score ' + scoreTone + '" tabindex="0" data-tooltip="' + escapeHtml(scoreLabel) + '" aria-label="' + escapeHtml(scoreLabel) + '"><strong>' + (scored ? item.safetyScore : '—') + '</strong>' + (hasChange ? '<small class="' + (item.scoreChange >= 0 ? 'up' : 'down') + '">' + changeLabel + '</small>' : '') + '</span>',
+        '<span class="directory-program"><span>' + escapeHtml(item.focus) + '</span></span>',
+        '<span class="directory-coached' + (item.lastCoaching === '—' ? ' is-empty' : '') + '" aria-label="' + escapeHtml(coachingLabel) + '">' + escapeHtml(item.lastCoaching === '—' ? 'Not yet' : item.lastCoaching) + '</span>',
+        '<span class="directory-status ' + status.tone + '" tabindex="0" data-tooltip="' + escapeHtml(status.description) + '" aria-label="' + escapeHtml(status.label + '. ' + status.description) + '">' + uiIcon(status.icon) + '<span>' + escapeHtml(status.label) + '</span></span>',
         '<span class="directory-action">' + action + '</span>',
       '</div>'
     ].join('');
   }).join('');
   document.getElementById('driver-directory').innerHTML = filtered.length
-    ? '<div class="directory-head"><span>Driver</span><span>Program</span><span>Last coaching</span><span>Safety score</span><span>Status</span><span>Action</span></div>' + rows + '<div class="driver-directory-footer">Showing ' + filtered.length + ' of 1,024 drivers</div>'
+    ? '<div class="directory-head"><span>Driver</span><span class="directory-score-heading">Safety score<button class="info-hint" type="button" data-tooltip="Higher is safer. The smaller number shows the change from the prior period." aria-label="About safety scores">' + uiIcon('info') + '</button></span><span>Top event</span><span>Last coached</span><span>Status</span><span class="sr-only">Action</span></div>' + rows + '<div class="driver-directory-footer">Showing ' + filtered.length + ' of 1,024 drivers</div>'
     : '<div class="driver-directory-empty"><strong>No drivers match</strong><span>Change or clear the active filters.</span><button class="secondary-button" type="button" data-clear-driver-filter="all">Clear filters</button></div>';
 }
 
@@ -2682,14 +3123,14 @@ function syncDirectoryAttentionState(name, shouldRender = true) {
   const driver = directory.find((item) => item.name === name);
   if (!driver) return;
   const unresolvedInsight = attentionAiInsights.find((insight) => insight.name === name && !resolvedAttentionIds.has(insight.id));
-  const attentionSession = sessions.find((session) => session.person === name && isAttentionSessionState(session.state));
+  const attentionSession = allSessionRecords().find((session) => session.person === name && isAttentionSessionState(session.state));
   if (unresolvedInsight || attentionSession) {
     driver.state = 'attention';
-    driver.stateLabel = 'Needs attention';
+    driver.stateLabel = 'Needs review';
     driver.focus = unresolvedInsight?.categoryName || attentionSession.category;
   } else if (driver.state === 'attention') {
     driver.state = 'coached';
-    driver.stateLabel = 'Coached';
+    driver.stateLabel = 'Automated';
     driver.lastCoaching = 'This week';
   }
   if (shouldRender) renderDirectory();
@@ -2699,7 +3140,29 @@ function syncDirectoryAttentionStates() {
   directory.forEach((driver) => syncDirectoryAttentionState(driver.name, false));
 }
 
+// The Automation Centre spotlight lands on the driver inside Drivers, then opens their record.
+function openDriverRecord(name, focusFootage = false) {
+  if (!name) return;
+  pendingFootageFocus = Boolean(focusFootage);
+  activeDriverFilter = 'all';
+  activeDriverGroup = 'all';
+  activeDriverCategory = 'all';
+  activeDriverScoreFilter = 'all';
+  const driverSearch = document.getElementById('driver-search');
+  if (driverSearch) driverSearch.value = name;
+  setView('drivers', { focusHeading: false });
+  window.setTimeout(() => {
+    if (focusFootage) openAttentionDriver(name);
+    else openDriverProfile(name);
+  }, 0);
+}
+
 function openAttentionDriver(name) {
+  const flag = candidateFor(name);
+  if (flag) {
+    startSessionForCandidate(flag.id);
+    return;
+  }
   const session = sessions.find((item) => item.person === name && item.state === 'manager_attention');
   if (session) {
     openSessionDrawer(session.id, { type: 'sessions' });
@@ -2716,16 +3179,136 @@ function openAttentionDriver(name) {
 function renderLibrary() {
   document.getElementById('library-grid').innerHTML = lessons.map((lesson) => [
     '<article class="lesson-card">',
-      '<span class="lesson-icon">▶</span>',
-      '<h2>' + lesson.title + '</h2>',
-      '<p>' + lesson.category + ' · requires video review, acknowledgement, and a two-question quiz.</p>',
-      '<div class="lesson-meta"><span>' + lesson.length + '</span><span>' + lesson.version + '</span><span>' + lesson.completion + ' completion</span></div>',
+      '<div class="lesson-card-top"><span class="lesson-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4"/></svg></span><button class="info-hint" type="button" data-tooltip="' + escapeHtml(lesson.version + ' · Requires video review, acknowledgement, and a two-question quiz.') + '" aria-label="' + escapeHtml('Requirements and version for ' + lesson.title) + '">' + uiIcon('info') + '</button></div>',
+      '<h2>' + escapeHtml(lesson.title) + '</h2>',
+      '<p>' + escapeHtml(lesson.category) + '</p>',
+      '<div class="lesson-meta"><span>' + escapeHtml(lesson.length) + '</span><span>' + escapeHtml(lesson.completion) + ' completion</span></div>',
     '</article>'
   ].join('')).join('');
 }
 
 function settingsAreDirty() {
-  return draftAutomationMode !== automationMode || draftCadenceWeeks !== cadenceWeeks;
+  return draftAutomationMode !== automationMode
+    || draftCadenceWeeks !== cadenceWeeks
+    || JSON.stringify(draftEventTypeRules) !== JSON.stringify(eventTypeRules)
+    || JSON.stringify(draftCoachingRules) !== JSON.stringify(coachingRules);
+}
+
+function settingsRuleChanges() {
+  const before = new Map(eventTypeRules.map((rule) => [rule.id, JSON.stringify(rule)]));
+  const afterIds = new Set(draftEventTypeRules.map((rule) => rule.id));
+  const changedTypes = draftEventTypeRules.filter((rule) => before.get(rule.id) !== JSON.stringify(rule));
+  const addedTypes = changedTypes.filter((rule) => !before.has(rule.id));
+  const removedTypes = eventTypeRules.filter((rule) => !afterIds.has(rule.id));
+  const rulesChanged = JSON.stringify(draftCoachingRules) !== JSON.stringify(coachingRules);
+  const programs = new Set(changedTypes.concat(removedTypes).map((rule) => rule.programId));
+  if (rulesChanged) draftCoachingRules.concat(coachingRules).forEach((rule) => programs.add(rule.scope));
+  return { changedTypes, addedTypes, removedTypes, rulesChanged, programs };
+}
+
+function settingsDraftProgramsAffected() {
+  const activePrograms = categories.filter((category) => category.coached > 0).length;
+  if (draftAutomationMode !== automationMode || draftCadenceWeeks !== cadenceWeeks) return activePrograms;
+  const { programs } = settingsRuleChanges();
+  if (programs.has('all')) return activePrograms;
+  return programs.size || activePrograms;
+}
+
+function settingsDraftSummary() {
+  const parts = [];
+  if (draftAutomationMode !== automationMode || draftCadenceWeeks !== cadenceWeeks) parts.push(settingsModeLabel(draftAutomationMode) + ' with coaching ' + (draftCadenceWeeks === 1 ? 'every week' : 'every 2 weeks'));
+  const { changedTypes, addedTypes, removedTypes, rulesChanged } = settingsRuleChanges();
+  const edited = changedTypes.length - addedTypes.length;
+  if (addedTypes.length) parts.push(addedTypes.length + (addedTypes.length === 1 ? ' new event type' : ' new event types'));
+  if (edited) parts.push(edited + (edited === 1 ? ' event type changed' : ' event types changed'));
+  if (removedTypes.length) parts.push(removedTypes.length + (removedTypes.length === 1 ? ' event type removed' : ' event types removed'));
+  if (rulesChanged) parts.push('coaching rules updated');
+  return parts.join(' · ') + ' will apply only after Save and activate.';
+}
+
+function persistRuleSettings() {
+  const typesSaved = saveSetting('elevate-event-types', JSON.stringify(draftEventTypeRules));
+  const rulesSaved = saveSetting('elevate-coaching-rules', JSON.stringify(draftCoachingRules));
+  return typesSaved && rulesSaved;
+}
+
+function markSettingsDraft() {
+  settingsState = settingsAreDirty() ? 'dirty' : 'saved';
+  settingsPanelMode = null;
+  renderSettings();
+}
+
+function selectOptions(map, selected) {
+  return Object.entries(map).map(([value, label]) => '<option value="' + value + '"' + (value === selected ? ' selected' : '') + '>' + label + '</option>').join('');
+}
+
+function programOptions(selected, includeAll) {
+  return (includeAll ? '<option value="all"' + (selected === 'all' ? ' selected' : '') + '>any program</option>' : '')
+    + categories.map((category) => '<option value="' + category.id + '"' + (category.id === selected ? ' selected' : '') + '>' + escapeHtml(category.name) + '</option>').join('');
+}
+
+function eventTypeRow(rule) {
+  const name = escapeHtml(rule.name);
+  return [
+    '<div class="event-type-row' + (rule.enabled ? '' : ' is-off') + '" data-event-type-row="' + rule.id + '">',
+      '<button class="switch" type="button" role="switch" aria-checked="' + rule.enabled + '" data-event-type-toggle="' + rule.id + '" aria-label="' + escapeHtml((rule.enabled ? 'Disable ' : 'Enable ') + rule.name) + '"><i></i></button>',
+      '<span class="event-type-name"><strong>' + name + '</strong><small>' + escapeHtml(categoryNameFor(rule.programId)) + '</small></span>',
+      '<select class="settings-select" data-event-type-field="severity" data-event-type-id="' + rule.id + '" aria-label="' + escapeHtml('Severity for ' + rule.name) + '">' + selectOptions(severityOptions, rule.severity) + '</select>',
+      '<span class="trigger-field"><input class="settings-input" type="number" min="1" max="50" value="' + rule.threshold + '" data-event-type-field="threshold" data-event-type-id="' + rule.id + '" aria-label="' + escapeHtml('Events per cycle that trigger ' + rule.name) + '"><span>/ cycle</span><label class="check-field"><input type="checkbox" data-event-type-field="videoRequired" data-event-type-id="' + rule.id + '"' + (rule.videoRequired ? ' checked' : '') + ' aria-label="' + escapeHtml('Require video for ' + rule.name) + '"><span>Video</span></label></span>',
+      '<select class="settings-select" data-event-type-field="path" data-event-type-id="' + rule.id + '" aria-label="' + escapeHtml('Coaching path for ' + rule.name) + '">' + selectOptions(coachingPathOptions, rule.path) + '</select>',
+      '<button class="icon-button row-remove" type="button" data-remove-event-type="' + rule.id + '" aria-label="' + escapeHtml('Remove ' + rule.name) + '">×</button>',
+    '</div>'
+  ].join('');
+}
+
+function eventTypeForm() {
+  return [
+    '<form class="event-type-form" id="event-type-form" aria-label="Add event type">',
+      '<label>Event type<input class="settings-input" name="name" required maxlength="60" placeholder="e.g. Lane departure" autocomplete="off"></label>',
+      '<label>Program<select class="settings-select" name="programId">' + programOptions('following', false) + '</select></label>',
+      '<label>Severity<select class="settings-select" name="severity">' + selectOptions(severityOptions, 'Medium') + '</select></label>',
+      '<label>Trigger<span class="trigger-field"><input class="settings-input" type="number" name="threshold" min="1" max="50" value="3"><span>events / cycle</span></span></label>',
+      '<label class="check-field form-check"><input type="checkbox" name="videoRequired"><span>Video required</span></label>',
+      '<label>Coaching path<select class="settings-select" name="path">' + selectOptions(coachingPathOptions, 'lesson') + '</select></label>',
+      '<div class="event-type-form-actions"><button class="secondary-button" type="button" data-cancel-event-type>Cancel</button><button class="primary-button" type="submit">Add to draft</button></div>',
+    '</form>'
+  ].join('');
+}
+
+function coachingRuleRow(rule) {
+  return [
+    '<div class="rule-row" data-rule-row="' + rule.id + '">',
+      '<span class="rule-word">When</span>',
+      '<select class="settings-select" data-rule-field="scope" data-rule-id="' + rule.id + '" aria-label="Rule scope">' + programOptions(rule.scope, true) + '</select>',
+      '<span class="rule-word">has</span>',
+      (rule.condition === 'count_threshold' ? '<input class="settings-input rule-count" type="number" min="2" max="50" value="' + rule.count + '" data-rule-field="count" data-rule-id="' + rule.id + '" aria-label="Event count">' : ''),
+      '<select class="settings-select" data-rule-field="condition" data-rule-id="' + rule.id + '" aria-label="Rule condition">' + selectOptions(ruleConditionLabels, rule.condition) + '</select>',
+      '<span class="rule-word">then</span>',
+      '<select class="settings-select" data-rule-field="action" data-rule-id="' + rule.id + '" aria-label="Rule action">' + selectOptions(ruleActionLabels, rule.action) + '</select>',
+      '<button class="icon-button row-remove" type="button" data-remove-rule="' + rule.id + '" aria-label="Remove rule">×</button>',
+    '</div>'
+  ].join('');
+}
+
+function renderRuleSettings() {
+  const rows = document.getElementById('event-type-rows');
+  if (rows) {
+    const order = (rule) => categories.findIndex((category) => category.id === rule.programId);
+    const list = draftEventTypeRules.slice().sort((a, b) => order(a) - order(b)).map(eventTypeRow).join('');
+    rows.innerHTML = (eventTypeFormOpen ? eventTypeForm() : '') + (list || '<div class="settings-empty">No event types configured. Add one so automation has something to listen for.</div>');
+  }
+  const typeCount = document.getElementById('event-types-count');
+  if (typeCount) {
+    const on = draftEventTypeRules.filter((rule) => rule.enabled).length;
+    const off = draftEventTypeRules.length - on;
+    typeCount.textContent = on + ' active' + (off ? ' · ' + off + ' off' : '');
+  }
+  const addButton = document.querySelector('[data-add-event-type]');
+  if (addButton) addButton.setAttribute('aria-expanded', String(eventTypeFormOpen));
+  const ruleRows = document.getElementById('rule-rows');
+  if (ruleRows) ruleRows.innerHTML = draftCoachingRules.map(coachingRuleRow).join('') || '<div class="settings-empty">No rules. Automation follows each event type’s coaching path.</div>';
+  const ruleCount = document.getElementById('rules-count');
+  if (ruleCount) ruleCount.textContent = draftCoachingRules.length + (draftCoachingRules.length === 1 ? ' rule' : ' rules');
 }
 
 function settingsModeLabel(mode) {
@@ -2779,7 +3362,7 @@ function settingsPreviewCopy(mode, weeks) {
   return {
     drivers: eligible + ' projected',
     audit: eligible + ' automatic assignments projected',
-    description: identified + ' matches were evaluated across 8 programs for the ' + windowLabel + ' window: ' + eligible + ' would be coached automatically. The current ledger contains ' + sessionFleetTotals.system_handling + ' system-handled and ' + sessionFleetTotals.manager_attention + ' manager-attention sessions. No assignments were sent.'
+    description: identified + ' matches were evaluated across 8 programs for the ' + windowLabel + ' window: ' + eligible + ' would be coached automatically. The current ledger contains ' + sessionFleetTotals.system_handling + ' automated and ' + sessionFleetTotals.manager_attention + ' needs-review sessions. No assignments were sent.'
   };
 }
 
@@ -2797,6 +3380,9 @@ function previewSettingsDraft() {
 function discardSettingsDraft() {
   draftAutomationMode = automationMode;
   draftCadenceWeeks = cadenceWeeks;
+  draftEventTypeRules = cloneJson(eventTypeRules);
+  draftCoachingRules = cloneJson(coachingRules);
+  eventTypeFormOpen = false;
   settingsState = 'saved';
   settingsPanelMode = null;
   renderSettings();
@@ -2813,6 +3399,11 @@ function activateSettingsDraft() {
     showToast('Changes could not be activated');
     return;
   }
+  const ruleChanges = settingsRuleChanges();
+  persistRuleSettings();
+  eventTypeRules = cloneJson(draftEventTypeRules);
+  coachingRules = cloneJson(draftCoachingRules);
+  eventTypeFormOpen = false;
   automationMode = draftAutomationMode;
   cadenceWeeks = draftCadenceWeeks;
   settingsSavedAt = now;
@@ -2823,7 +3414,8 @@ function activateSettingsDraft() {
   const schedule = scheduleForCadence(cadenceWeeks);
   automationRunSummary.analysisWindow = schedule.analysisWindow;
   automationRunSummary.nextRun = schedule.nextRun;
-  settingsAuditHistory.unshift({ action: 'Configuration activated', detail: settingsModeLabel(automationMode) + ' · ' + (cadenceWeeks === 1 ? 'weekly' : 'every 2 weeks'), time: settingsSavedAt });
+  const ruleDetail = [ruleChanges.changedTypes.length + ruleChanges.removedTypes.length ? (ruleChanges.changedTypes.length + ruleChanges.removedTypes.length) + ' event type change' + (ruleChanges.changedTypes.length + ruleChanges.removedTypes.length === 1 ? '' : 's') : '', ruleChanges.rulesChanged ? 'rules updated' : ''].filter(Boolean).join(' · ');
+  settingsAuditHistory.unshift({ action: 'Configuration activated', detail: settingsModeLabel(automationMode) + ' · ' + (cadenceWeeks === 1 ? 'weekly' : 'every 2 weeks') + (ruleDetail ? ' · ' + ruleDetail : ''), time: settingsSavedAt });
   saveSetting('elevate-settings-audit', JSON.stringify(settingsAuditHistory.slice(0, 20)));
   renderSettings();
   syncFleetSessionCounts();
@@ -2869,6 +3461,7 @@ function renderSettings() {
   const impactState = settingsState === 'error' ? 'error' : settingsPanelMode === 'preview' ? 'preview' : dirty ? 'dirty' : 'saved';
   if (impact) {
     impact.dataset.state = impactState;
+    impact.classList.toggle('is-saved-quiet', !dirty && settingsState !== 'error' && !settingsPanelMode);
     impact.classList.toggle('is-dirty', dirty);
     impact.classList.toggle('is-error', settingsState === 'error');
     impact.classList.toggle('is-preview', settingsPanelMode === 'preview');
@@ -2876,10 +3469,10 @@ function renderSettings() {
   const impactCopy = {
     title: dirty ? 'Review unpublished changes' : 'No unpublished changes',
     summary: dirty
-      ? settingsModeLabel(draftAutomationMode) + ' with coaching ' + (draftCadenceWeeks === 1 ? 'every week' : 'every 2 weeks') + ' will apply only after Save and activate.'
+      ? settingsDraftSummary()
       : 'The active setup remains scheduled for the next ' + (cadenceWeeks === 1 ? 'weekly' : 'two-week') + ' cycle.',
     state: settingsState === 'error' ? 'Activation failed' : dirty ? 'Unsaved draft' : 'Active',
-    programs: dirty ? '8' : '8',
+    programs: String(dirty ? settingsDraftProgramsAffected() : categories.filter((category) => category.coached > 0).length),
     drivers: dirty ? settingsPreviewCopy(draftAutomationMode, draftCadenceWeeks).drivers : '142',
     run: dirty
       ? (draftCadenceWeeks === 1 ? 'Next Monday' : 'Moves to Sep 14')
@@ -2920,9 +3513,10 @@ function renderSettings() {
   if (discard) discard.disabled = !dirty;
   if (save) save.disabled = !dirty;
   if (preview) preview.textContent = settingsPanelMode === 'preview' ? 'Refresh preview' : 'Run preview';
+  renderRuleSettings();
   const commandStatus = document.getElementById('automation-command-status');
   if (commandStatus) {
-    const schedule = cadenceWeeks === 1 ? 'Runs Mondays' : 'Runs every other Monday';
+    const schedule = cadenceWeeks === 1 ? 'Runs every Monday, 8:00 AM' : 'Runs every other Monday, 8:00 AM';
     const mode = automationMode === 'fully' ? 'fully automated' : automationMode === 'semi' ? 'human review' : 'manual review only';
     commandStatus.innerHTML = schedule + ' · ' + mode + ' <b aria-hidden="true">›</b>';
   }
@@ -2938,50 +3532,54 @@ function renderSettings() {
   });
 }
 
+const outcomeDetailViews = {
+  category: {
+    label: 'Program',
+    rows: [
+      ['Speeding', 'Aligned to each coaching date', '4.8', '2.9', '−40%', 71, 'Improved', true],
+      ['Following distance', 'Aligned to each coaching date', '3.2', '2.7', '−16%', 68, 'Unchanged', false],
+      ['Harsh braking', 'Aligned to each coaching date', '5.1', '3.6', '−29%', 70, 'Improved', true]
+    ]
+  },
+  cohort: {
+    label: 'Group',
+    rows: [
+      ['New hires · first 90 days', '38 eligible drivers', '5.3', '3.6', '−32%', 87, 'Improved', true],
+      ['Night operations', '42 eligible drivers', '4.1', '3.8', '−7%', 74, 'Review', false],
+      ['Linehaul · West', '31 eligible drivers', '3.9', '2.5', '−36%', 89, 'Improved', true]
+    ]
+  },
+  driver: {
+    label: 'Driver',
+    rows: [
+      ['Jordan Lee', 'Following distance', '4.7', '2.6', '−45%', 100, 'Improved', true],
+      ['Quinn Parker', 'Distracted driving', '3.1', '3.0', '−3%', 100, 'Review', false],
+      ['Taylor Brooks', 'Speeding', '5.6', '3.4', '−39%', 100, 'Improved', true]
+    ]
+  }
+};
+
 function renderOutcomeTable() {
   const table = document.getElementById('outcome-table');
   if (!table) return;
-  const views = {
-    category: {
-      label: 'Program',
-      rows: [
-        ['Speeding', 'Aligned to each coaching date', '4.8', '2.9', '−40%', 71, 'Improved', true],
-        ['Following distance', 'Aligned to each coaching date', '3.2', '2.7', '−16%', 68, 'Unchanged', false],
-        ['Harsh braking', 'Aligned to each coaching date', '5.1', '3.6', '−29%', 70, 'Improved', true]
-      ]
-    },
-    cohort: {
-      label: 'Group',
-      rows: [
-        ['New hires · first 90 days', '38 eligible drivers', '5.3', '3.6', '−32%', 87, 'Improved', true],
-        ['Night operations', '42 eligible drivers', '4.1', '3.8', '−7%', 74, 'Review', false],
-        ['Linehaul · West', '31 eligible drivers', '3.9', '2.5', '−36%', 89, 'Improved', true]
-      ]
-    },
-    driver: {
-      label: 'Driver',
-      rows: [
-        ['Jordan Lee', 'Following distance', '4.7', '2.6', '−45%', 100, 'Improved', true],
-        ['Quinn Parker', 'Distracted driving', '3.1', '3.0', '−3%', 100, 'Review', false],
-        ['Taylor Brooks', 'Speeding', '5.6', '3.4', '−39%', 100, 'Improved', true]
-      ]
-    }
+  const view = outcomeDetailViews[outcomeTab];
+  const infoIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg>';
+  const resultIcons = {
+    Improved: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+    Unchanged: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+    Review: '<path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3v1"/>'
   };
-  const view = views[outcomeTab];
+  const periodHint = 'Before and after coaching, aligned to each coaching date. Rates are events per 1,000 trips.';
   table.innerHTML = [
-    '<div class="outcome-row outcome-head"><span>' + view.label + '</span><span>Before</span><span>After</span><span>Change</span><span>Completion</span><span>Outcome</span></div>',
-    view.rows.map((row) => '<div class="outcome-row"><strong data-label="' + view.label + '">' + row[0] + '<small>' + row[1] + '</small></strong><span data-label="Before">' + row[2] + '<small>events / 1k trips</small></span><span data-label="After">' + row[3] + '<small>events / 1k trips</small></span><b data-label="Change" class="' + (row[7] ? 'positive' : '') + '">' + row[4] + '</b><span data-label="Completion"><b>' + row[5] + '%</b><i class="progress-line"><u style="width:' + row[5] + '%"></u></i></span><em data-label="Outcome" class="outcome-pill ' + (row[7] ? 'improved' : 'neutral') + '">' + row[6] + '</em></div>').join('')
+    '<table class="analytics-data-table analytics-outcome-table"><caption class="sr-only">Coaching outcomes by ' + view.label.toLowerCase() + '. Event rates per 1,000 trips.</caption>',
+    '<thead><tr><th scope="col">' + view.label + '</th><th scope="col"><span class="analytics-column-label">Before<button class="info-hint" type="button" data-tooltip="' + periodHint + '" aria-label="' + periodHint + '">' + infoIcon + '</button></span></th><th scope="col">After</th><th scope="col">Change</th><th scope="col">Completion</th><th scope="col">Result</th></tr></thead><tbody>',
+    view.rows.map((row) => {
+      const context = outcomeTab === 'category' ? '' : '<button class="info-hint" type="button" data-tooltip="' + escapeHtml(row[1]) + '" aria-label="' + escapeHtml(row[0] + ': ' + row[1]) + '">' + infoIcon + '</button>';
+      const resultDescription = row[0] + ': ' + row[6];
+      return '<tr><th scope="row"><span class="analytics-row-name">' + escapeHtml(row[0]) + context + '</span></th><td>' + row[2] + '</td><td>' + row[3] + '</td><td class="' + (row[7] ? 'positive' : '') + '">' + row[4] + '</td><td>' + row[5] + '%</td><td><button class="analytics-status-icon ' + row[6].toLowerCase() + '" type="button" data-tooltip="' + escapeHtml(resultDescription) + '" aria-label="' + escapeHtml(resultDescription) + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + resultIcons[row[6]] + '</svg></button></td></tr>';
+    }).join(''),
+    '</tbody></table>'
   ].join('');
-}
-
-function renderPhone() {
-  if (phoneTab === 'training') {
-    phoneContent.innerHTML = '<article class="phone-card"><p class="phone-kicker">Assigned automatically · due in 3 days</p><h3>Following Distance Basics</h3><p>Five following-distance events crossed your fleet\'s weekly coaching rule.</p><div class="phone-reason"><strong>Why I received this</strong><span>5 events · 1 representative clip · weekly coaching cycle</span></div><div class="phone-video">▶ Play 2-minute lesson</div><div class="phone-progress"><i style="width:20%"></i></div><button class="phone-button" type="button" data-phone-action="training">Begin training</button></article>';
-  } else if (phoneTab === 'coaching') {
-    phoneContent.innerHTML = '<article class="phone-card"><p class="phone-kicker">1:1 coaching · Response requested</p><h3>Following distance</h3><p>Your coach attached one event and asked what made the gap difficult to maintain.</p><div class="phone-video">▶ Event clip · 0:18</div><div class="phone-message manager">Please review the event and share what you could change.</div><div class="phone-message">I understand. Traffic merged into the gap, but I can rebuild it earlier.</div><button class="phone-button" type="button" data-phone-action="coaching">Open conversation</button></article>';
-  } else {
-    phoneContent.innerHTML = '<article class="phone-card"><p class="phone-kicker">Your progress</p><h3>Safer gaps, sustained.</h3><p>Your following-distance event rate is 31% lower after coaching.</p><div class="before-after"><div><small>Before</small><strong>4.2</strong></div><b>↘</b><div><small>After</small><strong>2.9</strong></div></div><div class="phone-progress"><i style="width:74%"></i></div><button class="phone-button" type="button" data-phone-action="progress">View coaching history</button></article>';
-  }
 }
 
 function globalSearchRecords(query) {
@@ -2991,7 +3589,7 @@ function globalSearchRecords(query) {
   const records = [];
   categories.forEach((program) => {
     if (contains([program.name, program.description, program.training, 'program'])) {
-      records.push({ kind: 'program', id: program.id, title: program.name, detail: program.coached + ' coached · ' + program.attention + ' need attention', rank: program.name.toLowerCase().startsWith(normalized) ? 0 : 3 });
+      records.push({ kind: 'program', id: program.id, title: program.name, detail: program.coached + ' coached · ' + program.attention + ' need review', rank: program.name.toLowerCase().startsWith(normalized) ? 0 : 3 });
     }
   });
   sessions.forEach((session) => {
@@ -3088,7 +3686,7 @@ function openGlobalSearchResult(kind, id) {
     const driverSearch = document.getElementById('driver-search');
     if (driverSearch) driverSearch.value = id;
     setView('drivers');
-    showToast('Showing ' + id + ' in Drivers');
+    openDriverProfile(id);
   }
 }
 
@@ -3113,11 +3711,13 @@ function closeMobileMore(restoreFocus = true) {
 function openFilterSheet(trigger) {
   const sheet = trigger.closest('[data-filter-sheet]');
   if (!sheet) return;
+  if (sheet.classList.contains('is-open')) { closeFilterSheet(sheet); return; }
   document.querySelectorAll('[data-filter-sheet].is-open').forEach((node) => {
     if (node !== sheet) closeFilterSheet(node, false);
   });
   filterSheetOpener = trigger;
   sheet.classList.add('is-open');
+  document.body.classList.add('has-filter-sheet');
   trigger.setAttribute('aria-expanded', 'true');
   const content = sheet.querySelector('.filter-sheet-content');
   content?.setAttribute('role', 'dialog');
@@ -3141,6 +3741,7 @@ function openFilterSheet(trigger) {
 function closeFilterSheet(sheet, restoreFocus = true) {
   if (!sheet) return;
   sheet.classList.remove('is-open');
+  document.body.classList.remove('has-filter-sheet');
   sheet.querySelector('[data-filter-sheet-trigger]')?.setAttribute('aria-expanded', 'false');
   const content = sheet.querySelector('.filter-sheet-content');
   content?.removeAttribute('role');
@@ -3166,14 +3767,6 @@ function showToast(message) {
   clearTimeout(toastTimer);
   toast.classList.add('is-visible');
   toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 2800);
-}
-
-function setCoachNextExpanded(expanded) {
-  const detail = document.getElementById('coach-next-detail');
-  if (detail) detail.hidden = !expanded;
-  document.querySelectorAll('[data-toggle-ai-brief]').forEach((button) => button.setAttribute('aria-expanded', String(expanded)));
-  document.querySelector('.ai-command-card')?.classList.toggle('is-expanded', expanded);
-  updateAiToggleLabel(expanded);
 }
 
 document.addEventListener('click', (event) => {
@@ -3230,35 +3823,15 @@ document.addEventListener('click', (event) => {
     return;
   }
 
-  const aiBriefToggle = event.target.closest('[data-toggle-ai-brief]');
-  if (aiBriefToggle) {
-    const detail = document.getElementById('coach-next-detail');
-    setCoachNextExpanded(Boolean(detail && detail.hidden));
+  const startForButton = event.target.closest('[data-start-session-for]');
+  if (startForButton) {
+    startSessionForCandidate(startForButton.dataset.startSessionFor);
     return;
   }
 
-  const aiInsightWhy = event.target.closest('[data-ai-insight-why]');
-  if (aiInsightWhy) {
-    activeAiInsightId = activeAiInsightId === aiInsightWhy.dataset.aiInsightWhy ? null : aiInsightWhy.dataset.aiInsightWhy;
-    renderCoachNextTray();
-    return;
-  }
-
-  if (event.target.closest('[data-ai-insights-more]')) {
-    showAllAiInsights = !showAllAiInsights;
-    renderCoachNextTray();
-    return;
-  }
-
-  const aiInsightCoach = event.target.closest('[data-ai-insight-coach]');
-  if (aiInsightCoach) {
-    openAiCoach(aiInsightCoach.dataset.aiInsightCoach);
-    return;
-  }
-
-  const aiInsightDismiss = event.target.closest('[data-ai-insight-dismiss]');
-  if (aiInsightDismiss) {
-    markAttentionReviewed(aiInsightDismiss.dataset.aiInsightDismiss);
+  const driverRecordButton = event.target.closest('[data-open-driver-record]');
+  if (driverRecordButton) {
+    openDriverRecord(driverRecordButton.dataset.openDriverRecord, driverRecordButton.hasAttribute('data-focus-footage'));
     return;
   }
 
@@ -3310,7 +3883,6 @@ document.addEventListener('click', (event) => {
 
   const categoryButton = event.target.closest('[data-open-category]');
   if (categoryButton) {
-    if (categoryButton.closest('.coach-next-tray')) setCoachNextExpanded(false);
     openCategoryDrawer(categoryButton.dataset.openCategory, null);
     return;
   }
@@ -3377,6 +3949,15 @@ document.addEventListener('click', (event) => {
     return;
   }
 
+  const queueLensButton = event.target.closest('[data-queue-lens]');
+  if (queueLensButton && queueLensButton.closest('.queue-toolbar')) {
+    queueLens = queueLensButton.dataset.queueLens;
+    syncQueueLensControl();
+    renderQueue();
+    updateUrlState();
+    return;
+  }
+
   const queueStatusButton = event.target.closest('[data-queue-status]');
   if (queueStatusButton && queueStatusButton.closest('.queue-toolbar')) {
     queueStatus = queueStatusButton.dataset.queueStatus;
@@ -3423,7 +4004,7 @@ document.addEventListener('click', (event) => {
   const confirmTraining = event.target.closest('[data-confirm-training]');
   if (confirmTraining) {
     trainingDialog.close();
-    workflowTab = 'active';
+    workflowTab = 'automated';
     renderCategory();
     showToast('Automation status refreshed');
     return;
@@ -3466,11 +4047,60 @@ document.addEventListener('click', (event) => {
     return;
   }
 
+  if (event.target.closest('[data-clear-session-filters]')) {
+    activeSessionSource = 'all';
+    if (attentionReasonMeta[activeSessionFilter]) activeSessionFilter = 'manager_attention';
+    renderInbox();
+    updateUrlState();
+    return;
+  }
+
+  const overviewReason = event.target.closest('[data-overview-session-reason]');
+  if (overviewReason) {
+    activeSessionFilter = overviewReason.dataset.overviewSessionReason;
+    activeSessionSource = 'all';
+    sessionSearch = '';
+    activeSessionId = null;
+    document.getElementById('session-search').value = '';
+    renderInbox();
+    updateUrlState();
+    overviewReason.focus({ preventScroll: true });
+    return;
+  }
+
+  const overviewSession = event.target.closest('[data-overview-session-state]');
+  if (overviewSession) {
+    activeSessionFilter = overviewSession.dataset.overviewSessionState;
+    activeSessionSource = overviewSession.dataset.overviewSessionOrigin;
+    sessionSearch = '';
+    activeSessionId = null;
+    document.getElementById('session-search').value = '';
+    setView('inbox');
+    return;
+  }
+
+  const overviewDriver = event.target.closest('[data-overview-driver]');
+  if (overviewDriver && overviewDriver.dataset.overviewDriver) {
+    activeDriverFilter = 'all';
+    activeDriverGroup = 'all';
+    activeDriverScoreFilter = 'all';
+    activeDriverCategory = 'all';
+    document.getElementById('driver-search').value = overviewDriver.dataset.overviewDriver;
+    document.getElementById('driver-group-filter').value = 'all';
+    document.getElementById('driver-category-filter').value = 'all';
+    document.querySelectorAll('[data-driver-filter]').forEach(button => button.classList.toggle('is-active', button.dataset.driverFilter === 'all'));
+    renderDirectory();
+    updateUrlState();
+    overviewDriver.focus({ preventScroll: true });
+    return;
+  }
+
   const sessionFilterButton = event.target.closest('[data-session-filter]');
   if (sessionFilterButton) {
     activeSessionFilter = normalizeSessionFilter(sessionFilterButton.dataset.sessionFilter);
     activeSessionId = null;
     renderInbox();
+    document.getElementById('session-view-tabs').querySelector('[data-session-filter="' + activeSessionFilter + '"]')?.focus();
     updateUrlState();
     return;
   }
@@ -3486,43 +4116,16 @@ document.addEventListener('click', (event) => {
 
   const openSessionButton = event.target.closest('[data-open-session]');
   if (openSessionButton) {
+    if (openSessionButton.closest('.profile-shell')) {
+      openProfileSession(openSessionButton.dataset.openSession);
+      return;
+    }
     openSessionDrawer(openSessionButton.dataset.openSession, { type: 'sessions' });
     return;
   }
 
-  const composerModeButton = event.target.closest('[data-composer-mode]');
-  if (composerModeButton) {
-    composerMode = composerModeButton.dataset.composerMode;
-    renderSessionDrawer();
-    document.getElementById('reply-text')?.focus();
-    return;
-  }
-
   if (event.target.closest('[data-send-reply]')) {
-    const session = sessions.find((item) => item.id === activeSessionId);
-    const input = document.getElementById('reply-text');
-    if (session && input && input.value.trim()) {
-      const safeText = input.value.trim();
-      if (composerMode === 'note') {
-        session.messages.push({ author: 'system', text: 'Private note · ' + safeText, time: 'Just now' });
-        session.latest = 'Private note added · just now';
-      } else {
-        const previousState = session.state;
-        const previousReason = session.attentionReason;
-        session.messages.push({ author: 'manager', text: safeText, time: 'Just now' });
-        session.state = 'system_handling';
-        session.stateLabel = 'System handling';
-        session.attentionReason = null;
-        session.latest = 'Coach replied · just now';
-        adjustSessionFleetTotals(previousState, session.state, session.source, previousReason, null);
-        if (isAttentionSessionState(previousState)) clearAttentionForSession(session);
-      }
-      renderSessionDrawer();
-      renderInbox();
-      const scroll = document.getElementById('session-scroll');
-      if (scroll) scroll.scrollTop = scroll.scrollHeight;
-      showToast(composerMode === 'note' ? 'Private note added' : 'Reply sent to ' + session.person);
-    }
+    sendSessionWorkspaceReply();
     return;
   }
 
@@ -3537,6 +4140,7 @@ document.addEventListener('click', (event) => {
       node.tabIndex = active ? 0 : -1;
     });
     renderOutcomeTable();
+    renderOutcomeProgressChart();
     updateUrlState();
     return;
   }
@@ -3637,6 +4241,56 @@ document.addEventListener('click', (event) => {
     return;
   }
 
+  const eventTypeToggle = event.target.closest('[data-event-type-toggle]');
+  if (eventTypeToggle) {
+    const rule = draftEventTypeRules.find((item) => item.id === eventTypeToggle.dataset.eventTypeToggle);
+    if (rule) rule.enabled = !rule.enabled;
+    markSettingsDraft();
+    document.querySelector('[data-event-type-toggle="' + eventTypeToggle.dataset.eventTypeToggle + '"]')?.focus();
+    return;
+  }
+
+  const removeEventType = event.target.closest('[data-remove-event-type]');
+  if (removeEventType) {
+    const rule = draftEventTypeRules.find((item) => item.id === removeEventType.dataset.removeEventType);
+    draftEventTypeRules = draftEventTypeRules.filter((item) => item.id !== removeEventType.dataset.removeEventType);
+    markSettingsDraft();
+    document.querySelector('[data-add-event-type]')?.focus();
+    if (rule) showToast(rule.name + ' removed from the draft');
+    return;
+  }
+
+  if (event.target.closest('[data-add-event-type]')) {
+    eventTypeFormOpen = !eventTypeFormOpen;
+    renderSettings();
+    if (eventTypeFormOpen) document.querySelector('#event-type-form [name="name"]')?.focus();
+    else document.querySelector('[data-add-event-type]')?.focus();
+    return;
+  }
+
+  if (event.target.closest('[data-cancel-event-type]')) {
+    eventTypeFormOpen = false;
+    renderSettings();
+    document.querySelector('[data-add-event-type]')?.focus();
+    return;
+  }
+
+  if (event.target.closest('[data-add-rule]')) {
+    const id = 'rule-' + Date.now().toString(36);
+    draftCoachingRules.push({ id, scope: 'all', condition: 'severity_high', count: 3, action: 'manager_review' });
+    markSettingsDraft();
+    document.querySelector('[data-rule-field="scope"][data-rule-id="' + id + '"]')?.focus();
+    return;
+  }
+
+  const removeRule = event.target.closest('[data-remove-rule]');
+  if (removeRule) {
+    draftCoachingRules = draftCoachingRules.filter((item) => item.id !== removeRule.dataset.removeRule);
+    markSettingsDraft();
+    document.querySelector('[data-add-rule]')?.focus();
+    return;
+  }
+
   const automationModeButton = event.target.closest('[data-automation-mode]');
   if (automationModeButton) {
     draftAutomationMode = automationModeButton.dataset.automationMode;
@@ -3678,6 +4332,15 @@ document.addEventListener('click', (event) => {
 
   const driverScoreFilterButton = event.target.closest('[data-driver-score-filter]');
   if (driverScoreFilterButton) {
+    if (driverScoreFilterButton.closest('.overview-band')) {
+      activeDriverFilter = 'all';
+      activeDriverGroup = 'all';
+      activeDriverCategory = 'all';
+      document.getElementById('driver-search').value = '';
+      document.getElementById('driver-group-filter').value = 'all';
+      document.getElementById('driver-category-filter').value = 'all';
+      document.querySelectorAll('[data-driver-filter]').forEach(button => button.classList.toggle('is-active', button.dataset.driverFilter === 'all'));
+    }
     const nextFilter = driverScoreFilterButton.dataset.driverScoreFilter;
     activeDriverScoreFilter = activeDriverScoreFilter === nextFilter ? 'all' : nextFilter;
     renderDirectory();
@@ -3698,6 +4361,8 @@ document.addEventListener('click', (event) => {
       document.getElementById('driver-category-filter').value = 'all';
     }
     if (filter === 'all') {
+      driverSort = 'action';
+      document.getElementById('driver-sort').value = 'action';
       activeDriverFilter = 'all';
       const driverSearchInput = document.getElementById('driver-search');
       if (driverSearchInput) driverSearchInput.value = '';
@@ -3719,25 +4384,6 @@ document.addEventListener('click', (event) => {
     return;
   }
 
-  const phoneTabButton = event.target.closest('[data-phone-tab]');
-  if (phoneTabButton) {
-    phoneTab = phoneTabButton.dataset.phoneTab;
-    document.querySelectorAll('[data-phone-tab]').forEach((node) => {
-      const active = node.dataset.phoneTab === phoneTab;
-      node.classList.toggle('is-active', active);
-      node.setAttribute('aria-selected', String(active));
-      node.removeAttribute('aria-pressed');
-      node.tabIndex = active ? 0 : -1;
-    });
-    renderPhone();
-    return;
-  }
-
-  const phoneAction = event.target.closest('[data-phone-action]');
-  if (phoneAction) {
-    showToast(phoneAction.dataset.phoneAction === 'training' ? 'Training opened in driver view' : phoneAction.dataset.phoneAction === 'coaching' ? 'Conversation opened in driver view' : 'Coaching history opened');
-    return;
-  }
 });
 
 document.addEventListener('change', (event) => {
@@ -3776,6 +4422,16 @@ document.addEventListener('input', (event) => {
   }
 });
 
+document.addEventListener('change', (event) => {
+  if (event.target.id === 'session-origin-filter') {
+    activeSessionSource = normalizeSessionOrigin(event.target.value);
+  } else if (event.target.id === 'session-reason-filter') {
+    activeSessionFilter = event.target.value === 'all' ? 'manager_attention' : event.target.value;
+  } else return;
+  renderInbox();
+  updateUrlState();
+});
+
 document.getElementById('driver-search')?.addEventListener('input', () => {
   renderDirectory();
   if (currentView === 'drivers') updateUrlState(true);
@@ -3800,11 +4456,6 @@ document.getElementById('driver-sort').addEventListener('change', (event) => {
   renderDirectory();
   updateUrlState();
 });
-document.getElementById('open-driver-preview').addEventListener('click', () => {
-  renderPhone();
-  driverAppDialog.showModal();
-});
-document.getElementById('close-driver-preview').addEventListener('click', () => driverAppDialog.close());
 document.getElementById('global-search-input')?.addEventListener('input', (event) => renderGlobalSearch(event.target.value));
 document.getElementById('global-search-dialog')?.addEventListener('close', () => {
   document.getElementById('global-search-input')?.setAttribute('aria-expanded', 'false');
@@ -3906,7 +4557,7 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (event.key === 'Tab') {
-    const focusable = Array.from(activeDrawer.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+    const focusable = Array.from(activeDrawer.querySelectorAll('button:not([disabled]), summary, input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(node => node.tabIndex !== -1 && node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden');
     if (!focusable.length) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
@@ -3921,7 +4572,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 renderOutcomeProgressChart();
-renderCoachNextTray();
+updateAiCommandPreview();
 renderQueue();
 syncFleetSessionCounts();
 syncGroupDisplay();
@@ -3929,10 +4580,67 @@ renderInbox();
 syncDirectoryAttentionStates();
 renderDirectory();
 renderLibrary();
-renderPhone();
 renderOutcomeTable();
 renderAnalytics();
 renderSettings();
 applyUrlState();
 syncRadioGroups();
 updateUrlState(true);
+
+document.addEventListener('change', (event) => {
+  const field = event.target.closest('[data-event-type-field], [data-rule-field]');
+  if (!field) return;
+  let selector;
+  if (field.dataset.eventTypeField) {
+    const rule = draftEventTypeRules.find((item) => item.id === field.dataset.eventTypeId);
+    if (!rule) return;
+    const key = field.dataset.eventTypeField;
+    rule[key] = field.type === 'checkbox' ? field.checked : field.type === 'number' ? Math.min(50, Math.max(1, Number(field.value) || 1)) : field.value;
+    selector = '[data-event-type-field="' + key + '"][data-event-type-id="' + field.dataset.eventTypeId + '"]';
+  } else {
+    const rule = draftCoachingRules.find((item) => item.id === field.dataset.ruleId);
+    if (!rule) return;
+    const key = field.dataset.ruleField;
+    rule[key] = field.type === 'number' ? Math.min(50, Math.max(2, Number(field.value) || 2)) : field.value;
+    selector = '[data-rule-field="' + key + '"][data-rule-id="' + field.dataset.ruleId + '"]';
+  }
+  markSettingsDraft();
+  document.querySelector(selector)?.focus();
+});
+
+document.addEventListener('submit', (event) => {
+  if (event.target.id !== 'event-type-form') return;
+  event.preventDefault();
+  const data = new FormData(event.target);
+  const name = String(data.get('name') || '').trim();
+  if (!name) return;
+  draftEventTypeRules.push({
+    id: 'custom-' + Date.now().toString(36),
+    programId: String(data.get('programId')),
+    name,
+    severity: String(data.get('severity')),
+    threshold: Math.min(50, Math.max(1, Number(data.get('threshold')) || 1)),
+    videoRequired: data.get('videoRequired') === 'on',
+    path: String(data.get('path')),
+    enabled: true
+  });
+  eventTypeFormOpen = false;
+  markSettingsDraft();
+  document.querySelector('[data-add-event-type]')?.focus();
+  showToast(name + ' added to the draft');
+});
+
+document.addEventListener('change', (event) => {
+  const control = event.target.closest('[data-coaching-period]');
+  if (!control) return;
+  const weeks = Number(control.value);
+  if (![1, 4, 8].includes(weeks)) return;
+  coachingPeriod = weeks;
+  renderQueue();
+  syncGroupDisplay();
+  if (categoryDrawer.classList.contains('is-open')) {
+    if (activeCategory) rerenderCategoryPreservingScroll('#category-period');
+    else if (categoryDrawerReturnTarget?.type === 'group') openGroupDrawer(categoryDrawerReturnTarget.id);
+  }
+  updateUrlState();
+});

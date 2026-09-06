@@ -94,7 +94,7 @@ test('analytics separates throughput from outcomes', () => {
 test('canonical coaching terminology is visible', () => {
   assert.match(html, /Coaching programs/i);
   assert.match(html, />Program</i);
-  assert.match(html, /Start manual coaching/i);
+  assert.match(html, /Start one-on-one coaching/i);
   assert.doesNotMatch(html, /Quick training delivery/);
 });
 
