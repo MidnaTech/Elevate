@@ -4,13 +4,14 @@ Elevate is an interactive prototype for automated driver coaching. It demonstrat
 
 ## What the prototype includes
 
-- Automation Centre with weekly coaching results and AI-ranked attention items
-- Automated and manual coaching session records
+- Automation Centre with weekly coaching results and transparent, prioritized attention
+- A searchable 177-record session ledger with distinct lifecycle, attention-reason, and origin filters
 - Driver and group-level safety views
-- Coaching analytics and weekly behaviour trends
+- Separate weekly Activity throughput and exposure-aware Outcomes analytics
 - Training content library
-- Automation mode and coaching cadence settings
+- Draft-first automation mode and cadence settings with previews and audit history
 - Driver-facing training and coaching previews
+- Responsive mobile cards, filter sheets, global search, and keyboard-accessible navigation
 
 ## Run locally
 
@@ -21,6 +22,13 @@ python3 -m http.server 4173 --directory dist
 ```
 
 Then open `http://localhost:4173`.
+
+## Verify changes
+
+```bash
+npm run check
+npm test
+```
 
 ## Repository structure
 
