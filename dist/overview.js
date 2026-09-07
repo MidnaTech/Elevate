@@ -26,14 +26,14 @@ function overviewSparkline(values, { label = 'Trend', tone = 'neutral', domain }
 function renderSessionOverview() {
   const overview = document.getElementById('session-overview');
   if (!overview) return;
-  const currentWeek = weeklyCoachingActivity[weeklyCoachingActivity.length - 1];
-  const weeklyRates = weeklyCoachingActivity.map(week => week.coached ? week.completed / week.coached * 100 : 0);
-  const rate = currentWeek.coached ? Math.round(currentWeek.completed / currentWeek.coached * 100) : null;
+  const cycle = currentCycleCounts();
+  const weeklyRates = weeklyCoachingActivity.map(week => week.identified ? week.completed / week.identified * 100 : 0);
+  const rate = cycle.identified ? cycle.completionRate : null;
   document.getElementById('session-overview-rate').textContent = rate === null ? '—' : rate + '%';
-  document.getElementById('session-overview-week').textContent = 'Week of ' + currentWeek.label;
-  document.getElementById('session-overview-completed').textContent = currentWeek.completed + ' of ' + currentWeek.coached + ' automated';
+  document.getElementById('session-overview-week').textContent = periodScopeLabel();
+  document.getElementById('session-overview-completed').textContent = cycle.completed + ' of ' + cycle.identified + ' identified';
   document.getElementById('session-overview-trend').innerHTML = overviewSparkline(weeklyRates, {
-    label: 'Weekly completion of automated assignments. ' + weeklyCoachingActivity.map((week, index) => week.label + ': ' + weeklyRates[index].toFixed(1) + '%').join('; '),
+    label: 'Weekly completion of identified coaching records. ' + weeklyCoachingActivity.map((week, index) => week.label + ': ' + weeklyRates[index].toFixed(1) + '%').join('; '),
     tone: 'positive', domain: [0, 100]
   });
   document.getElementById('session-overview-review-count').textContent = sessionFleetTotals.manager_attention;
@@ -60,6 +60,8 @@ function renderDriverCoachingOverview() {
   document.getElementById('driver-coaching-automated').textContent = sessionOriginTotals.automated.system_handling;
   document.getElementById('driver-coaching-manual').textContent = sessionOriginTotals.manual_override.system_handling;
   document.getElementById('driver-coaching-completed').textContent = sessionFleetTotals.completed;
+  const completedScope = document.getElementById('driver-completed-scope');
+  if (completedScope) completedScope.textContent = periodLabel();
   panel.querySelectorAll('[data-overview-session-state]').forEach(button => {
     const state = button.dataset.overviewSessionState;
     const origin = button.dataset.overviewSessionOrigin;

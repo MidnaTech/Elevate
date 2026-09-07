@@ -21,7 +21,8 @@ const expectProfile = async name => {
   assert.equal(await drawer.evaluate(node => node.classList.contains('is-session')), false, 'Opening a driver must show their portfolio');
   assert.equal(new URL(page.url()).searchParams.get('driver'), name, 'Driver links must identify a driver independently of a session');
   assert.equal(new URL(page.url()).searchParams.get('record'), null);
-  assert.equal(new URL(page.url()).hash, '#drivers');
+  assert.equal(new URL(page.url()).hash, '#analytics');
+  assert.equal(new URL(page.url()).searchParams.get('analytics'), 'drivers', 'Driver records live under Analytics › Drivers');
 };
 const closeProfile = async () => {
   await profile.locator('[data-close-drawer]').click();

@@ -21,7 +21,7 @@ test('primary navigation and global search are accessible', () => {
   assert.match(html, /id="global-search-trigger"/);
   assert.match(html, /id="global-search-dialog"/);
 
-  for (const view of ['coaching', 'inbox', 'outcomes', 'drivers', 'groups', 'library', 'settings']) {
+  for (const view of ['coaching', 'inbox', 'outcomes', 'library', 'settings']) {
     const navButton = new RegExp(`<button[^>]+data-view="${view}"[^>]+aria-label=`, 'i');
     assert.match(html, navButton, `${view} navigation needs an accessible name`);
   }
@@ -36,7 +36,7 @@ test('session lifecycle is mutually exclusive and reconciles to all sessions', (
   assert.match(js, /driver_reply/);
   assert.match(js, /reminders_exhausted/);
   assert.match(js, /repeat_after_coaching/);
-  assert.match(js, /delivery_blocked/);
+  assert.doesNotMatch(js, /delivery_blocked|Blocked/, 'Delivery problems retry automatically; Blocked is not a state');
 
   const { sessions, attentionItems } = readDomainSnapshot();
   const count = (key, value) => sessions.filter((session) => session[key] === value).length;
@@ -47,18 +47,17 @@ test('session lifecycle is mutually exclusive and reconciles to all sessions', (
     system_handling: count('state', 'system_handling'),
     completed: count('state', 'completed'),
     archived: count('state', 'archived'),
-  }, { manager_attention: 14, system_handling: 7, completed: 130, archived: 26 });
+  }, { manager_attention: 11, system_handling: 10, completed: 130, archived: 26 });
   assert.deepEqual({
     automated: count('origin', 'automated'),
     manual_override: count('origin', 'manual_override'),
   }, { automated: 171, manual_override: 6 });
-  assert.deepEqual(Object.fromEntries(['driver_reply', 'reminders_exhausted', 'repeat_after_coaching', 'delivery_blocked'].map((reason) => [reason, count('attentionReason', reason)])), {
+  assert.deepEqual(Object.fromEntries(['driver_reply', 'reminders_exhausted', 'repeat_after_coaching'].map((reason) => [reason, count('attentionReason', reason)])), {
     driver_reply: 4,
     reminders_exhausted: 4,
     repeat_after_coaching: 3,
-    delivery_blocked: 3,
   });
-  assert.equal(attentionItems.length, 14);
+  assert.equal(attentionItems.length, 11);
   attentionItems.forEach((item) => {
     assert.ok(sessions.some((session) => session.person === item.name && session.categoryId === item.categoryId && session.attentionReason === item.reason), `${item.id} must resolve to a session record`);
   });
@@ -84,6 +83,28 @@ test('production controls and responsive navigation contracts are present', () =
   assert.match(js, /filterDialog\?\.querySelectorAll/);
 });
 
+test('automation centre shares the analytics KPI strip and hero layout', () => {
+  assert.match(html, /id="view-coaching"[\s\S]*?class="analytics-kpi-strip"/);
+  for (const id of ['kpi-identified', 'kpi-in-progress', 'kpi-needs-review', 'kpi-completed', 'kpi-fleet-safety', 'kpi-event-rate']) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(html, /id="automation-share"/);
+  assert.doesNotMatch(html, /id="view-coaching"[\s\S]*?Is coaching working\?[\s\S]*?id="view-inbox"/, 'Outcomes narrative lives in Analytics');
+  assert.doesNotMatch(html, /id="view-coaching"[\s\S]*?id="coaching-queue"[\s\S]*?id="view-inbox"/, 'Programs table lives in Analytics › Activity');
+  assert.match(js, /renderHomeOverview/);
+  assert.match(js, /function currentCycleCounts/, 'Every page reads one cycle summary from the ledger');
+  assert.match(html, /id="kpi-identified"/);
+  assert.doesNotMatch(html, /Reminders exhausted|Driver replies|Repeated events|Delivery blocked|Repeat after coaching/, 'One review vocabulary: Overdue, Session needed, Repeated, Replied');
+});
+
+test('analytics hosts outcomes first, then activity, drivers, and groups', () => {
+  const tabs = [...html.matchAll(/data-analytics-tab="([a-z]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(tabs, ['outcomes', 'activity', 'drivers', 'groups']);
+  assert.match(html, /id="analytics-outcomes-tab"[^>]*aria-selected="true"/);
+  assert.match(html, /<section class="analytics-panel" id="view-drivers"/);
+  assert.match(html, /<section class="analytics-panel" id="view-groups"/);
+  assert.match(html, /id="analytics-activity"[\s\S]*?id="coaching-queue"/);
+  assert.match(js, /let analyticsTab = 'outcomes'/);
+});
+
 test('analytics separates throughput from outcomes', () => {
   assert.match(html, /Week of Aug 31/i);
   assert.match(html, /lower is safer/i);
@@ -92,7 +113,7 @@ test('analytics separates throughput from outcomes', () => {
 });
 
 test('canonical coaching terminology is visible', () => {
-  assert.match(html, /Coaching programs/i);
+  assert.match(html, /Program performance/i);
   assert.match(html, />Program</i);
   assert.match(html, /Start one-on-one coaching/i);
   assert.doesNotMatch(html, /Quick training delivery/);

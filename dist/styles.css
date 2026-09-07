@@ -4118,32 +4118,32 @@ button.attention-next-copy:disabled, .attention-review-button:disabled { cursor:
 
 /* Programs table: Program|Group lens, Automated/Manual split, Needs review. */
 .queue-toolbar { gap: var(--space-2); }
-#view-coaching .queue-number.is-zero strong { color: var(--ink-400); font-weight: 500; }
+.queue-section .queue-number.is-zero strong { color: var(--ink-400); font-weight: 500; }
 @media (min-width: 681px) {
-  #view-coaching .queue-columns,
-  #view-coaching .queue-row { grid-template-columns: minmax(170px, 1.5fr) minmax(78px, .5fr) minmax(64px, .42fr) minmax(84px, .5fr) minmax(92px, .55fr) minmax(112px, .7fr) 20px; gap: 14px; }
+  .queue-section .queue-columns,
+  .queue-section .queue-row { grid-template-columns: minmax(170px, 1.5fr) minmax(78px, .5fr) minmax(64px, .42fr) minmax(84px, .5fr) minmax(92px, .55fr) minmax(112px, .7fr) 20px; gap: 14px; }
 }
 @media (min-width: 681px) and (max-width: 1080px) {
-  #view-coaching .queue-columns,
-  #view-coaching .queue-row { grid-template-columns: minmax(140px, 1.3fr) 64px 56px 74px 78px 92px 20px; gap: 10px; }
+  .queue-section .queue-columns,
+  .queue-section .queue-row { grid-template-columns: minmax(140px, 1.3fr) 64px 56px 74px 78px 92px 20px; gap: 10px; }
 }
 @media (min-width: 768px) {
-  #view-coaching .queue-columns > :nth-child(6) { text-align: right; }
+  .queue-section .queue-columns > :nth-child(6) { text-align: right; }
 }
 @media (max-width: 680px) {
-  #view-coaching .queue-row .queue-number::before,
-  #view-coaching .queue-row .queue-attention::before,
-  #view-coaching .queue-row .risk-change::before { color: var(--ink-400); font-size: var(--font-meta); font-weight: 500; letter-spacing: 0; text-transform: none; }
-  #view-coaching .queue-row .queue-number:nth-child(2)::before { content: "Automated"; }
-  #view-coaching .queue-row .queue-number:nth-child(3)::before { content: "One-on-one"; }
-  #view-coaching .queue-row .queue-attention::before { content: "Needs review"; }
-  #view-coaching .queue-row .queue-number:nth-child(5)::before { content: "Completed"; }
-  #view-coaching .queue-toolbar { flex-direction: column; align-items: stretch; }
-  #view-coaching .queue-toolbar .segmented { width: 100%; }
-  #view-coaching .queue-toolbar .segmented > button { flex: 1; }
+  .queue-section .queue-row .queue-number::before,
+  .queue-section .queue-row .queue-attention::before,
+  .queue-section .queue-row .risk-change::before { color: var(--ink-400); font-size: var(--font-meta); font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .queue-section .queue-row .queue-number:nth-child(2)::before { content: "Automated"; }
+  .queue-section .queue-row .queue-number:nth-child(3)::before { content: "One-on-one"; }
+  .queue-section .queue-row .queue-attention::before { content: "Needs review"; }
+  .queue-section .queue-row .queue-number:nth-child(5)::before { content: "Completed"; }
+  .queue-section .queue-toolbar { flex-direction: column; align-items: stretch; }
+  .queue-section .queue-toolbar .segmented { width: 100%; }
+  .queue-section .queue-toolbar .segmented > button { flex: 1; }
 }
 @media (min-width: 768px) {
-  #view-coaching .queue-row .risk-change { justify-self: end; }
+  .queue-section .queue-row .risk-change { justify-self: end; }
 }
 
 /* Spotlight footage pill opens the driver record with the first clip ready to play. */
@@ -4203,3 +4203,74 @@ button.attention-next-copy:disabled, .attention-review-button:disabled { cursor:
 @media (max-width: 680px) { .drawer-session-row .drawer-session-coach { grid-column: 1 / -1; padding-left: 39px; } }
 .drawer-session-row .row-action { justify-self: end; color: var(--primary); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .drawer-session-row:hover .row-action { color: var(--primary-hover); text-decoration: underline; }
+
+/* Automation Centre — page header note. KPI strip styles are shared with Analytics. */
+.automation-heading-note { color: var(--ink-500); font-size: 13px; }
+.automation-heading-note b { color: var(--ink-700); font-weight: 500; }
+
+/* Hero: what needs a person, with the automation split beside it. */
+#view-coaching .command-overview { grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); gap: 14px; margin-bottom: 20px; }
+#view-coaching .command-overview > .command-card { min-height: 0; }
+.command-card-header > div { display: grid; gap: 1px; min-width: 0; }
+.command-card-scope { color: var(--ink-500); font-size: 12px; font-weight: 450; }
+.attention-card .command-card-header { min-height: 56px; }
+.attention-card .attention-row { grid-template-columns: minmax(150px, .8fr) minmax(0, 1.2fr) 36px auto; gap: 14px; }
+.attention-row-label { display: inline-flex; align-items: center; gap: 10px; min-width: 0; color: var(--ink-700); }
+.attention-dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: var(--severity, var(--ink-300)); }
+.attention-bar { display: block; min-width: 0; height: 8px; border-radius: 4px; background: var(--surface-soft); overflow: hidden; }
+.attention-bar i { display: block; width: calc(var(--share, 0) * 100%); height: 100%; border-radius: 4px; background: var(--severity, var(--ink-300)); transition: width .3s ease; }
+.attention-row[data-severity="high"] { --severity: var(--rust); }
+.attention-row[data-severity="medium"] { --severity: var(--amber); }
+.attention-row[data-severity="reply"] { --severity: var(--violet); }
+.attention-row[data-severity="low"] { --severity: var(--ink-300); }
+.attention-card .attention-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+.attention-row.is-empty :is(strong, .attention-row-label) { color: var(--ink-400); }
+
+.command-card.automation-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--spotlight) 0%, var(--surface) 55%);
+  box-shadow: none;
+}
+.automation-card .command-card-header { min-height: 56px; align-items: center; padding: 6px 16px; border-bottom: 1px solid var(--border-soft); }
+.automation-card .command-card-header h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.02em; }
+.automation-headline { display: flex; align-items: baseline; gap: 10px; padding: 16px 16px 6px; }
+.automation-headline strong { color: var(--primary); font-size: 40px; line-height: 1; letter-spacing: -.045em; font-weight: 750; font-variant-numeric: tabular-nums; }
+.automation-headline span { min-width: 0; color: var(--ink-500); font-size: 13.5px; line-height: 1.35; }
+.automation-headline span b { color: var(--ink); font-weight: 650; }
+.automation-split-bar { display: flex; gap: 3px; height: 10px; margin: 8px 16px 14px; }
+.automation-split-bar i { display: block; flex: 0 1 0; min-width: 4px; height: 100%; border-radius: 3px; }
+.automation-split-bar .is-automated { background: var(--primary); }
+.automation-split-bar .is-manual { background: var(--amber); }
+.automation-rows { display: grid; gap: 2px; padding: 0 16px; }
+.automation-row { display: grid; grid-template-columns: minmax(0, 12.5em) minmax(0, 1fr) 40px; align-items: center; gap: 12px; min-height: 34px; font-size: 13.5px; }
+.automation-row-label { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--ink-700); white-space: nowrap; }
+.automation-row-label .ui-icon { width: 15px; height: 15px; color: var(--ink-400); fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.automation-bar { display: block; height: 8px; border-radius: 4px; background: var(--surface-soft); overflow: hidden; }
+.automation-bar i { display: block; width: calc(var(--share, 0) * 100%); height: 100%; border-radius: 4px; background: var(--bar, var(--primary)); transition: width .3s ease; }
+.automation-row.is-automated { --bar: var(--primary); }
+.automation-row.is-manual { --bar: var(--amber); }
+.automation-row.is-completed { --bar: var(--success); }
+.automation-row strong { text-align: right; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.automation-card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin: auto 16px 0; padding: 6px 0 8px; border-top: 1px solid var(--border-soft); }
+.automation-card-foot .status-link { color: var(--ink-500); font-size: 12.5px; }
+.automation-card-foot .status-link b { display: inline; color: inherit; }
+
+@media (max-width: 1080px) {
+  #view-coaching .command-overview { grid-template-columns: 1fr; }
+}
+@media (max-width: 680px) {
+  .attention-card .attention-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label count" "bar bar" "action action"; gap: 6px 12px; padding: 10px 16px; }
+  .attention-row-label { grid-area: label; }
+  .attention-card .attention-bar { grid-area: bar; }
+  .attention-card .attention-row strong { grid-area: count; }
+  .attention-card .attention-row em { grid-area: action; grid-column: auto; }
+  .automation-headline strong { font-size: 34px; }
+  .automation-row { grid-template-columns: minmax(0, 1fr) 40px; grid-template-areas: "label count" "bar bar"; gap: 6px 10px; padding: 6px 0; }
+  .automation-row-label { grid-area: label; white-space: normal; }
+  .automation-row .automation-bar { grid-area: bar; }
+  .automation-row strong { grid-area: count; }
+  .automation-heading-note { white-space: nowrap; }
+}

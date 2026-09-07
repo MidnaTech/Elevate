@@ -69,7 +69,7 @@ See [driver spotlight design](docs/driver-spotlight.md) for the interaction and 
 
 Run `npm run test:sessions` for event preview and selection, grouped clips,
 assignment only on Send, source metadata, per-session drafts, private notes,
-read-only and delivery states, focus, and session layout checks. The installed
+read-only and automatically retrying delivery states, focus, and session layout checks. The installed
 [session workspace](docs/session-redesign.md) keeps evidence beside the conversation
 and uses the shared record drawer width. Its sample footage and maps are explicitly
 illustrative wherever source media or coordinates are unavailable.

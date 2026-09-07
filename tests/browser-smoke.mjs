@@ -45,11 +45,11 @@ try {
   assert.equal(await page.locator('#ui-tooltip').isVisible(), true, 'Collapsed navigation must explain its icons on hover');
   assert.equal(await page.locator('#ui-tooltip').textContent(), 'Sessions');
   await page.keyboard.press('Escape');
-  await page.locator('.primary-nav [data-view="drivers"]').focus();
+  await page.locator('.primary-nav [data-view="outcomes"]').focus();
   assert.equal(await page.locator('#ui-tooltip').isVisible(), true, 'Collapsed navigation must explain its icons on keyboard focus');
-  assert.equal(await page.locator('#ui-tooltip').textContent(), 'Drivers');
+  assert.equal(await page.locator('#ui-tooltip').textContent(), 'Analytics');
   await page.keyboard.press('Escape');
-  for (const view of ['coaching', 'inbox', 'outcomes', 'drivers', 'groups', 'library', 'settings']) {
+  for (const view of ['coaching', 'inbox', 'outcomes', 'library', 'settings']) {
     const destination = page.locator('.primary-nav [data-view="' + view + '"]');
     assert.ok(await destination.getAttribute('aria-label'), 'Every collapsed destination needs an accessible name');
     await destination.click();
@@ -80,8 +80,8 @@ try {
   assert.equal(await page.locator('.brand-lockup').isVisible(), false);
   await page.locator('#mobile-more-trigger').click();
   assert.equal(await page.locator('#mobile-more-dialog').isVisible(), true);
-  await page.locator('[data-mobile-view="groups"]').click();
-  assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-groups');
+  await page.locator('[data-mobile-view="library"]').click();
+  assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-library');
   assert.equal(await page.locator('#mobile-more-dialog').isVisible(), false);
   assert.equal(await page.locator('#mobile-more-trigger').getAttribute('aria-expanded'), 'false');
   await page.setViewportSize({ width: 1024, height: 1000 });
@@ -139,7 +139,7 @@ try {
     reasons: Array.from(node.querySelectorAll('[data-overview-session-reason] strong'), value => value.textContent)
   }));
   const sessionOverview = {
-    rate: '90%', completed: '128 of 142 automated', week: 'Week of Aug 31',
+    rate: '84%', completed: '130 of 154 identified', week: 'Week of Aug 31',
     review: '17', reasons: ['3', '4', '4', '3', '3']
   };
   await page.goto(base + '/?session=archived#sessions');
@@ -151,7 +151,7 @@ try {
   await page.fill('#session-search', 'no matching driver');
   assert.equal(await page.locator('.session-row').count(), 0);
   assert.deepEqual(await readSessionOverview(), sessionOverview, 'Search must leave fleet summary counts intact');
-  for (const [reason, count] of [['driver_reply', 4], ['reminders_exhausted', 4], ['repeat_after_coaching', 3], ['delivery_blocked', 3]]) {
+  for (const [reason, count] of [['driver_reply', 4], ['reminders_exhausted', 4], ['repeat_after_coaching', 3], ['session_needed', 3]]) {
     const shortcut = page.locator('[data-overview-session-reason="' + reason + '"]');
     await shortcut.click();
     assert.equal(await page.locator('.session-row').count(), count, reason + ' must open its review queue');
@@ -188,7 +188,7 @@ try {
   }));
   const driverOverview = {
     scope: 'All 1,024 drivers', tiers: ['93', '471', '395', '65'],
-    progress: '7', automated: '5', manual: '2', completed: '130',
+    progress: '10', automated: '8', manual: '2', completed: '130',
     improvedDriver: 'Taylor Brooks', improvedScore: '71 → 78 safety score', improvement: '+7 pts'
   };
   assert.deepEqual(await readDriverOverview(), driverOverview);
@@ -227,26 +227,29 @@ try {
   assert.equal(await page.locator('.driver-distribution-card').evaluate(node => node.open), true);
   assert.deepEqual(await readDriverOverview(), driverOverview, 'Directory filters must never relabel sample counts as fleet totals');
 
-  for (const [state, origin, count] of [['system_handling', 'automated', 5], ['system_handling', 'manual_override', 2], ['completed', 'all', 130]]) {
+  for (const [state, origin, count] of [['system_handling', 'automated', 8], ['system_handling', 'manual_override', 2], ['completed', 'all', 130]]) {
     await page.locator('[data-overview-session-state="' + state + '"][data-overview-session-origin="' + origin + '"]').click();
     assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-inbox');
     assert.equal(await page.locator('.session-row').count(), count, 'Coaching count must open its matching session list');
     assert.equal(await page.inputValue('#session-origin-filter'), origin);
     assert.equal(await page.inputValue('#session-search'), '');
     assert.equal(new URL(page.url()).searchParams.get('session'), state);
-    await page.locator('[data-view="drivers"]').click();
+    await page.goto(base + '/#drivers');
   }
   await page.locator('[data-overview-session-state="system_handling"][data-overview-session-origin="manual_override"]').click();
   await page.locator('.session-row').first().click();
   await page.locator('#driver-drawer [data-complete-session]').click();
   await page.waitForFunction(() => document.querySelector('#driver-drawer').getAttribute('aria-hidden') === 'true');
-  await page.locator('[data-view="drivers"]').click();
-  assert.deepEqual(await readDriverOverview(), { ...driverOverview, progress: '6', manual: '1', completed: '131' }, 'Completing one-on-one coaching must update both lifecycle counts');
+  await page.goto(base + '/#drivers');
+  assert.deepEqual(await readDriverOverview(), { ...driverOverview, progress: '9', manual: '1', completed: '131' }, 'Completing one-on-one coaching must update both lifecycle counts');
 
   await page.goto(base + '/#groups');
-  assert.deepEqual(await page.locator('#group-coaching-workload strong').allTextContents(), ['48', '37', '31', '26']);
-  assert.equal(await page.locator('#group-workload-scope').textContent(), 'Automated assignments · week of Aug 31');
-  assert.deepEqual(await page.locator('#groups-overview .overview-value').allTextContents(), ['−29%', '+8%']);
+  assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-outcomes', 'Groups is an Analytics tab');
+  assert.equal(await page.locator('[data-analytics-tab="groups"]').getAttribute('aria-selected'), 'true');
+  assert.equal(await page.locator('#view-drivers').isVisible(), false);
+  assert.deepEqual(await page.locator('#group-coaching-workload strong').allTextContents(), ['39', '38', '38', '35'], 'Group workload sums to the 150 records started automatically');
+  assert.equal(await page.locator('#group-workload-scope').textContent(), 'Started automatically · week of Aug 31');
+  assert.deepEqual(await page.locator('#groups-overview .overview-value').allTextContents(), ['−4%', '+5%'], 'Group movement follows the shared one-week span');
   assert.deepEqual(await page.locator('#groups-overview .overview-person').allTextContents(), ['Local delivery', 'Long haul · North']);
   for (const [container, group] of [['#group-coaching-workload', 'Regional · East'], ['#view-groups .group-comparison-card', 'Regional · East'], ['#groups-overview >', 'Local delivery'], ['#view-groups .group-comparison-card', 'Local delivery']]) {
     const opener = container + ' [data-open-group="' + group + '"]';
@@ -265,8 +268,17 @@ try {
       await page.goto(base + '/#' + view);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, view + ' overflows at ' + width);
     }
+    await page.goto(base + '/#analytics');
+    assert.equal(await page.locator('[data-analytics-tab="outcomes"]').getAttribute('aria-selected'), 'true', 'Analytics opens on Outcomes');
+    assert.equal(await page.locator('#view-outcomes [data-queue-lens], #view-outcomes .sla-health-card, #view-outcomes [data-outcome-tab="cohort"]').count(), 0, 'Analytics must not repeat Groups or the review reasons inside its own tabs');
+    await page.locator('[data-analytics-tab="activity"]').click();
+    assert.ok(await page.locator('#coaching-queue .queue-row').count() > 0, 'Program performance is the shared programs table');
+    await page.locator('#coaching-queue .queue-row').first().click();
+    assert.equal(await page.locator('#category-drawer').getAttribute('aria-hidden'), 'false', 'Program rows open the program drawer from Analytics');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.getElementById('category-drawer').getAttribute('aria-hidden') === 'true');
     await page.goto(base + '/?analytics=outcomes#analytics');
-    for (const tab of ['category', 'cohort', 'driver']) {
+    for (const tab of ['category', 'driver']) {
       await page.locator('[data-outcome-tab="' + tab + '"]').click();
       assert.equal(await page.locator('#outcome-table tbody tr').count(), 3);
     }
@@ -274,11 +286,11 @@ try {
   await page.goto(base + '/#sessions');
   await page.locator('#view-inbox [data-filter-sheet-trigger]').click();
   await page.evaluate(() => { location.hash = 'drivers'; });
-  await page.waitForFunction(() => document.querySelector('#view-drivers').classList.contains('is-active'));
+  await page.waitForFunction(() => document.querySelector('#view-outcomes').classList.contains('is-active') && !document.querySelector('#view-drivers').hidden);
   assert.equal(await page.evaluate(() => document.body.classList.contains('has-filter-sheet')), false);
   assert.equal(await page.evaluate(() => document.querySelector('#view-drivers').inert), false);
   assert.deepEqual(errors, []);
-  console.log('Passed: asset integration, collapsible navigation and saved preferences, mobile navigation, session lifecycle/search/filters, fleet overview scopes and shortcuts, disclosure and opener focus, tooltip dismissal, keyboard navigation, drawers, driver filters/reset, analytics tabs, all-page responsive layouts, and route recovery.');
+  console.log('Passed: asset integration, analytics-hosted drivers and groups, collapsible navigation and saved preferences, mobile navigation, session lifecycle/search/filters, fleet overview scopes and shortcuts, disclosure and opener focus, tooltip dismissal, keyboard navigation, drawers, driver filters/reset, analytics tabs, all-page responsive layouts, and route recovery.');
 } finally {
   await browser.close();
 }

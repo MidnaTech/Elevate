@@ -17,7 +17,7 @@ function sessionWorkspaceState(session) {
 
 function workspaceSession() { return sessions.find(session => session.id === activeSessionId); }
 function sessionIsReadOnly(session) { return ['completed', 'archived'].includes(session.state); }
-function sessionCanReply(session) { return !sessionIsReadOnly(session) && session.attentionReason !== 'delivery_blocked' && !session.deliveryRelinked; }
+function sessionCanReply(session) { return !sessionIsReadOnly(session); }
 
 function saveSessionWorkspaceDraft() {
   const session = workspaceSession();
@@ -127,7 +127,7 @@ function sessionOpenedLabel(session) {
 function sessionWorkspaceHeader(session) {
   const [, label] = compactSessionStatus(session);
   const waiting = session.state === 'system_handling' && session.origin === 'automated';
-  const action = session.state === 'completed' ? '<button class="secondary-button" type="button" data-archive-session>Archive</button>' : session.state === 'archived' ? '<button class="secondary-button" type="button" data-restore-session>Restore</button>' : session.attentionReason === 'delivery_blocked' || waiting ? '' : '<button class="primary-button" type="button" data-complete-session>Complete session</button>';
+  const action = session.state === 'completed' ? '<button class="secondary-button" type="button" data-archive-session>Archive</button>' : session.state === 'archived' ? '<button class="secondary-button" type="button" data-restore-session>Restore</button>' : waiting ? '' : '<button class="primary-button" type="button" data-complete-session>Complete session</button>';
   const coach = coachLabel(session);
   const opened = sessionOpenedLabel(session);
   const context = ['Coaching session', session.person, 'opened by ' + (coach === 'Automated' ? 'Autocoach' : coach) + (opened ? ', ' + opened : '')].join(' · ');
@@ -141,8 +141,6 @@ function renderSessionWorkspace(session) {
 
 function workspaceComposer(session, state) {
   if (sessionIsReadOnly(session)) return '';
-  if (session.attentionReason === 'delivery_blocked') return '<div class="sw-notice"><strong>Driver account isn’t linked</strong><p>Link the driver identity to retry delivery.</p><button class="primary-button" type="button" data-relink-driver>Relink driver</button></div>';
-  if (session.deliveryRelinked) return '<div class="sw-notice">' + uiIcon('check') + '<strong>Delivery retry queued</strong><p>The driver account is linked. Automation will retry delivery.</p></div>';
   return '<div class="sw-composer"><div class="sw-composer-tools"><label><span class="sr-only">Message type</span><select id="session-composer-mode"><option value="reply"' + (state.mode === 'reply' ? ' selected' : '') + '>Reply to ' + escapeHtml(session.person.split(' ')[0]) + '</option><option value="note"' + (state.mode === 'note' ? ' selected' : '') + '>Private note</option></select></label><button class="text-action" type="button" data-open-session-events data-composer-attachment-count>' + uiIcon('paperclip') + '<span></span></button></div><label class="sr-only" id="sw-reply-label" for="reply-text">Reply</label><textarea id="reply-text" rows="3"></textarea><div class="sw-composer-footer"><span id="sw-message-visibility"></span><button class="primary-button" type="button" data-send-reply>Send</button></div></div>';
 }
 
@@ -150,7 +148,7 @@ function updateWorkspaceComposer(session, restoreText = false) {
   const state = sessionWorkspaceState(session);
   const region = document.getElementById('sw-composer-region');
   if (!region) return;
-  const kind = sessionIsReadOnly(session) ? 'readonly' : session.attentionReason === 'delivery_blocked' ? 'blocked' : session.deliveryRelinked ? 'retry' : 'composer';
+  const kind = sessionIsReadOnly(session) ? 'readonly' : 'composer';
   if (region.dataset.kind !== kind) {
     region.innerHTML = workspaceComposer(session, state);
     region.dataset.kind = kind;
@@ -248,7 +246,7 @@ function updateWorkspaceConversation(session) {
     const attachments = clips ? clips + (clips === 1 ? ' video' : ' videos') + ' attached' : shared.length + (shared.length === 1 ? ' event' : ' events') + ' attached';
     return '<article class="sw-message ' + (note ? 'is-note' : message.author === 'driver' ? 'is-driver' : 'is-manager') + '"><header><strong>' + escapeHtml(author) + '</strong><time>' + escapeHtml(message.time || '') + '</time></header>' + (text ? '<div class="sw-message-body"><p>' + escapeHtml(text) + '</p></div>' : '') +
       (shared.length ? '<details class="sw-message-attachments"><summary>' + attachments + '</summary><div>' + shared.map(event => '<button type="button" class="sw-shared-event" data-session-event="' + escapeHtml(event.id) + '">' + uiIcon(event.kind === 'video' ? 'play' : 'chart') + '<span>' + escapeHtml([event.time, event.title].filter(Boolean).join(' · ')) + '</span><small>' + workspaceSelectionLabel([event]) + '</small></button>').join('') + '</div></details>' : '') + '</article>';
-  }).join('') : '<p class="sw-conversation-empty">' + (session.attentionReason === 'delivery_blocked' ? 'Coaching hasn’t reached the driver.' : 'No messages yet') + '</p>';
+  }).join('') : '<p class="sw-conversation-empty">' + 'No messages yet' + '</p>';
 }
 
 function mountSessionWorkspace(session) {

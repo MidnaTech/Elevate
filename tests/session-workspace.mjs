@@ -247,15 +247,12 @@ try {
   assert.equal(await page.evaluate(id => sessions.find(item => item.id === id).state, manualId), 'completed', 'Restoring an archive must not resume an active coaching session');
 
   await page.goto(base + '/#sessions');
-  const blockedId = await page.evaluate(() => sessions.find(item => item.attentionReason === 'delivery_blocked').id);
-  await page.locator('[data-session-filter="all"]').click();
-  await page.locator('[data-open-session="' + blockedId + '"]').click();
-  assert.equal(await drawer.locator('[data-relink-driver]').count(), 1);
-  assert.equal(await reply.count(), 0, 'Resolve the delivery problem before exposing a reply composer');
-  assert.equal(await drawer.locator('video').count(), 0);
-  await drawer.locator('[data-relink-driver]').click();
-  assert.match(await drawer.innerText(), /retry queued|retrying|delivery retry/i);
-  assert.equal(await drawer.locator('[data-relink-driver]').count(), 0);
+  const retryingId = await page.evaluate(() => sessions.find(item => item.eventType === 'Training delivery retrying').id);
+  await page.locator('[data-session-filter="system_handling"]').click();
+  await page.locator('[data-open-session="' + retryingId + '"]').click();
+  assert.equal(await drawer.locator('[data-relink-driver]').count(), 0, 'Delivery retries run automatically; there is no manual relink step');
+  assert.match(await drawer.innerText(), /Automated|retr(y|ies|ying)/i);
+  assert.equal(await reply.count(), 1, 'A retrying automated session still accepts coach messages');
 
   for (const width of [1440, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });

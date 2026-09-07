@@ -97,7 +97,7 @@ body.has-filter-sheet { overflow: hidden; }
   --space-5: 24px;
   --space-6: 32px;
   --radius-control: 8px;
-  --radius-card: 10px;
+  --radius-card: 12px;
   --font-page-title: 30px;
   --font-section-title: 15px;
   --font-body: 13px;
@@ -122,8 +122,8 @@ body.has-filter-sheet { overflow: hidden; }
 #view-groups .group-head, #view-settings .settings-rule-head, .queue-columns { font-size: var(--font-meta); font-weight: 500; letter-spacing: 0; text-transform: none; }
 @media (min-width: 768px) {
   #view-groups .group-row > :not(:first-child) { text-align: right; justify-self: stretch; }
-  #view-coaching .queue-columns > :nth-child(n+2):nth-child(-n+5) { text-align: right; }
-  #view-coaching .queue-number, #view-coaching .queue-attention, #view-coaching .risk-change { text-align: right; justify-items: end; align-items: flex-end; }
+  .queue-section .queue-columns > :nth-child(n+2):nth-child(-n+5) { text-align: right; }
+  .queue-section .queue-number, .queue-section .queue-attention, .queue-section .risk-change { text-align: right; justify-items: end; align-items: flex-end; }
 }
 @media (max-width: 1100px) {
   :is(#view-inbox, #view-drivers) .data-toolbar > .view-tabs { flex: 1 1 100%; }
@@ -271,3 +271,46 @@ button.overview-panel:focus-visible { outline-offset: -3px; }
   #groups-overview .overview-workload-panel .overview-workload { grid-template-columns: 1fr; }
   .overview-completed { min-height: 44px; }
 }
+
+/* One surface language ------------------------------------------------------
+   Every card, strip, table, and chart container shares the same border, radius,
+   and flat background. Shadows are reserved for floating panels and dialogs. */
+#main-content :is(.command-card, .analytics-kpi-strip, .analytics-chart-card, .analytics-category-card, .outcome-story,
+.outcomes-table-card, .coaching-queue, .overview-band, .directory-card, .group-comparison-card,
+.session-list-card, .library-card, .settings-section, .settings-status-card, .settings-impact, .context-card, .pipeline-card, .workflow-card) {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: none;
+}
+#main-content .command-card.automation-card { background: var(--surface); }
+button.command-card:hover { border-color: var(--border-strong); box-shadow: none; }
+
+/* One accent. Colour marks status and direction; headline figures stay ink. */
+.automation-headline strong { color: var(--ink); }
+.automation-row.is-manual { --bar: var(--ink-300); }
+.automation-split-bar .is-manual { background: var(--ink-300); }
+.kpi-trend[data-tone="neutral"] :is(.ui-icon, b) { color: var(--ink-500); }
+
+/* One button family: dark primary, bordered secondary, blue text links. */
+.attention-review-button, .primary-button { min-height: 36px; padding: 0 14px; border: 1px solid var(--button-ink); border-radius: var(--radius-control); background: var(--button-ink); color: #fff; font-size: 13px; font-weight: 600; }
+.attention-review-button:hover, .primary-button:hover { border-color: var(--ink); background: var(--ink); }
+.secondary-button, .filter-button { min-height: 36px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); color: var(--ink-700); font-size: 13px; font-weight: 600; }
+.secondary-button:hover, .filter-button:hover { border-color: var(--border-strong); background: var(--surface-soft); }
+.segmented { padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); }
+.segmented button { min-height: 28px; border-radius: 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-500); }
+.segmented button.is-active { background: var(--button-ink); color: #fff; box-shadow: none; }
+.card-link, .text-action, .status-link { color: var(--primary); font-weight: 650; }
+
+/* One chart palette: primary for the main series, success for completed and reductions,
+   warning for increases and attention, insight for replies, neutral for baselines. */
+.weekly-activity-chart .activity-bar.identified, .activity-legend i.identified { fill: var(--surface-strong); background: var(--surface-strong); }
+.weekly-activity-chart .activity-bar.coached, .activity-legend i.coached { fill: var(--primary); background: var(--primary); }
+#view-outcomes .weekly-activity-chart .activity-bar.one-to-one, #view-outcomes .activity-legend i.one-to-one { fill: var(--ink-300); background: var(--ink-300); }
+.weekly-activity-chart .activity-bar.completed, .activity-legend i.completed { fill: var(--success); background: var(--success); }
+.weekly-activity-chart .activity-bar.escalated, .activity-legend i.escalated { fill: var(--amber); background: var(--amber); }
+.overview-sparkline.positive .overview-spark-path { stroke: var(--success); }
+.overview-sparkline.negative .overview-spark-path { stroke: var(--amber); }
+
+/* Section headers read the same everywhere. */
+.command-card-header h2, .queue-topline h2 span, .analytics-chart-card h2, .outcomes-table-card h2, .overview-heading h2, .group-comparison-card h2 { font-size: var(--font-section-title); font-weight: 650; letter-spacing: -.01em; color: var(--ink); }
