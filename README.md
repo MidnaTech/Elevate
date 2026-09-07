@@ -9,7 +9,8 @@ Elevate is an interactive prototype for automated driver coaching. It demonstrat
 - A session workspace with video and map together, event search and sharing, and separate reply/private-note drafts
 - Driver portfolios with a weekly driving overview, a rule breakdown, one coaching list, and source exception/video history
 - Group-level safety views and consistent record drawers
-- Separate weekly Activity throughput and exposure-aware Outcomes analytics
+- Analytics with Outcomes/Activity/Drivers/Groups; former program-drawer data lives directly on Programs, which starts with an All programs comparison and scopes Overview/Content/Configuration to a selected program
+- Retained weekly Activity throughput and exposure-aware Outcomes report links
 - Training content library
 - Draft-first automation mode and cadence settings with previews and audit history
 - Native tables with local narrow-screen scrolling, filter dialogs, global search, and a collapsible sidebar with saved preferences
@@ -42,6 +43,7 @@ dist/design-system.js  Shared icons, tooltips, and interaction helpers
 dist/components.js     Shared KPI, status, table, and native-control components
 dist/charts.js         Reusable source-backed SVG chart rendering
 dist/design-library.html Isolated shared-component review specimen
+dist/programs.js       First-step program review page and scoped source presentation
 dist/app.js            Mock data and interactions
 dist/session-evidence.js   Event/clip identity and source metadata
 dist/session-workspace.js  Session evidence, conversation, and draft behavior
@@ -81,6 +83,8 @@ read-only and automatically retrying delivery states, focus, and session layout 
 and uses the shared record drawer width. Its sample footage and maps are explicitly
 illustrative wherever source media or coordinates are unavailable.
 
+Run `npm run test:programs` for the [Jobin review prototype](docs/programs-review.md): full-page Programs, native routing/switcher, independent program/time filters, scoped data, retained record navigation, and unavailable score/LMS metrics.
+
 ## Design-library release checks
 
 Run `npm run test:design` for shared component, accessibility, and universal table-alignment browser checks, alongside `npm run test:browser`, `npm run test:drivers`, and `npm run test:sessions`. `npm test` includes static design-library, literal-token, contrast, and domain checks. See [migration and release evidence](docs/design-library-migration.md) for scope and limitations.
@@ -88,3 +92,9 @@ Run `npm run test:design` for shared component, accessibility, and universal tab
 The system uses the native system sans stack; no font download or build step is required. Older screenshots and the standalone session concept under `docs/` are historical references, not the current design specification.
 
 A standalone [shared component specimen](dist/design-library.html) is served at `/design-library.html`. It loads the production shared stylesheet/components with isolated example data; it is not an additional app destination.
+
+Run `npm run test:program-drawer` for former program-drawer data retained inline, Analytics/Group-to-Programs navigation, session return context, manual creation, responsive layouts and text zoom.
+
+Run `npm run test:cleanup` for consistent right-hand toolbars, accessible scope controls, disclosure placement, pagination and narrow-screen overflow. Programs opens with one compact Coaching comparison; Event rates switches that module to the retained full chart. Selected programs keep their chart and Coaching above the expandable Recorded outcomes sample.
+
+Run `npm run test:config` for [program configuration](docs/program-configuration.md): creating and deleting programs, per-rule severity and threshold, the program coaching threshold, one-on-one coach routing (one coach or per group), local persistence, and the overview without a featured driver or an "awaiting session" row.

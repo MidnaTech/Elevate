@@ -180,7 +180,7 @@ button { cursor: pointer; }
   flex-wrap: nowrap;
   gap: var(--space-1);
   margin: 0;
-  padding: var(--space-2);
+  padding: var(--space-1);
   min-inline-size: 0;
   max-inline-size: 100%;
   overflow-x: auto;
@@ -390,6 +390,7 @@ button { cursor: pointer; }
 .chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-block: var(--space-3); font-size: var(--font-1); line-height: var(--line-1); color: var(--ink-500); }
 .chart-plot { min-inline-size: 0; overflow-x: auto; background: var(--surface); }
 .chart-plot svg { display: block; font-family: var(--font-family); }
+.chart-plot .category-weekly-chart { width: auto; height: auto; max-width: none; }
 .chart-axis { stroke: var(--border-strong); stroke-width: 1; }
 .chart-grid { stroke: var(--border-soft); stroke-width: 1; }
 .chart-label { fill: var(--ink-500); font-size: var(--font-1); font-variant-numeric: tabular-nums lining-nums; }
@@ -406,7 +407,7 @@ button { cursor: pointer; }
 .chart-mark:where(rect[data-selected="true"]) { stroke: var(--ink); stroke-width: 2; }
 .chart-datum-highlight { fill: none; stroke: var(--ink); stroke-width: 2; }
 .chart-footnote { margin: var(--space-2) 0 0; font-size: var(--font-1); line-height: var(--line-1); color: var(--ink-400); }
-.chart-summary { margin-block-start: var(--space-3); border-block-start: 1px solid var(--border); padding-block-start: var(--space-2); }
+.chart-summary { margin: var(--space-3) 0 0; border-block-start: 1px solid var(--border); padding-block-start: var(--space-2); }
 .chart-summary summary { min-block-size: var(--control-height); padding: var(--space-2); color: var(--ink-700); cursor: pointer; }
 .chart-summary summary:where(:hover) { background: var(--surface-strong); color: var(--ink); }
 
@@ -473,10 +474,16 @@ button.text-link { margin: 0; padding: 0; border: 0; border-radius: 0; backgroun
 .app-view { min-width: 0; }
 .kpi-region, .app-view > .kpi-strip { margin-block-end: var(--space-6); }
 .page-heading { margin-bottom: var(--space-6); gap: var(--space-4); }
-.heading-actions, .toolbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); min-width: 0; }
+.heading-actions, .toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); min-width: 0; }
 .data-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-4); margin-bottom: var(--space-4); }
 .session-footer nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.session-footer nav[hidden] { display: none; }
 .toolbar-actions { margin-left: auto; }
+/* A panel owns its internal rhythm; chart children do not add a second gap. */
+.overview-panel.chart-card { gap: var(--space-3); }
+.overview-panel > .chart-legend, .overview-panel > .chart-summary { margin: 0; }
+.overview-panel > .overview-driver-highlight { padding: 0; border: 0; }
+.overview-driver-coaching { align-self: start; }
 .sidebar { background: var(--surface); color: var(--ink-700); border-right: 1px solid var(--border); box-shadow: none; }
 .sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: var(--control-height); }
 .sidebar-header .brand-lockup { min-width: 0; gap: var(--space-2); padding: 0; }
@@ -536,6 +543,12 @@ body.has-filter-sheet { overflow: hidden; }
 @media (max-width: 680px) {
   .app-shell { --sidebar-width: 0px; }
   .sidebar-header { display: none; }
+  .sidebar { height: 72px; padding: var(--space-2); }
+  .sidebar .primary-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .sidebar .nav-item { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: var(--space-1); min-height: 56px; padding: var(--space-1); font-size: var(--font-1); line-height: var(--line-1); }
+  .sidebar .nav-item > b { display: none; }
+  .sidebar .nav-item-secondary { display: none; }
+  .sidebar .nav-item > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .app-view > .page-heading { flex-direction: row; align-items: center; flex-wrap: wrap; }
   .app-view > .page-heading .heading-actions { width: auto; margin-left: auto; }
   .data-toolbar > .view-tabs { width: 100%; flex: 1 1 100%; }

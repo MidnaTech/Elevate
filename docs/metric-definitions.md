@@ -1,6 +1,6 @@
 # Coaching metrics and reconciliation
 
-These definitions govern Automation Centre, Sessions, Activity, Drivers, Groups, their shortcuts, and shared reporting helpers. The unit is a coaching record or actual session, never an inferred unique driver.
+These definitions govern Automation Centre, Sessions, Programs, Activity, Drivers, Groups, their shortcuts, and shared reporting helpers. The unit is a coaching record or actual session, never an inferred unique driver.
 
 | Measure | Source and inclusion |
 | --- | --- |
@@ -13,6 +13,7 @@ These definitions govern Automation Centre, Sessions, Activity, Drivers, Groups,
 | Automated / One-on-one in progress | Active subsets of the corresponding actual method totals. |
 | Awaiting session | Pending session-needed flags, included in Identified and Needs review but excluded from actual method totals. |
 | Automation share | Automated actual sessions divided by all actual sessions, rounded to a whole percentage. |
+| Program completion | Completed records divided by Identified records in the same program and reporting period; pending reviews remain in the denominator. Unavailable when no records are identified. |
 
 The three independent reconciliations are:
 
@@ -30,11 +31,13 @@ The initial weekly source ledger reconciles as **154 = 151 + 3 = 10 + 14 + 130**
 
 The historical ledger contains 177 actual sessions plus three separate pending flags. Raw Archived counts are 0, 10, and 26 in the three periods; those records also contribute to reporting Completed. Their archival identity remains available for history filtering.
 
-Source-specific Sessions filters count actual sessions only: Automated totals are 147/155/171; One-on-one totals are 4/6/6. All origins includes pending flags. Mixed lists and pagination say “records.” Summary counts retain their reporting scope while table search, status, source, or other filters narrow the list. Activity places the same four stage measures first, followed by actual method totals. Its table and weekly chart explicitly label active method subsets. Group workload counts actual automated sessions by group and excludes pending flags.
+Source-specific Sessions filters count actual sessions only: Automated totals are 147/155/171; One-on-one totals are 4/6/6. All origins includes pending flags. Mixed lists and pagination say “records.” Summary counts retain their selected program and reporting period while table search, status, or source filters narrow the list. The program selector changes the dataset scope of both the summary and records; summary shortcuts preserve that program scope. Activity places the same four stage measures first, followed by actual method totals. Its table and weekly chart explicitly label active method subsets. Group workload counts actual automated sessions by group and excludes pending flags.
 
 ## Reporting time and mutations
 
-The reporting selector changes a selected-window summary; it does not rewrite an individual weekly snapshot. `currentCycleCounts(period)` and `coachingCounts(predicate, period)` accept an explicit period independent of the selected UI window. The latest weekly chart and automation-run snapshot always use period 1, so Last 8 weeks does not relabel 180 identified records as a single week's activity.
+Programs starts with All programs. Its comparison includes all ten programs and derives each row from the same period-scoped ledger as the summary. Additive record counts reconcile across program rows; percentages and rates do not add. Event-rate charts compare each program's own observations in events per 1,000 trips. This week compares the last two observed weeks; longer periods compare the first and last observations of the selected window. Do not average program rates without exposure, or combine undated outcome samples into a fleet unique-driver measure.
+
+The reporting selector changes a selected-window summary; it does not rewrite an individual weekly snapshot. `currentCycleCounts(period, programId)` and `coachingCounts(predicate, period)` accept an explicit period independent of the selected UI window. The latest weekly chart and automation-run snapshot always use period 1, so Last 8 weeks does not relabel 180 identified records as a single week's activity.
 
 A direct manual start adds one actual session: **155 identified = 152 actual + 3 flags = 11 in progress + 14 review + 130 completed**. The actual method split becomes 147 automated + 5 one-on-one. Starting coaching from a pending flag replaces that flag: **154 identified = 152 actual + 2 flags = 11 in progress + 13 review + 130 completed**. Automated total remains 147 in either case. Cancel creates nothing.
 

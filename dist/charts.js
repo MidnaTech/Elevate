@@ -41,21 +41,24 @@ function chartHorizontalBar(x, y, width, height = 12) {
 }
 
 function chartBeforeAfterSvg(rows, availableWidth) {
-  const width = Math.max(480, Math.min(1400, availableWidth || 720));
-  const compact = width < 680;
-  const left = compact ? 156 : 220;
-  const right = compact ? 135 : 154;
-  const top = 24;
-  const rowHeight = 44;
-  const height = top + rows.length * rowHeight + 38;
+  // SVG text follows the user's root font size; reserve matching geometry at text zoom.
+  const textScale = typeof document !== 'undefined' && typeof getComputedStyle === 'function'
+    ? Math.max(1, (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16) : 1;
+  const width = Math.max(480 * textScale, Math.min(1400 * textScale, availableWidth || 720));
+  const compact = width < 680 * textScale;
+  const left = (compact ? 156 : 220) * textScale;
+  const right = (compact ? 135 : 154) * textScale;
+  const top = 24 * textScale;
+  const rowHeight = 44 * textScale;
+  const height = top + rows.length * rowHeight + 38 * textScale;
   const plotWidth = width - left - right;
   const finiteValues = rows.flatMap(row => [row.before, row.after]).filter(value => Number.isFinite(value) && value >= 0);
   const max = chartScaleCeiling(Math.max(1, ...finiteValues) * 1.05);
   const x = value => left + value / max * plotWidth;
-  const endY = top + rows.length * rowHeight - 8;
+  const endY = top + rows.length * rowHeight - 8 * textScale;
   const ticks = Array.from({ length: 5 }, (_, index) => max * index / 4);
   return '<svg class="before-after-chart" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Before and after event rates. Gray Before bars above petrol After bars. Events per 1,000 trips; lower is safer.">' +
-    '<g>' + ticks.map(tick => '<line class="chart-grid" x1="' + x(tick).toFixed(1) + '" y1="' + (top - 5) + '" x2="' + x(tick).toFixed(1) + '" y2="' + endY + '"/><text class="chart-label" x="' + x(tick).toFixed(1) + '" y="' + (endY + 20) + '" text-anchor="middle">' + chartRate(tick) + '</text>').join('') + '<line class="chart-axis" x1="' + left + '" y1="' + (top - 5) + '" x2="' + left + '" y2="' + endY + '"/><text class="chart-label" x="' + (width - 10) + '" y="12" text-anchor="end">Change</text></g>' +
+    '<g>' + ticks.map(tick => '<line class="chart-grid" x1="' + x(tick).toFixed(1) + '" y1="' + (top - 5 * textScale) + '" x2="' + x(tick).toFixed(1) + '" y2="' + endY + '"/><text class="chart-label" x="' + x(tick).toFixed(1) + '" y="' + (endY + 20 * textScale) + '" text-anchor="middle">' + chartRate(tick) + '</text>').join('') + '<line class="chart-axis" x1="' + left + '" y1="' + (top - 5 * textScale) + '" x2="' + left + '" y2="' + endY + '"/><text class="chart-label" x="' + (width - 10 * textScale) + '" y="' + (12 * textScale) + '" text-anchor="end">Change</text></g>' +
     rows.map((row, index) => {
       const y = top + index * rowHeight;
       const valid = Number.isFinite(row.before) && Number.isFinite(row.after) && row.before >= 0 && row.after >= 0;
@@ -63,12 +66,12 @@ function chartBeforeAfterSvg(rows, availableWidth) {
       const maxChars = compact ? 15 : 24;
       const label = row.label.length > maxChars ? row.label.slice(0, maxChars - 1).trimEnd() + '…' : row.label;
       const info = row.label + (row.meta ? ' · ' + row.meta : '') + ': Before ' + chartRate(row.before) + ', After ' + chartRate(row.after) + ' events per 1,000 trips. ' + chartChangeLabel(row) + (row.before === 0 && row.after > 0 ? '. Percentage change unavailable because the starting rate is zero.' : '') + '.';
-      return '<g class="ba-row ' + tone + '" tabindex="0" role="img" aria-label="' + escapeHtml(info) + '" data-tooltip="' + escapeHtml(info) + '"><title>' + escapeHtml(info) + '</title><text class="chart-label ba-label" x="0" y="' + (y + 18) + '">' + escapeHtml(label) + '</text>' +
+      return '<g class="ba-row ' + tone + '" tabindex="0" role="img" aria-label="' + escapeHtml(info) + '" data-tooltip="' + escapeHtml(info) + '"><title>' + escapeHtml(info) + '</title><text class="chart-label ba-label" x="0" y="' + (y + 18 * textScale) + '">' + escapeHtml(label) + '</text>' +
         (valid ? [['Before', row.before, 'baseline'], ['After', row.after, 'primary']].map(([name, value, series], offset) => {
-          const barY = y + offset * 16;
-          return '<text class="chart-label ba-series" x="' + (left - 8) + '" y="' + (barY + 10) + '" text-anchor="end">' + name + '</text><path class="chart-bar--' + series + ' ba-' + name.toLowerCase() + '" d="' + chartHorizontalBar(left, barY, x(value) - left) + '"/><text class="chart-label ba-value" x="' + (x(value) + 6).toFixed(1) + '" y="' + (barY + 10) + '">' + chartRate(value) + '</text>';
-        }).join('') : '<text class="chart-label" x="' + left + '" y="' + (y + 18) + '">Not enough data</text>') +
-        '<text class="chart-label ba-change" x="' + (width - 10) + '" y="' + (y + 18) + '" text-anchor="end">' + escapeHtml(chartChangeLabel(row)) + '</text></g>';
+          const barY = y + offset * 16 * textScale;
+          return '<text class="chart-label ba-series" x="' + (left - 8 * textScale) + '" y="' + (barY + 10 * textScale) + '" text-anchor="end">' + name + '</text><path class="chart-bar--' + series + ' ba-' + name.toLowerCase() + '" d="' + chartHorizontalBar(left, barY, x(value) - left, 12 * textScale) + '"/><text class="chart-label ba-value" x="' + (x(value) + 6 * textScale).toFixed(1) + '" y="' + (barY + 10 * textScale) + '">' + chartRate(value) + '</text>';
+        }).join('') : '<text class="chart-label" x="' + left + '" y="' + (y + 18 * textScale) + '">Not enough data</text>') +
+        '<text class="chart-label ba-change" x="' + (width - 10 * textScale) + '" y="' + (y + 18 * textScale) + '" text-anchor="end">' + escapeHtml(chartChangeLabel(row)) + '</text></g>';
     }).join('') + '</svg>';
 }
 
@@ -91,8 +94,8 @@ function chartWeeklyActivitySvg(weeks, availableWidth, availableHeight) {
   const scorePath = linePath(points);
   const tickSteps = maximum % 4 === 0 ? 4 : 2;
   const tickValues = Array.from({ length: tickSteps + 1 }, (_, index) => maximum * index / tickSteps);
-  return '<svg class="weekly-activity-chart" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-labelledby="weekly-activity-title weekly-activity-desc"><title id="weekly-activity-title">Weekly coaching activity and safety score</title><desc id="weekly-activity-desc">In-progress sessions at each weekly snapshot. Bars use the left Sessions axis starting at zero. Score uses the right Safety score axis fixed from zero to 100. ' + escapeHtml(weeks.map(week => week.label + ': ' + week.automated + ' automated sessions, ' + week.oneToOne + ' one-on-one sessions, safety score ' + week.score + ' out of 100').join('; ')) + '.</desc>' +
-    '<text class="chart-label activity-axis-title" x="0" y="12">Sessions</text><text class="chart-label activity-axis-title" x="' + width + '" y="12" text-anchor="end">Safety score / 100</text>' +
+  return '<svg class="weekly-activity-chart" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-labelledby="weekly-activity-title weekly-activity-desc"><title id="weekly-activity-title">Weekly coaching activity and Elevate score</title><desc id="weekly-activity-desc">In-progress sessions at each weekly snapshot. Bars use the left Sessions axis starting at zero. Score uses the right Elevate score axis fixed from zero to 100. ' + escapeHtml(weeks.map(week => week.label + ': ' + week.automated + ' automated sessions, ' + week.oneToOne + ' one-on-one sessions, Elevate score ' + week.score + ' out of 100').join('; ')) + '.</desc>' +
+    '<text class="chart-label activity-axis-title" x="0" y="12">Sessions</text><text class="chart-label activity-axis-title" x="' + width + '" y="12" text-anchor="end">Elevate score / 100</text>' +
     tickValues.map(tick => '<line class="chart-grid" x1="' + left + '" x2="' + (width - right) + '" y1="' + y(tick) + '" y2="' + y(tick) + '"/><text class="chart-label" x="' + (left - 8) + '" y="' + (y(tick) + 4) + '" text-anchor="end">' + chartRate(tick) + '</text>').join('') +
     '<path class="chart-axis" fill="none" d="M' + left + ' ' + top + 'V' + baseY + 'H' + (width - right) + 'V' + top + '"/>' +
     [0, 25, 50, 75, 100].map(tick => '<text class="chart-label" x="' + (width - right + 8) + '" y="' + (scoreY(tick) + 4) + '">' + tick + '</text>').join('') +
@@ -105,7 +108,7 @@ function chartWeeklyActivitySvg(weeks, availableWidth, availableHeight) {
         return '<g tabindex="0" role="img" aria-label="' + escapeHtml(tooltip) + '" data-tooltip="' + escapeHtml(tooltip) + '"><rect class="activity-bar chart-bar--' + series.tone + '" x="' + series.x.toFixed(1) + '" y="' + y(value).toFixed(1) + '" width="' + barWidth.toFixed(1) + '" height="' + (baseY - y(value)).toFixed(1) + '"/><text class="chart-label activity-bar-value" x="' + (series.x + barWidth / 2).toFixed(1) + '" y="' + (y(value) - 6).toFixed(1) + '" text-anchor="middle">' + value + '</text></g>';
       }).join('') + (showLabel ? '<text class="chart-label activity-week-label" x="' + center.toFixed(1) + '" y="' + (height - 8) + '" text-anchor="middle">' + escapeHtml(week.label) + '</text>' : '');
     }).join('') + '</g><path class="chart-score-casing" d="' + scorePath + '"/><path class="chart-score-line" d="' + scorePath + '"/>' +
-    points.map((point, index) => { const tooltip = 'Week of ' + weeks[index].label + ': safety score ' + point.value + ' out of 100. Right axis.'; return '<circle class="chart-score-marker" cx="' + point.x.toFixed(1) + '" cy="' + point.y.toFixed(1) + '" r="3" tabindex="0" role="img" aria-label="' + escapeHtml(tooltip) + '" data-tooltip="' + escapeHtml(tooltip) + '"><title>' + escapeHtml(tooltip) + '</title></circle>'; }).join('') + '</svg>';
+    points.map((point, index) => { const tooltip = 'Week of ' + weeks[index].label + ': Elevate score ' + point.value + ' out of 100. Right axis.'; return '<circle class="chart-score-marker" cx="' + point.x.toFixed(1) + '" cy="' + point.y.toFixed(1) + '" r="3" tabindex="0" role="img" aria-label="' + escapeHtml(tooltip) + '" data-tooltip="' + escapeHtml(tooltip) + '"><title>' + escapeHtml(tooltip) + '</title></circle>'; }).join('') + '</svg>';
 }
 
 function chartMountSummary(card, summary, table, footnote) {
@@ -130,25 +133,27 @@ function chartMountSummary(card, summary, table, footnote) {
 }
 
 function chartWeeklyData(weeks) {
-  return chartTableMarkup('Weekly coaching snapshots and fleet safety score', ['Week', 'Automated in progress', 'One-on-one in progress', 'Safety score / 100', 'Identified records', 'Completed sessions', 'Needs review'], weeks.map(week => [week.label, week.automated, week.oneToOne, week.score, week.identified, week.completed, week.escalated]));
+  return chartTableMarkup('Weekly coaching snapshots and fleet Elevate score', ['Week', 'Automated in progress', 'One-on-one in progress', 'Elevate score / 100', 'Identified records', 'Completed sessions', 'Needs review'], weeks.map(week => [week.label, week.automated, week.oneToOne, week.score, week.identified, week.completed, week.escalated]));
 }
 
-function chartCategoryWeekly(category) {
+function chartCategoryWeekly(category, availableWidth) {
   const values = category.weeklyRates;
-  const width = 680;
-  const height = 222;
-  const left = 38;
-  const right = 20;
-  const top = 16;
-  const bottom = 34;
+  const textScale = typeof document !== 'undefined' && typeof getComputedStyle === 'function'
+    ? Math.max(1, (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16) : 1;
+  const width = Math.max(680 * textScale, availableWidth || 680);
+  const height = 222 * textScale;
+  const left = 38 * textScale;
+  const right = 20 * textScale;
+  const top = 16 * textScale;
+  const bottom = 34 * textScale;
   const max = chartScaleCeiling(Math.max(1, ...values) * 1.05);
   const points = pointsPath(values, width, height, left, right, top, bottom, 0, max);
   const weeks = ['Jul 13', 'Jul 20', 'Jul 27', 'Aug 3', 'Aug 10', 'Aug 17', 'Aug 24', 'Aug 31'];
   const summary = category.name + ': ' + values.map((value, index) => weeks[index] + ' ' + chartRate(value)).join('; ') + ' events per 1,000 trips. Lower is safer.';
   const svg = '<svg class="category-weekly-chart" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="' + escapeHtml(summary) + '">' +
-    [0, max / 4, max / 2, max * .75, max].map(tick => { const y = height - bottom - tick / max * (height - top - bottom); return '<line class="chart-grid" x1="' + left + '" x2="' + (width - right) + '" y1="' + y + '" y2="' + y + '"/><text class="chart-label" x="' + (left - 8) + '" y="' + (y + 4) + '" text-anchor="end">' + chartRate(tick) + '</text>'; }).join('') +
-    '<path class="chart-axis" fill="none" d="M' + left + ' ' + top + 'V' + (height - bottom) + 'H' + (width - right) + '"/><path class="chart-line" d="' + linePath(points) + '"/>' + points.map((point, index) => '<circle class="chart-line-marker" cx="' + point.x.toFixed(1) + '" cy="' + point.y.toFixed(1) + '" r="3" tabindex="0" role="img" aria-label="' + escapeHtml(weeks[index] + ': ' + chartRate(point.value) + ' events per 1,000 trips') + '" data-tooltip="' + escapeHtml(weeks[index] + ': ' + chartRate(point.value) + ' events per 1,000 trips') + '"/>' + '<text class="chart-label" x="' + point.x.toFixed(1) + '" y="' + (height - 8) + '" text-anchor="middle">' + weeks[index] + '</text>').join('') + '</svg>';
-  return '<p class="chart-context">' + escapeHtml(category.name) + ' · Jul 13–Aug 31 · events per 1,000 trips · lower is safer</p><div class="chart-legend">' + chartLegendMarkup([{ tone: 'primary', kind: 'line', label: 'Event rate' }]) + '</div><div class="chart-plot" tabindex="0" role="region" aria-label="' + escapeHtml(category.name + ' weekly event-rate chart') + '">' + svg + '</div><p class="chart-footnote">Source: prototype rate observations. Trip exposure and driver counts by week, update time, and exclusions are not recorded.</p>' + chartSummaryMarkup(summary, chartTableMarkup(category.name + ' weekly event rates', ['Week', 'Events per 1,000 trips'], values.map((value, index) => [weeks[index], chartRate(value)])));
+    [0, max / 4, max / 2, max * .75, max].map(tick => { const y = height - bottom - tick / max * (height - top - bottom); return '<line class="chart-grid" x1="' + left + '" x2="' + (width - right) + '" y1="' + y + '" y2="' + y + '"/><text class="chart-label" x="' + (left - 8 * textScale) + '" y="' + (y + 4 * textScale) + '" text-anchor="end">' + chartRate(tick) + '</text>'; }).join('') +
+    '<path class="chart-axis" fill="none" d="M' + left + ' ' + top + 'V' + (height - bottom) + 'H' + (width - right) + '"/><path class="chart-line" d="' + linePath(points) + '"/>' + points.map((point, index) => '<circle class="chart-line-marker" cx="' + point.x.toFixed(1) + '" cy="' + point.y.toFixed(1) + '" r="3" tabindex="0" role="img" aria-label="' + escapeHtml(weeks[index] + ': ' + chartRate(point.value) + ' events per 1,000 trips') + '" data-tooltip="' + escapeHtml(weeks[index] + ': ' + chartRate(point.value) + ' events per 1,000 trips') + '"/>' + '<text class="chart-label" x="' + point.x.toFixed(1) + '" y="' + (height - 8 * textScale) + '" text-anchor="middle">' + weeks[index] + '</text>').join('') + '</svg>';
+  return '<p class="chart-context">Jul 13–Aug 31 · 8 weekly observations · events per 1,000 trips · lower is safer</p><div class="chart-legend">' + chartLegendMarkup([{ tone: 'primary', kind: 'line', label: 'Event rate' }]) + '</div><div class="chart-plot" tabindex="0" role="region" aria-label="' + escapeHtml(category.name + ' weekly event-rate chart') + '">' + svg + '</div>' + chartSummaryMarkup(summary + ' Source: prototype rate observations. Trip exposure and driver counts by week, update time, and exclusions are not recorded. This history keeps all eight weekly observations independently of the coaching-record period filter.', chartTableMarkup(category.name + ' weekly event rates', ['Week', 'Events per 1,000 trips'], values.map((value, index) => [weeks[index], chartRate(value)])));
 }
 
 function chartDailyMiles(driver, record) {

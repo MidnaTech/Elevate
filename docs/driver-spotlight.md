@@ -6,21 +6,21 @@ Drivers opens a driver portfolio in a drawer. It shows the driver's score and dr
 
 ## Layout and interaction
 
-Use the [shared drawer width](../DESIGN_SYSTEM.md#record-drawers): 1060px maximum, capped to the viewport minus an 84px gutter, and full width at 680px and below. Programs, Groups, portfolios, sessions, and session composers share that width. Keep one scrolling body, a compact identity header, and the shared controls, tokens, status vocabulary, and disclosure behavior.
+Use the [shared drawer width](../DESIGN_SYSTEM.md#record-drawers): 1060px maximum, capped to the viewport minus an 84px gutter, and full width at 680px and below. Groups, portfolios, and sessions share that width. Programs use a full page under the September 7 review decision; the former program shelf/composer has no user entry. Keep one scrolling body, a compact identity header, and the shared controls, tokens, status vocabulary, and disclosure behavior.
 
 | Order | Area | Content |
 | --- | --- | --- |
 | 1 | Header | Driver name, avatar, group, and Close. Show identity once. |
-| 2 | This week | One bordered strip with the latest safety score (previous score and comparison details in accessible help, compact scale beneath), Miles, Trips, and Days driven, followed by daily-mile bars. Keep the observed period visible and explain the sample scope in chart help. |
+| 2 | This week | One bordered strip with the latest Elevate score (previous score and comparison details in accessible help, compact scale beneath), Miles, Trips, and Days driven, followed by daily-mile bars. Keep the observed period visible and explain the sample scope in chart help. |
 | 3 | Rule breakdown | Always visible. Scope line **Recorded evidence · current sessions**, the record count, and one row per rule grouping unique source safety-evidence records from non-archived sessions. |
 | 4 | Recent exceptions | Exactly two segments: Exceptions and Video, with a scope line naming the sources. Rows show title and time; expanding one reviews its video or pattern data, map, and linked session. |
 | 5 | Coaching | Exactly two segments: Current sessions and Past sessions. Rows show program, due or recorded time, one status, and a visible **Open session** action. |
 
 The weekly strip uses the full width instead of competing score and activity cards, with one compact daily-mile chart beneath. There is no coaching-cycle panel, coaching-impact strip, second history timeline, dropdown filter, or permanent metadata rail.
 
-The Drivers directory uses native table rows. The driver name opens the portfolio; the separate **Action** column offers **View session** or **Create session**. The columns are Driver, Safety score, Top event, Last coached, Status, and Action. Safety score has a numeric header aligned with the fixed score/change columns, including missing scores.
+The Drivers directory uses native table rows. The driver name opens the portfolio; the separate **Action** column offers **View session** or **Create session**. The columns are Driver, Elevate score, Top event, Last coached, Status, and Action. Elevate score has a numeric header aligned with the fixed score/change columns, including missing scores.
 
-**View session** opens an actual active session, preferring the displayed Top event when several are active. If there is no active session, a pending review offers **Create session** through its flagged flow. Otherwise, View session opens the newest existing historical session. A driver with no sessions offers Create session in the existing manual form, prefilled with that driver and program. Opening or cancelling either create form leaves the ledger and review flags unchanged.
+**View session** opens an actual active session, preferring the displayed Top event when several are active. If there is no active session, a pending review offers **Create session** through its flagged flow. A driver with only past sessions, or with no sessions, offers Create session in the existing manual form, prefilled with that driver and program. Past sessions remain accessible through the portfolio; the Action column does not route a new coaching decision into completed history. Opening or cancelling either create form leaves the ledger and review flags unchanged.
 
 ### Coaching
 
@@ -48,7 +48,7 @@ Keep essential states in visible words. Shared help icons explain definitions wi
 
 ## Score and driving observations
 
-The directory contains 14 representative driver records, not the entire 1,024-driver fleet. It supplies identity, group, current safety score, and a recorded score change. The previous score is current score minus that change. Its comparison dates are not recorded: label the score as the latest recorded score, and do not imply its change happened during the displayed driving week. Use the directory score consistently because some insight fixtures contain different values. An unscored driver remains unscored.
+The directory contains 14 representative driver records, not the entire 1,024-driver fleet. It supplies identity, group, current recorded score, and a recorded score change. The visible review label is Elevate score; the underlying legacy fixture has not been recomputed as a weighted program roll-up. The previous score is current score minus that change. Its comparison dates are not recorded: label the score as the latest recorded score, and do not imply its change happened during the displayed driving week. Use the directory score consistently because some insight fixtures contain different values. An unscored driver remains unscored.
 
 `driverActivity` contains illustrative daily miles and trip observations for the 13 scored directory drivers over Aug 24–30. The This week area displays that fixture period, with sample scope explained in chart help. Miles and Trips summarize the available daily records, and Days driven reflects recorded driving days. Daily-mile bars use a zero baseline, a shared scale, and direct value labels. The chart does not imply that the sample data came from a connected telematics service.
 

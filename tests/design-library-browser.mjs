@@ -1,6 +1,7 @@
 // Design-library acceptance. Run against locally served dist/ with Playwright/Chrome.
 import assert from 'node:assert/strict';
 import { auditAllTableAlignment } from './table-alignment.mjs';
+import { assertBeforeAfterText } from './chart-text-zoom.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_CHANNEL || 'chrome' });
 const base = process.env.BASE_URL || 'http://localhost:5173';
@@ -18,7 +19,7 @@ page.on('request', request => { if (/fonts\.(googleapis|gstatic)\.com|\.(woff2?|
 const colors = { ink:'rgb(24, 33, 47)', primary:'rgb(184, 74, 0)', hover:'rgb(150, 60, 0)', soft:'rgb(255, 242, 232)', surface:'rgb(255, 255, 255)', strong:'rgb(243, 245, 247)', disabled:'rgb(96, 110, 128)', focus:'rgb(113, 48, 0)', petrol:'rgb(35, 108, 114)' };
 const style = (locator, prop) => locator.evaluate((node,key)=>getComputedStyle(node)[key],prop);
 const scenes = [
- ['Automation Centre','/#automation'], ['Sessions','/#sessions'],
+ ['Automation Centre','/#automation'], ['Sessions','/#sessions'], ['Programs','/#programs'], ['Program rates','/?program=all&programComparison=rates#programs'], ['Program detail','/?program=following#programs'],
  ['Outcomes','/?analytics=outcomes#analytics'], ['Activity','/?analytics=activity#analytics'],
  ['Drivers','/?analytics=drivers#analytics'], ['Groups','/?analytics=groups#analytics'],
  ['Content','/#content'], ['Settings','/#settings']
@@ -48,6 +49,23 @@ const expectFocus = async locator => {
  assert.equal(await style(locator,'outlineOffset'),'2px');
  assert.equal(await style(locator,'outlineColor'),colors.focus);
 };
+const openProgramFromReport = async () => {
+ await page.goto(base+'/?analytics=activity#analytics');
+ await page.locator('#coaching-queue [data-open-category="following"]').click();
+ const program=page.locator('#view-programs');
+ await program.waitFor({state:'visible'});
+ assert.equal(await page.locator('dialog:modal').count(),0,'Program links open the full page without a program drawer');
+ assert.equal(await program.locator('#program-title').textContent(),'Programs','The page title stays stable while the selector identifies the chosen program');
+ assert.equal(await page.inputValue('#program-page-select'),'following');
+ return program;
+};
+const assertProgramTrend = async (program,label) => {
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ const trend=program.locator('#program-rate-content .chart-plot .category-weekly-chart');
+ assert.equal(await trend.count(),1,label+' retains the weekly plot rather than substituting its legend swatch');
+ assert.equal(await trend.locator('.chart-line-marker').count(),8,label+' retains all eight dated observations');
+ assert.equal(await trend.locator('.chart-line').count(),1,label+' retains the event-rate line');
+};
 
 try {
  for(const [name,path] of scenes) {
@@ -67,9 +85,53 @@ try {
  }
  await page.goto(base+'/#sessions');
  const nav=page.locator('.primary-nav [data-view]');
- assert.equal(await nav.count(),5);
+ assert.deepEqual(await nav.evaluateAll(nodes=>nodes.map(node=>node.dataset.view)),['coaching','inbox','outcomes','programs','library','settings'],'Analytics and Programs remain primary; Drivers and Groups stay inside Analytics');
  assert.ok((await nav.evaluateAll(nodes=>nodes.map(node=>({tag:node.tagName,href:node.getAttribute('href')})))).every(node=>node.tag==='A'&&node.href),'Navigation destinations are real links');
  assert.equal(await page.locator('.primary-nav [aria-current="page"]').count(),1);
+ await page.locator('.primary-nav [data-view="outcomes"]').click();
+ assert.equal(await page.locator('#outcomes-title').textContent(),'Analytics');
+ assert.equal(await page.locator('#view-outcomes > .page-heading [data-view-link="programs"]').count(),0,'Primary navigation replaces the duplicate Programs header link');
+ assert.deepEqual(await page.locator('[data-analytics-tab]:visible').evaluateAll(nodes=>nodes.map(node=>node.dataset.analyticsTab)),['outcomes','activity','drivers','groups'],'All four Analytics views stay visible');
+ await page.locator('[data-analytics-tab="drivers"]').click();
+ assert.equal(new URL(page.url()).hash,'#analytics');
+ assert.equal(new URL(page.url()).searchParams.get('analytics'),'drivers');
+ assert.equal(await page.locator('#view-drivers').isVisible(),true);
+ await page.locator('.primary-nav [data-view="outcomes"]').click();
+ assert.equal(await page.locator('#analytics-outcomes').isVisible(),true,'Analytics opens Outcomes even after visiting Drivers');
+ assert.equal(await page.locator('.primary-nav [aria-current="page"]').getAttribute('data-view'),'outcomes','The visible report and navigation state agree');
+ await page.locator('.primary-nav [data-view="programs"]').click();
+ assert.equal(await page.locator('#view-programs').isVisible(),true,'The separate Programs destination still opens its full page');
+ assert.equal(await page.locator('dialog:modal').count(),0,'Full-page Programs does not open a program drawer');
+ assert.equal(await page.inputValue('#program-page-select'),'all','Programs starts with the fleet comparison rather than an arbitrary first program');
+ assert.equal(await page.locator('#program-title').textContent(),'Programs');
+ assert.equal(await page.locator('#view-programs > .page-heading [data-view-link="outcomes"]').count(),0,'Programs preserves contextual Back without another generic Analytics link');
+ const coachingKpiOrder=['Identified','In progress','Needs review','Completed','Automated sessions','One-on-one sessions'];
+ assert.deepEqual(await page.locator('#program-page-kpis .kpi-label').allTextContents(),coachingKpiOrder,'Program summaries share the stage-first metric order');
+ assert.deepEqual(await page.locator('#view-programs [role="tab"][data-program-tab]').evaluateAll(nodes=>nodes.map(node=>node.dataset.programTab)),['overview','content','configuration'],'Program sections exclude the duplicate Drivers tab');
+ const comparisonRadio=value=>page.locator('[data-program-comparison-view="'+value+'"]');
+ assert.equal(await comparisonRadio('coaching').isChecked(),true,'All programs begins with the compact coaching comparison');
+ assert.equal(await page.locator('#program-comparison-table').isVisible(),true);
+ assert.equal(await page.locator('#program-rate-chart').isVisible(),false,'The same programs are not repeated in a second visible list');
+ await comparisonRadio('rates').locator('..').click();
+ assert.equal(new URL(page.url()).searchParams.get('programComparison'),'rates');
+ assert.equal(await page.locator('#program-comparison-table').isVisible(),false);
+ assert.equal(await page.locator('#program-rate-chart').isVisible(),true);
+ await page.reload();
+ assert.equal(await comparisonRadio('rates').isChecked(),true,'Reload preserves the chosen comparison');
+ await comparisonRadio('coaching').locator('..').click();
+ assert.equal(new URL(page.url()).searchParams.has('programComparison'),false,'The default view uses the canonical URL');
+ await page.goBack();
+ assert.equal(await comparisonRadio('rates').isChecked(),true,'Browser Back restores the prior comparison');
+ await page.goForward();
+ assert.equal(await comparisonRadio('coaching').isChecked(),true,'Browser Forward restores coaching');
+ await comparisonRadio('rates').locator('..').click();
+ await page.selectOption('#program-page-select','following');
+ assert.equal(new URL(page.url()).searchParams.has('programComparison'),false,'All-program comparison state is not applied to a selected program');
+ await page.selectOption('#program-page-select','all');
+ assert.equal(await comparisonRadio('rates').isChecked(),true,'Returning through the program selector preserves the chosen comparison');
+ await page.locator('.primary-nav [data-view="programs"]').click();
+ assert.equal(await comparisonRadio('coaching').isChecked(),true,'Explicit Programs navigation starts with coaching');
+ await page.goto(base+'/#sessions');
  for(const selector of ['#session-search','#driver-search']) {
   if(selector==='#driver-search') await page.goto(base+'/?analytics=drivers#analytics');
   const input=page.locator(selector);
@@ -126,12 +188,13 @@ try {
   assert.ok((await exposure.locator('.hint-trigger').getAttribute('data-tooltip')).includes(weeks+' week'),'Exposure help refreshes its period without losing the original caption node');
  }
  await page.goto(base+'/?analytics=activity#analytics');
+ assert.deepEqual(await page.locator('#analytics-activity .kpi-label').allTextContents(),coachingKpiOrder,'Activity uses the same six-metric order as Programs');
  const weekly=page.locator('.weekly-activity-chart').first();
  assert.equal(await weekly.locator('.chart-score-casing').getAttribute('d'),await weekly.locator('.chart-score-line').getAttribute('d'),'White casing follows the exact score path');
  assert.equal(await style(weekly.locator('.chart-score-casing'),'stroke'),colors.surface);
  assert.equal(await style(weekly.locator('.chart-score-line'),'stroke'),'rgb(54, 65, 82)');
  assert.match(await weekly.locator('desc').textContent(),/fixed from zero to 100/);
- assert.deepEqual(await weekly.locator('.activity-axis-title').allTextContents(),['Sessions','Safety score / 100']);
+ assert.deepEqual(await weekly.locator('.activity-axis-title').allTextContents(),['Sessions','Elevate score / 100']);
  const weeklyData=await page.evaluate(()=>weeklyCoachingActivity.slice(-coachingPeriod));
  const descriptions=await weekly.locator('.weekly-bars [role="img"]').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('aria-label')));
  for(const week of weeklyData) {
@@ -148,7 +211,7 @@ try {
  const tableBounds=await page.locator('.analytics-queue-section').boundingBox();
  assert.ok(Math.abs(chartBounds.width-tableBounds.width)<1,'Weekly activity spans the same full width as the combined program table');
  assert.ok(chartBounds.y+chartBounds.height<=tableBounds.y,'The weekly chart stays above the combined table');
- for(const [weeks,total] of [[1,154],[4,164],[8,180]]) {
+ for(const [weeks,total] of [[1,151],[4,161],[8,177]]) {
   await page.selectOption('#view-outcomes [data-coaching-period]',String(weeks));
   assert.equal(await programTable.locator('tbody tr').count(),9);
   const values=await programTable.locator('tbody tr td:nth-child(3)').evaluateAll(nodes=>nodes.map(node=>Number(node.textContent.replace(/,/g,''))));
@@ -179,6 +242,9 @@ try {
   document.getElementById('spec-disabled').addEventListener('click',()=>window.specActivations++);
  });
  const primary=page.locator('#spec-primary');
+ const segmented=page.locator('#design-specimen fieldset.segmented');
+ assert.equal(await style(segmented,'padding'),'4px','Segmented controls use the compact shared container padding');
+ assert.ok((await segmented.locator('.segmented__option').first().boundingBox()).height>=36,'Compact padding preserves the 36px option target');
  assert.equal(await style(primary,'backgroundColor'),colors.primary);assert.equal(await style(primary,'color'),colors.surface);
  await primary.hover();assert.equal(await style(primary,'backgroundColor'),colors.hover);
  await expectFocus(primary);
@@ -214,29 +280,7 @@ try {
   await page.keyboard.press('Escape');assert.equal(await drawer.evaluate(node=>node.open),false,'Escape closes the native dialog');
  }
 
- // The program's existing start-session composer is a record drawer too.
- const openLegacyComposer=async()=>{
-  await page.goto(base+'/?analytics=activity#analytics');
-  await page.evaluate(()=>{openCategoryDrawer('following');startSession(activeCategory.quickCases[0].id);});
-  return page.locator('#category-drawer');
- };
- const legacy=await openLegacyComposer();
- await assertStrip(legacy,'Start-session composer');
- assert.equal(await legacy.evaluate(node=>node.matches(':modal')),true);
- const draftFacts=await page.evaluate(()=>{
-  const item=activeCategory.quickCases.find(item=>item.id===sessionDraft.caseId);
-  return {score:directory.find(driver=>driver.name===item.name)?.safetyScore??'—',events:item.events,selected:selectedDraftEvidence().length,unassigned:sessionDraft.options.unassigned.length};
- });
- assert.deepEqual(await legacy.locator('.kpi-value').allTextContents(),[String(draftFacts.score),String(draftFacts.events),String(draftFacts.selected)]);
- const draftScope=legacy.locator('[data-draft-evidence-tab="unassigned"]');
- assert.equal(await draftScope.evaluate(node=>node.tagName),'INPUT');
- assert.equal(await draftScope.getAttribute('type'),'radio');
- assert.equal(await draftScope.locator('xpath=ancestor::fieldset').count(),1);
- await draftScope.locator('..').click();
- assert.equal(await legacy.locator('.draft-evidence-row').count(),draftFacts.unassigned,'Unassigned count describes the actual available source options');
- assert.equal(await draftScope.isChecked(),true);
- assert.equal(await page.evaluate(()=>selectedDraftEvidence().length),draftFacts.selected,'Changing evidence scope only browses records');
- await page.keyboard.press('Escape');
+ // Program data stays inline; individual drivers, sessions and groups keep the shared drawer.
  for(const width of [1440,390,320]) {
   await page.setViewportSize({width,height:1000});
   for(const [name,path] of scenes) {
@@ -245,15 +289,63 @@ try {
   await page.goto(base+'/?record=rowan-distraction#sessions');const drawer=page.locator('#driver-drawer');
   await assertStrip(drawer,'Session at '+width);
   assert.ok(Math.abs((await drawer.boundingBox()).width-(width<=680?width:1060))<1,'Every record keeps the shared width');
-  const legacy=await openLegacyComposer();await assertStrip(legacy,'Start-session composer at '+width);
-  assert.ok(Math.abs((await legacy.boundingBox()).width-(width<=680?width:1060))<1,'Start-session composer keeps the same record width');
-
+  await page.goto(base+'/?analytics=drivers&driver=Priya%20Singh#analytics');
+  assert.ok(Math.abs((await page.locator('#driver-drawer').boundingBox()).width-(width<=680?width:1060))<1,'Driver portfolios keep the shared width');
+  const program=await openProgramFromReport();
+  await assertStrip(program,'Program detail at '+width);
+  assert.equal(await program.locator('.chart-card:visible').count(),1,'The inline overview has one event-rate chart');
+  const recordedOutcomes=program.locator('#program-page-outcomes');
+  assert.equal(await recordedOutcomes.evaluate(node=>node.tagName),'DETAILS','Recorded outcomes use one native disclosure');
+  assert.equal(await recordedOutcomes.evaluate(node=>node.open),false,'Recorded outcomes start collapsed to keep the default overview focused');
+  await recordedOutcomes.locator(':scope > summary').click();
+  assert.equal(await program.locator('#program-page-outcome-sample table').count(),1,'The retained outcome sample has one native table');
+  assert.match(await program.locator('#program-page-outcome-sample').textContent(),/Observation window unavailable/);
+  await assertProgramTrend(program,'Program detail at '+width);
+  if(width===1440) {
+   await page.setViewportSize({width:900,height:1000});
+   await assertProgramTrend(program,'Program detail after resize');
+   await page.setViewportSize({width,height:1000});
+   await assertProgramTrend(program,'Program detail after width restoration');
+  }
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Program charts and tables do not overflow the page');
+  await program.locator('[data-back-program-page]').click();
+  await page.waitForFunction(()=>document.activeElement?.matches('#coaching-queue [data-open-category="following"]'));
+  assert.equal(await page.locator('#analytics-activity').isVisible(),true,'Back restores the source report');
+  await page.goto(base+'/?analytics=groups#analytics');
+  const groupOpener=page.locator('.group-comparison-card [data-open-group="Regional · East"]');
+  await groupOpener.click();
+  const groupDrawer=page.locator('#category-drawer');
+  await page.waitForFunction(()=>document.querySelector('#category-drawer').matches(':modal')&&document.querySelector('#category-drawer').contains(document.activeElement));
+  await assertStrip(groupDrawer,'Group drawer at '+width);
+  assert.ok(Math.abs((await groupDrawer.boundingBox()).width-(width<=680?width:1060))<1,'Group drawers keep the shared record width');
+  assert.equal(await groupDrawer.evaluate(node=>node.scrollWidth>node.clientWidth),false,'Group content fits the shared drawer');
+  const close=groupDrawer.locator('[data-close-category]');
+  // Enter keyboard modality after the pointer opener before checking :focus-visible.
+  await close.focus();await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');
+  await expectFocus(close);
+  await page.keyboard.press('Escape');
+  assert.equal(await groupDrawer.evaluate(node=>node.open),false,'Escape closes the group drawer');
+  await page.waitForFunction(()=>document.activeElement?.matches('.group-comparison-card [data-open-group="Regional · East"]'));
  }
  await page.setViewportSize({width:1280,height:1000});
+ let zoomChartRows=0;
  for(const [name,path] of scenes) {
-  await page.goto(base+path);await page.evaluate(()=>document.documentElement.style.fontSize='200%');
+  await page.goto(base+path);
+  if(name==='Program detail')await page.locator('[data-program-chart-view="comparison"]').locator('..').click();
+  await page.evaluate(()=>document.documentElement.style.fontSize='200%');
   await assertStrip(page.locator('.app-view.is-active'),name+' at 200% text zoom');
+  zoomChartRows+=await assertBeforeAfterText(page,name);
  }
+ const zoomProgram=await openProgramFromReport();
+ await zoomProgram.locator('#program-page-outcomes > summary').click();
+ await page.evaluate(()=>document.documentElement.style.fontSize='200%');
+ await assertStrip(zoomProgram,'Program detail at 200% text zoom');
+ await assertProgramTrend(zoomProgram,'Program detail after text zoom');
+ assert.equal(await zoomProgram.locator('#program-page-outcome-sample table').isVisible(),true,'Inline sample data remains available at enlarged text');
+ await zoomProgram.locator('[data-program-chart-view="comparison"]').locator('..').click();
+ assert.equal(await zoomProgram.locator('.before-after-chart').count(),1,'Comparison replaces the trend inside the existing chart');
+ zoomChartRows+=await assertBeforeAfterText(page,'Program detail');
+ assert.ok(zoomChartRows>=6,'Programs and reports exercise shared text-zoom geometry');
 
  // Durable review artifact loads the actual shared components, without application data.
  await page.setViewportSize({width:1440,height:1000});
@@ -310,7 +402,8 @@ try {
  }
  const tableAlignment=await auditAllTableAlignment(page,base);
  assert.ok(tableAlignment.cells>0);
+ console.log('Table alignment:',JSON.stringify(tableAlignment));
  assert.deepEqual(fontRequests,[],'No web font is downloaded');
  assert.deepEqual(errors,[]);
- console.log('Passed: exact shared KPI anatomy and one-row reflow; system fonts; native links, radio groups, tables and dialogs; visible search labels; primary/hover/selected/focus/disabled states; forced colors; reduced motion; drawer focus/width; universal header/body/input alignment across 56 tables; the isolated component specimen; and all major pages at 320/390/1440 plus 200% text zoom.');
+ console.log('Passed: exact shared KPI anatomy and one-row reflow; system fonts; native links, radio groups, tables and dialogs; visible search labels; primary/hover/selected/focus/disabled states; forced colors; reduced motion; drawer focus/width; universal header/body/input alignment; the isolated component specimen; and all major pages at 320/390/1440 plus 200% text zoom.');
 } finally { await browser.close(); }

@@ -1,7 +1,5 @@
 /* Analytics composition. Shared controls, type, surfaces and data roles live in the design system. */
-#view-outcomes .analytics-view-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-5); }
-#view-outcomes .analytics-report-scope { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-left: auto; color: var(--ink-500); }
-#view-outcomes .analytics-scope-divider { color: var(--ink-400); }
+#view-outcomes .analytics-report-scope { color: var(--ink-500); }
 #view-outcomes .analytics-report-scope > svg { width: 16px; height: 16px; fill: none; stroke: currentColor; }
 #view-outcomes .analytics-export { display: inline-flex; align-items: center; gap: var(--space-2); }
 #view-outcomes .analytics-export svg { width: 16px; height: 16px; fill: none; stroke: currentColor; }
@@ -93,7 +91,6 @@
 .signal-panel > .chart-axis { display: none; }
 
 @media (max-width: 680px) {
-  #view-outcomes .analytics-report-scope { margin-left: 0; }
   #view-outcomes .outcomes-table-card > .section-heading { flex-direction: column; }
   #view-outcomes .outcomes-table-card .segmented { width: 100%; }
   #view-outcomes .analytics-data-table :is(th, td) { white-space: nowrap; }

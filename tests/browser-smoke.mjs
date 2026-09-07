@@ -52,11 +52,11 @@ try {
   assert.equal(await page.locator('#ui-tooltip').isVisible(), true, 'Collapsed navigation must explain its icons on hover');
   assert.equal(await page.locator('#ui-tooltip').textContent(), 'Sessions');
   await page.keyboard.press('Escape');
-  await page.locator('.primary-nav [data-view="outcomes"]').focus();
+  await page.locator('.primary-nav [data-view="programs"]').focus();
   assert.equal(await page.locator('#ui-tooltip').isVisible(), true, 'Collapsed navigation must explain its icons on keyboard focus');
-  assert.equal(await page.locator('#ui-tooltip').textContent(), 'Analytics');
+  assert.equal(await page.locator('#ui-tooltip').textContent(), 'Programs');
   await page.keyboard.press('Escape');
-  for (const view of ['coaching', 'inbox', 'outcomes', 'library', 'settings']) {
+  for (const view of ['coaching', 'inbox', 'outcomes', 'programs', 'library', 'settings']) {
     const destination = page.locator('.primary-nav [data-view="' + view + '"]');
     assert.ok(await destination.getAttribute('aria-label'), 'Every collapsed destination needs an accessible name');
     await destination.click();
@@ -151,14 +151,15 @@ try {
     const meter = node.querySelector('[role="meter"]');
     return { values, completed: meter.getAttribute('aria-valuenow'), identified: meter.getAttribute('aria-valuemax') };
   });
-  const sessionOverview = { values: { Identified: '154', 'In progress': '10', 'Needs review': '14', Completed: '130' }, completed: '130', identified: '154' };
+  const sessionOverview = { values: { Identified: '151', 'In progress': '10', 'Needs review': '11', Completed: '130' }, completed: '130', identified: '151' };
   await page.goto(base + '/?session=archived#sessions');
   assert.deepEqual(await readSessionOverview(), sessionOverview, 'Archived rows must not redefine the weekly summary');
-  for (const [weeks, all, completed, archived] of [[1,154,130,0],[4,164,140,10],[8,180,156,26]]) {
+  for (const [weeks, all, completed, archived] of [[1,151,130,0],[4,161,140,10],[8,177,156,26]]) {
     await page.selectOption('#view-inbox [data-coaching-period]',String(weeks));
     for (const [filter,total] of [['all',all],['completed',completed],['archived',archived]]) {
       await page.locator('[data-session-filter="'+filter+'"]').locator('..').click();
       assert.equal(await page.locator('.session-record').count(),Math.min(50,total),filter+' rows honor '+weeks+'-week scope');
+      assert.equal(await page.locator('.session-footer nav[aria-label="Session pages"]').isVisible(),total>50,'Pagination appears only when the filtered records need another page');
       if(total) assert.ok((await page.locator('.session-footer').textContent()).includes('of '+total+' records'),filter+' footer reconciles to period source');
       else assert.match(await page.locator('#view-inbox').textContent(),/Change the period to view earlier history/);
     }
@@ -175,7 +176,7 @@ try {
   assert.equal(await page.locator('.session-record').count(), 0);
   assert.deepEqual(await readSessionOverview(), sessionOverview, 'Search must leave fleet summary counts intact');
   await page.fill('#session-search', '');
-  for (const [reason, count] of [['driver_reply', 4], ['reminders_exhausted', 4], ['repeat_after_coaching', 3], ['session_needed', 3]]) {
+  for (const [reason, count] of [['driver_reply', 4], ['reminders_exhausted', 4], ['repeat_after_coaching', 3]]) {
     await page.locator('#view-inbox [data-filter-sheet-trigger]').click();
     await page.selectOption('#session-origin-filter', 'all');
     await page.selectOption('#session-reason-filter', reason);
@@ -210,9 +211,9 @@ try {
     improvement: node.querySelector('#driver-improvement .overview-driver-gain').textContent
   }); });
   const driverOverview = {
-    scope: '1,024 fleet drivers · score 0–100 · higher is safer · snapshot date unavailable', tiers: ['93', '471', '395', '65'],
+    scope: 'Fleet snapshot · date unavailable', tiers: ['93', '471', '395', '65'],
     automated: '8', manual: '2', completed: '130',
-    improvedDriver: 'Taylor Brooks', improvedScore: '71 → 78 safety score', improvement: '+7 pts'
+    improvedDriver: 'Taylor Brooks', improvedScore: '71 → 78', improvement: '+7 pts'
   };
   assert.deepEqual(await readDriverOverview(), driverOverview);
   assert.match(await page.locator('#driver-improvement').getAttribute('aria-label'), /among 14 directory drivers/, 'Improvement must identify its available-directory scope');
@@ -269,13 +270,15 @@ try {
   assert.deepEqual(await readDriverOverview(), { ...driverOverview, manual: '1', completed: '131' }, 'Completing one-on-one coaching must update both lifecycle counts');
 
   await page.goto(base + '/#groups');
-  assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-outcomes', 'Groups is an Analytics tab');
+  assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-outcomes', 'Groups retains its existing report container');
   assert.equal(await page.locator('[data-analytics-tab="groups"]').getAttribute('aria-selected'), 'true');
   assert.equal(await page.locator('#view-drivers').isVisible(), false);
   const groupAutomatedCounts = await page.evaluate(() => driverGroups.map(group => sessions.filter(session => sessionInPeriod(session) && session.origin === 'automated' && groupForPerson(session.person) === group).length).sort((a,b)=>b-a));
-  assert.equal(groupAutomatedCounts.reduce((sum,count)=>sum+count,0),147,'Group workload excludes the three pending flags');
+  assert.equal(groupAutomatedCounts.reduce((sum,count)=>sum+count,0),147,'Group workload counts automated sessions only');
   assert.deepEqual((await page.locator('#group-coaching-workload strong').allTextContents()).map(Number),groupAutomatedCounts,'Group workload reconciles to actual automated sessions by group');
-  assert.match(await page.locator('#group-workload-scope').textContent(), /^Started automatically · Week of Aug 31/);
+  assert.equal(await page.locator('#group-workload-scope').textContent(),'Sessions');
+  assert.equal(await page.locator('.overview-workload-panel .chart-legend').textContent(),'Automated');
+  assert.match(await page.locator('#analytics-report-scope-detail').textContent(),/Week of Aug 31/,'The global reporting scope still dates the group workload');
   assert.deepEqual(await page.locator('#groups-overview .chart-footnote [class^="delta--"]').allTextContents(), ['↓ 4% fewer', '↑ 5% more'], 'Group movement follows the shared one-week span');
   assert.deepEqual(await page.locator('#groups-overview .chart-card:not(.overview-workload-panel) .chart-context').evaluateAll(nodes => nodes.map(node => node.textContent.split(' · Aug')[0])), ['Local delivery', 'Long haul · North']);
   for (const [container, group] of [['#group-coaching-workload', 'Regional · East'], ['#view-groups .group-comparison-card', 'Regional · East'], ['#groups-overview .chart-card >', 'Local delivery'], ['#view-groups .group-comparison-card', 'Local delivery']]) {
@@ -291,7 +294,7 @@ try {
 
   for (const width of [1440, 1024, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
-    for (const view of ['automation', 'sessions', 'analytics', 'drivers', 'groups', 'content', 'settings']) {
+    for (const view of ['automation', 'sessions', 'programs', 'analytics', 'drivers', 'groups', 'content', 'settings']) {
       await page.goto(base + '/#' + view);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, view + ' overflows at ' + width);
     }
@@ -301,9 +304,14 @@ try {
     await page.locator('[data-analytics-tab="activity"]').click();
     assert.ok(await page.locator('#coaching-queue .program-record').count() > 0, 'Program performance is the shared programs table');
     await page.locator('#coaching-queue .program-record [data-open-category], #coaching-queue .program-record[data-open-category]').first().click();
-    assert.equal(await page.locator('#category-drawer').getAttribute('aria-hidden'), 'false', 'Program rows open the program drawer from Analytics');
-    await page.keyboard.press('Escape');
-    await page.waitForFunction(() => document.getElementById('category-drawer').getAttribute('aria-hidden') === 'true');
+    assert.equal(await page.locator('#view-programs').isVisible(), true, 'Program links open the full Programs page');
+    assert.equal(await page.locator('dialog:modal').count(),0,'Program review does not open a duplicate program drawer');
+    assert.equal(await page.locator('#program-rate-content .category-weekly-chart').count(),1,'Program review retains its weekly graph inline');
+    assert.equal(await page.locator('#program-page-outcomes').evaluate(node=>node.open),false,'Recorded outcome detail starts collapsed');
+    await page.locator('#program-page-outcomes > summary').click();
+    assert.equal(await page.locator('#program-page-outcome-sample table').isVisible(),true,'The disclosure retains the outcome facts on the page');
+    await page.locator('#view-programs [data-back-program-page]').click();
+    assert.equal(await page.locator('#analytics-activity').isVisible(),true,'Back restores the source report');
     await page.goto(base + '/?analytics=outcomes#analytics');
     for (const tab of ['category', 'driver']) {
       await page.locator('[data-outcome-tab="' + tab + '"]').locator('..').click();

@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 
 const scenes = [
-  ['Automation Centre','/#automation'], ['Sessions','/#sessions'],
+  ['Automation Centre','/#automation'], ['Sessions','/#sessions'], ['Programs','/#programs'], ['Program rates','/?program=all&programComparison=rates#programs'], ['Program detail','/?program=following#programs'],
   ['Outcomes','/?analytics=outcomes#analytics'], ['Activity','/?analytics=activity#analytics'],
   ['Drivers','/?analytics=drivers#analytics'], ['Groups','/?analytics=groups#analytics'],
-  ['Content','/#content'], ['Settings','/#settings']
+  ['Content','/#content'], ['Settings','/#settings'], ['Program configuration','/?program=following&programTab=configuration#programs']
 ];
-const numericLabels = new Set(['drivers','records','automated','one-on-one','automated in progress','one-on-one in progress','needs review','completed','safety score','event change','events / 1000 trips','events per 1000 trips','change','before','after','before / 1000 trips','after / 1000 trips','completion','count','miles','trips','fleet drivers','automated sessions','one-on-one sessions','safety score / 100','identified records','completed sessions']);
-const textLabels = new Set(['driver','program','group','state','attention','method','coach','due','updated','event type','severity','trigger','coaching path','action','remove','on','condition','result','week','day','record','score band','name','select']);
+const numericLabels = new Set(['drivers','records','sessions','identified','in progress','automated','one-on-one','automated in progress','one-on-one in progress','needs review','completed','safety score','elevate score','event change','event-rate change','events / 1000 trips','events per 1000 trips','change','before','after','before / 1000 trips','after / 1000 trips','completion','count','miles','trips','fleet drivers','automated sessions','one-on-one sessions','safety score / 100','elevate score / 100','identified records','completed sessions','eligible drivers','improved share','repeated']);
+const textLabels = new Set(['driver','program','group','state','attention','method','coach','due','updated','started','event type','severity','trigger','coaching path','action','remove','on','condition','result','week','day','record','score band','name','select']);
 
 async function auditScope(page, scope, label) {
   // Reveal existing data equivalents through their native disclosures. This only
@@ -46,9 +46,11 @@ async function auditScope(page, scope, label) {
       return {name:node.caption?.textContent.trim()||node.getAttribute('aria-label')||'table',shared:node.classList.contains('data-table'),headings,cells};
     });
     assert.equal(audit.shared,true,label+' '+audit.name+' uses the shared native table');
+    // Session tables date their rows (Started · Completed · Due); those words are quantities elsewhere.
+    const sessionDates=/coaching (records|sessions)/i.test(audit.name)?new Set(['started','completed','due']):new Set();
     for(const header of audit.headings) {
       const name=header.text.toLowerCase();
-      if(numericLabels.has(name))assert.equal(header.numeric,true,label+' '+header.text+' declares quantity alignment');
+      if(numericLabels.has(name)&&!sessionDates.has(name))assert.equal(header.numeric,true,label+' '+header.text+' declares quantity alignment');
       if(textLabels.has(name))assert.equal(header.numeric,false,label+' '+header.text+' retains text alignment');
       const expected=header.numeric?'right':'left';
       assert.equal(header.alignment,expected,label+' '+audit.name+' header '+header.text);
@@ -72,12 +74,68 @@ async function auditScope(page, scope, label) {
     if(await sort.count()) {
       const before=await sort.locator('..').getAttribute('aria-sort');
       await sort.focus();await page.keyboard.press('Enter');
-      assert.equal(await sort.locator('..').getAttribute('aria-sort'),before==='ascending'?'descending':'ascending');
+      assert.equal(await sort.locator('..').getAttribute('aria-sort'),before==='ascending'?'descending':'ascending',label+' '+audit.name+' sorting updates its column state');
       assert.equal(await sort.evaluate(node=>node===document.activeElement),true,label+' '+audit.name+' sorting retains keyboard focus; active '+await page.evaluate(()=>document.activeElement.outerHTML.slice(0,250)));
     }
   }
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,label+' keeps overflow inside the table region');
   return result;
+}
+
+async function auditNumericSorting(page, base) {
+  // Verify the actual program comparison against its source rates, not against
+  // the arrow-decorated display text or the implementation's parsing helper.
+  await page.goto(base+'/?program=all#programs');
+  const changes = await page.evaluate(() => Object.fromEntries(categories.map(program => [program.id, rateChange(program.weeklyRates).change])));
+  const comparison = page.locator('#program-comparison-table table');
+  const changeSort = comparison.locator('thead th').filter({ hasText: /^Event-rate change$/ }).locator('.table-sort');
+  for (const direction of ['ascending','descending']) {
+    await changeSort.focus();await page.keyboard.press('Enter');
+    assert.equal(await changeSort.locator('..').getAttribute('aria-sort'),direction);
+    const rows = await comparison.locator('tbody tr').evaluateAll(nodes => nodes.map(row => ({id:row.dataset.programComparison,value:row.cells[row.cells.length-1].getAttribute('data-sort-value')})));
+    assert.equal(rows.length,Object.keys(changes).length,'Sorting retains every program, including those without coaching records');
+    for (const row of rows) assert.equal(Number(row.value),changes[row.id],'The decorated Change cell retains the signed source value for '+row.id);
+    const observed = rows.map(row => changes[row.id]);
+    const expected = Object.values(changes).sort((a,b) => direction==='ascending'?a-b:b-a);
+    assert.deepEqual(observed,expected,'Program Change sorts signed source values '+direction);
+    assert.equal(await changeSort.evaluate(node => node===document.activeElement),true,'Numeric sorting retains keyboard focus');
+  }
+
+  // A temporary specimen exercises decimal and unavailable values that are not
+  // all represented by the current whole-percent program fixture. Fleet records
+  // and the durable component specimen remain unchanged.
+  await page.goto(base+'/design-library.html');
+  await page.evaluate(() => {
+    const fixtures = [
+      ['positive-ten','+10.2%',null],
+      ['missing-dash','—',null],
+      ['negative-two','−2.75%',null],
+      ['input-negative','<input type="number" value="-3.25" aria-label="Negative example quantity">',null],
+      ['formatted-decrease','↓ 14.25% fewer','-14.25'],
+      ['zero','0%',null],
+      ['positive-fraction','+0.25%',null],
+      ['negative-fraction','-0.5%',null],
+      ['positive-two','2.1%',null],
+      ['formatted-increase','↑ 3.5% more','3.5'],
+      ['input-positive','<input type="number" value="4.25" aria-label="Positive example quantity">',null],
+      ['thousands','1,200.5',null],
+      ['missing-empty','',null]
+    ];
+    const host=document.createElement('section');host.id='numeric-sort-acceptance';
+    host.innerHTML=uiTable('Temporary numeric sorting examples',['Example',{label:'Change',numeric:true}],fixtures.map(([id,label,value])=>'<tr data-example="'+id+'"><td>'+id+'</td><td'+(value===null?'':' data-sort-value="'+value+'"')+'>'+label+'</td></tr>').join(''));
+    document.getElementById('specimen').append(host);applyDesignLibrary(host);
+  });
+  const examples=page.locator('#numeric-sort-acceptance');
+  const sort=examples.locator('th.num .table-sort');
+  const ascending=['formatted-decrease','input-negative','negative-two','negative-fraction','zero','positive-fraction','positive-two','formatted-increase','input-positive','positive-ten','thousands'];
+  for (const direction of ['ascending','descending']) {
+    await sort.focus();await page.keyboard.press('Enter');
+    assert.equal(await sort.locator('..').getAttribute('aria-sort'),direction);
+    const expected=[...(direction==='ascending'?ascending:[...ascending].reverse()),'missing-dash','missing-empty'];
+    assert.deepEqual(await examples.locator('tbody tr').evaluateAll(nodes=>nodes.map(node=>node.dataset.example)),expected,'Signed decimals sort numerically and unavailable values stay last '+direction);
+    assert.equal(await sort.evaluate(node=>node===document.activeElement),true,'The numeric specimen keeps keyboard focus '+direction);
+  }
+  await examples.evaluate(node=>node.remove());
 }
 
 export async function auditAllTableAlignment(page,base) {
@@ -92,14 +150,26 @@ export async function auditAllTableAlignment(page,base) {
         results.push(await auditScope(page,page.locator('.app-view.is-active'),'Outcomes by driver at '+width));
       }
     }
+    for(const program of ['all','following']) {
+      await page.goto(base+'/?program='+program+'#programs');
+      for(const tab of ['overview','content','configuration']) {
+        await page.locator('#program-tab-'+tab).click();
+        await page.waitForFunction(id=>document.activeElement?.id===id,'program-tab-'+tab);
+        results.push(await auditScope(page,page.locator('#view-programs'),'Program '+program+' '+tab+' at '+width));
+      }
+    }
+    const drawer=page.locator('#category-drawer');
     await page.goto(base+'/?analytics=activity#analytics');
     await page.locator('#coaching-queue [data-open-category="following"]').click();
-    const drawer=page.locator('#category-drawer');
-    await page.waitForFunction(()=>document.activeElement.matches('#category-drawer [data-close-category]')); // Wait for the existing delayed opening-focus transition.
-    for(const stage of ['needs','automated','one_to_one','completed','outcomes']) {
-      await drawer.locator('.workflow-tabs [data-workflow-tab="'+stage+'"]').click();
-      results.push(await auditScope(page,drawer,'Program '+stage+' at '+width));
-    }
+    const programPage=page.locator('#view-programs');
+    await programPage.waitFor({state:'visible'});
+    assert.equal(await page.locator('dialog:modal').count(),0,'Program data is reviewed inline');
+    assert.equal(await programPage.locator('#program-page-outcome-sample table').count(),1,'Retained sample outcomes remain available as a native page table');
+    const programResult=await auditScope(page,programPage,'Program detail from report at '+width);
+    assert.ok(programResult.tables>=3,'The page includes coaching records, chart data and retained outcome sample data');
+    results.push(programResult);
+    await programPage.locator('[data-program-chart-view="comparison"]').locator('..').click();
+    results.push(await auditScope(page,programPage,'Program comparison and outcomes at '+width));
     await page.goto(base+'/?analytics=groups#analytics');
     await page.locator('.group-comparison-card [data-open-group="Regional · East"]').click();
     await page.waitForFunction(()=>document.activeElement.matches('#category-drawer [data-close-category]'));
@@ -111,7 +181,8 @@ export async function auditAllTableAlignment(page,base) {
   }
   const summary=results.reduce((sum,result)=>({tables:sum.tables+result.tables,cells:sum.cells+result.cells,numberInputs:sum.numberInputs+result.numberInputs,sorts:sum.sorts+result.sorts}),{tables:0,cells:0,numberInputs:0,sorts:0});
   assert.ok(summary.tables>=30,'All table families and their chart equivalents were actually inspected');
-  assert.ok(summary.numberInputs>=8,'Settings numeric editors were included at both widths');
+  assert.ok(summary.numberInputs>=8,'Program configuration numeric editors were included at both widths');
+  await auditNumericSorting(page,base);
   return summary;
 }
 
@@ -124,8 +195,10 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
   await page.route('**/*',route=>['localhost','127.0.0.1','[::1]'].includes(new URL(route.request().url()).hostname)?route.continue():route.abort());
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   try {
-    const result=await auditAllTableAlignment(page,process.env.BASE_URL||'http://localhost:5173');
+    const base=process.env.BASE_URL||'http://localhost:5173';
+    const numericOnly=process.argv.includes('--numeric-only');
+    const result=numericOnly?await auditNumericSorting(page,base):await auditAllTableAlignment(page,base);
     assert.deepEqual(errors,[]);
-    console.log('Passed universal table alignment at1440/390: '+JSON.stringify(result));
+    console.log(numericOnly?'Passed numeric sorting: source program changes, signed decimals, editable quantities, explicit values and missing cells in both directions.':'Passed universal table alignment at1440/390: '+JSON.stringify(result));
   } finally {await browser.close();}
 }

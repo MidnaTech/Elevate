@@ -4,13 +4,35 @@
 **Theme: neutral light workspace with Ember orange.**  
 **Brand accent: `#B84A00`. Primary data series: `#236C72`.**
 
-This document defines one shared system for Automation Centre, Sessions, Session workspace, Analytics, Content library and Settings. It incorporates the requested move away from blue to an orange direction inspired by Cloudflare. Elevate values reflect the supplied baseline and the explicit user amendment below; they are not sampled competitor tokens. The deliverable is a single Markdown document; reference screenshots are embedded from their public source URLs and require network access to display.
+This document defines one shared system for Automation Centre, Sessions, Session workspace, Programs, Drivers, Groups, retained analytical reports, Content library and Settings. It incorporates the requested move away from blue to an orange direction inspired by Cloudflare. Elevate values reflect the supplied baseline and the explicit user amendments below; they are not sampled competitor tokens. The deliverable is a single Markdown document; reference screenshots are embedded from their public source URLs and require network access to display.
 
 ## User amendment — version 1.1, 7 September 2026
 
 This repository specification incorporates the user's follow-up direction: brighten neutral surfaces, reduce all text and line-height tokens by 15%, use one petrol colour for attention-category dots and bars, move KPI explanations into accessible info hints, put long chart source details inside **Summary and data**, and consolidate Activity into a full-width weekly chart followed by one program table. These decisions supersede the corresponding version 1.0 values and presentation rules throughout this document. The original supplied file in Downloads is historical and remains unchanged.
 
 The HTML root stays 16px: icon targets, spacing, chart geometry, table dimensions and shared drawer widths do not shrink with typography. The six text steps now range from 10.2px to 27.2px; body/control text is 11.9px and shared section/drawer headings are 13.6px. Keep zoom, reflow, contrast, focus, touch targets and semantic controls intact. No other status, action or chart-series meanings change.
+
+## Product amendment — Jobin review, 7 September 2026
+
+The user's latest clarification keeps Analytics in primary navigation and brings the former program drawer's **data directly into Programs**. Programs opens at All programs and narrows through the program selector. Program links in reports, groups and search open the page directly, with a Back action to the source. Remove the Quick view detour. Drivers and Groups remain tabs inside Analytics, alongside Outcomes and Activity. Driver, Group and Session overlays retain the shared drawer width; individual-session navigation preserves the program filters and source row. Automation Centre remains the landing page with independent program/time scope.
+
+The displayed overall score is **Elevate score**. Existing recorded fixture values are unchanged, and their help identifies that the new weighted roll-up is not configured. Per-program period scores and LMS/cohort measures remain unavailable until supported by source observations. This is the first UI review prototype; see [Programs review scope and acceptance](docs/programs-review.md) for the later engine work and the supplied call notes. These product decisions supersede earlier Elevate navigation examples; historical vendor research keeps its original terminology.
+
+The shared Before/After chart expands its width, label gutters, series spacing and row geometry when the user enlarges text. At 200% text zoom, series labels and values must not overlap. Preserve normal-size geometry and equivalent data tables; narrow plots may scroll in their labelled local region. The 15% base-type amendment does not disable this accessibility behavior.
+
+Programs starts at **All programs / Overview** with one summary strip in this order: Identified, In progress, Needs review, Completed, Automated sessions and One-on-one sessions. The lifecycle four remain together; the last two are total actual sessions. One comparison module has a native **Coaching / Event rates** control. Its default Coaching table contains Program, Needs review, In progress, Completed, Automated sessions, One-on-one sessions and Event-rate change. Event rates switches the same module to the full Before/After chart. Retain every program, including zero-coaching programs, without repeating the full program list in a separate simultaneous chart and table. Rate changes compare observations, not coaching impact; never average program rates into a fleet rate without exposure. `programComparison=rates` preserves the chart view in URLs and history; Coaching is the default.
+
+Program selection scopes the same page without changing its reporting period. Programs has Overview, Content and Configuration; Drivers remains inside Analytics. The Program selector stays on all three tabs. Only Overview renders the six coaching KPIs, Period control and exact date caption. Content and Configuration show lesson/feed mappings, which are not period-scoped, so they omit coaching totals and time controls. Retain `coachingPeriod` in URL/state and restore it when returning to Overview. Underlying all-program coaching records are collapsed until requested, including through a summary shortcut. All-program Content and Configuration provide their respective cross-program indexes.
+
+The selected Overview orders one visible **Trend/Comparison chart → Coaching → Recorded outcomes**. Recorded outcomes is a single initially collapsed disclosure with an **Undated sample** cue; opening it retains the eligible/improved/repeated source facts and the explicit unavailable observation window, independent of reporting period. Put the period completion fraction/percentage in Completed KPI help with its meaningful meter, without another completion section. With no identified denominator, omit the percentage and meter. Chart Summary and data stays with its chart, separate from the undated sample methodology. Preserve clip availability, count-aware coaching filters and individual sessions in record drawers. The shared weekly SVG keeps intrinsic dimensions and expands its geometry at text zoom; narrow plots scroll locally. Start one-on-one and contextual Back retain program/source context. Analytics stays intact and the separate program-drawer renderer remains retired.
+
+## UI cleanup amendment — 7 September 2026
+
+Use views on the left and one control group on the right: applicable program/period, search, then Filters. Programs Content and Configuration use only their Program selector; the six coaching KPIs, Period control and exact date caption belong to Overview. This mapping-specific exception does not change other pages. Nested table filters stay beside their own dataset. On narrow screens the group wraps below the views in the same order. Page titles identify the workspace; selectors identify its scope. Where the dataset is time-scoped, keep one exact page-period caption and source-specific chart dates, without repeating status badges, review composition, result counts or generic navigation links elsewhere. Critical scope labels, native accessible names, concise status words and all recorded data remain available.
+
+Keep 24px between major sections, 16px from a heading to its content, and 8px between controls. Segmented track padding is 4px; its options remain at least 36px high. Chart disclosures align to the plot's content edge without legacy side/bottom margins. Panels own their internal gaps, and small highlights do not stretch to a neighboring chart's height. These refinements preserve the shared palette, type scale and drawer widths.
+
+Reference review: [Linear's compact views and right-hand controls](https://mobbin.com/screens/fd1b4d88-f021-49a3-98af-4cd3a87e1d29) and [Stripe's compact transaction summary and table](https://mobbin.com/screens/f576b06e-b290-4864-a0be-2d753324fd1d). The right-hand filter placement is Elevate's consistency rule; the references inform grouping and density, not an exact copied layout.
 
 ## 0. Research and evidence
 
@@ -203,7 +225,7 @@ Keep dimensions independent:
 | Automated | Method | Automated + gear |
 | One-on-one | Method | Automated + two-person outline |
 
-Use separate State, Attention and Method columns when those dimensions are needed. A completed session clears its obsolete overdue flag. “Automated” must not mean “successful”, and “One-on-one” must not imply danger. Repeated and Needs review intentionally share an attention family; their word and shape distinguish them. The set has five governed semantic families, not seven unrelated status hues.
+Session tables collapse state and attention into one State column (the attention word wins while a person must act) and carry no Method column; Coach reads "Automated" or the manager's name. A completed session clears its obsolete overdue flag. “Automated” must not mean “successful”, and “One-on-one” must not imply danger. Repeated and Needs review intentionally share an attention family; their word and shape distinguish them. The set has five governed semantic families, not seven unrelated status hues.
 
 **Separation evidence:** computed CIELAB ΔE76 from sRGB using a D65 reference white. The semantic-family minimum is **40.7**; the smallest semantic-to-brand distance is **36.8** (warning versus orange). These quantify separation for normal colour vision, not universal perceptual thresholds or proof of colour-vision-deficiency accessibility. Soft fills are supporting decoration; the solid icon plus word carries meaning. [W3C discussion of colour-difference metrics](https://www.w3.org/TR/css-color-4/#color-difference); [WCAG use of colour](https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html).
 
@@ -231,7 +253,7 @@ Use separate State, Attention and Method columns when those dimensions are neede
 | `--chart-increase` | `#B02A46` | Increase in undesirable events; adverse outcome delta. |
 | `--chart-unchanged` | `#596675` | No change, with an equals sign and words. |
 
-Within the Automation/Attention Centre, category dots and magnitude bars all use `--chart-primary` petrol; the adjacent labels identify their categories. Do not assign a different colour to each attention category. Elsewhere, categorical colours identify series; they never imply performance. Keep a category’s assignment stable across tabs and filters. Limit one plot to four visible categories; additional categories use filtering or a detail table. Use semantic colours only for measures with a declared desirable direction. For safety score and completion rate, an increase is favourable; for unsafe-event rate, an increase is adverse. Volume alone has no good/bad colour.
+Within the Automation/Attention Centre, category dots and magnitude bars all use `--chart-primary` petrol; the adjacent labels identify their categories. Do not assign a different colour to each attention category. Elsewhere, categorical colours identify series; they never imply performance. Keep a category’s assignment stable across tabs and filters. Limit one plot to four categorical colour series; additional series use filtering or a detail table. Named program rows sharing the same Before/After pair are not additional colour series. Use semantic colours only for measures with a declared desirable direction. For safety score and completion rate, an increase is favourable; for unsafe-event rate, an increase is adverse. Volume alone has no good/bad colour.
 
 Do not use petrol and green as adjacent opposing categories: their luminance is similar. Before/after magnitude is grey versus petrol; its signed change is separately green/crimson. Preserve explicit series labels, marker/line differences and values for colour-independent reading.
 
@@ -340,11 +362,13 @@ Tooltip: surface background, ink-700 text, border, floating shadow, control radi
 | Screen | Composition using the same shared classes |
 | --- | --- |
 | Automation Centre | Page header → one KPI strip → Needs you this week → Automation this week. Exception rows explain the required human decision; automated activity is neutral. |
-| Sessions | One KPI strip → filter/search toolbar → shared table with State, Attention, Method and due date → pagination. |
+| Sessions | One KPI strip → filter/search toolbar → shared table with Driver, Program, State, Coach, Started, Completed, Due → pagination. |
 | Session workspace | One KPI strip, using relevant session measures → neutral conversation panel → same evidence drawer header. Inbound/outbound bubbles use surface/surface-soft and author labels, never brand tint. |
 | Analytics: Outcomes | One KPI strip → before/after chart → detail table. |
 | Analytics: Activity | Same strip → full-width weekly grouped bars plus score line → one combined program table with record counts, coaching states/methods, event rate and signed change. Do not repeat Program pivot and Program performance tables. |
 | Analytics: Drivers / Groups | Same strip → shared pivot/detail table → driver spotlight drawer with the shared header. |
+| Programs: Overview | Six coaching KPIs → views left, Program/Period and exact date right → all-program Coaching/Event rates comparison or selected chart → Coaching → Recorded outcomes. |
+| Programs: Content / Configuration | Page header → views left and Program selector right → lesson/feed mappings. No coaching KPIs, Period selector or date caption; retain the reporting period in URL/state for return to Overview. |
 | Content library | One KPI strip with meaningful library measures → shared filter/search → neutral content cards using the same card shell. |
 | Settings | One KPI strip with real automation configuration measures → automation-mode radio segment → cadence controls → shared event-type rules table. |
 
@@ -625,7 +649,7 @@ button { cursor: pointer; }
   flex-wrap: nowrap;
   gap: var(--space-1);
   margin: 0;
-  padding: var(--space-2);
+  padding: var(--space-1);
   min-inline-size: 0;
   max-inline-size: 100%;
   overflow-x: auto;
@@ -882,7 +906,7 @@ The `.kpi-strip` is a labelled section, containing `.kpi-tile` articles. Explana
 
 Each table lives in a labelled `.table-scroll` region. JS synchronizes a selected checkbox with its row’s `data-selected="true"`; it does not replace native table semantics with an unnecessary ARIA grid. Use column descriptors such as `{ label: "Safety score", numeric: true }`; the shared renderer propagates `.num` to the header and matching body/footer cells. Text/status columns remain unmarked and left-aligned. Do not infer alignment from incidental displayed text or maintain independent header/body rules. Sorting uses a real header button and updates `aria-sort` on the relevant header. Keep the selection edge marker decorative because the checkbox announces selection.
 
-A `.status` receives one `data-tone`: `success`, `warning`, `danger`, `reply` or `neutral`. Status words and icons come from one dictionary shared by tables, drawers and activity items. The dictionary governs State, Attention and Method separately. No page writes a new status colour.
+A `.status` receives one `data-tone`: `success`, `warning`, `danger`, `reply` or `neutral`. Status words and icons come from one dictionary shared by tables, drawers and activity items. The dictionary governs lifecycle states, attention reasons, and methods with one vocabulary; tables show the attention word as the State while a person must act. No page writes a new status colour.
 
 Use a `.drawer` labelled complementary region for persistent evidence and a native `.dialog` dialog opened modally for overlay workspace panels. Their header is always `.drawer__header`. Native modal behaviour supplies the focus boundary; JS records and restores the invoker and implements the close button. Trigger buttons expose expanded state.
 
@@ -944,7 +968,7 @@ Charts use accessible SVG for marks plus the equivalent HTML table inside a `.ch
 2. **Foundations.** Apply the common font, six-step scale, neutral canvas/surfaces, shared borders and spacing. Remove gradient washes and non-floating shadows.
 3. **Focus and actions.** Migrate buttons, links, search, filters and help triggers together. Verify white-on-orange buttons and the neutral gap around the focus ring.
 4. **Navigation.** Migrate segmented controls, tabs and sidebar items to the explicit state contract; retain keyboard and URL behaviour.
-5. **Status dictionary and shared table.** Separate session State, Attention and Method, fix semantic pills, then migrate Sessions, Analytics and Settings tables together.
+5. **Status dictionary and shared table.** One State column per session row, Coach in place of Method, Started/Completed/Due dates, fix semantic pills, then migrate Sessions, Analytics and Settings tables together.
 6. **One KPI strip.** Replace all tile variants and enforce the nowrap overflow model. Keep every headline value ink-coloured and show meters only for valid scales.
 7. **One chart anatomy.** Move series away from the action token, implement paired before/after bars, cased score line, shared labels/axes, and source details inside Summary and data.
 8. **Drawers and conversation.** Reuse the header, overlay/focus behaviour and neutral bubbles in the session and driver workspaces.

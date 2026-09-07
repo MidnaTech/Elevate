@@ -54,12 +54,8 @@
 #view-settings .trigger-field { display: flex; align-items: center; gap: 8px; color: var(--ink-500); font-size: var(--font-1); white-space: nowrap; }
 #view-settings .check-field { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-700); font-size: var(--font-1); cursor: pointer; }
 #view-settings .check-field input { width: 15px; height: 15px; margin: 0; accent-color: var(--primary); }
-#view-settings .switch { position: relative; width: 36px; min-width: 36px; height: 20px; min-height: 20px; padding: 0; border: 0; border-radius: 999px; background: var(--border-strong); cursor: pointer; transition: background .15s ease; }
-#view-settings .switch i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: transform var(--transition-duration) var(--transition-easing); }
-#view-settings .switch[aria-checked="true"] { background: var(--primary); }
-#view-settings .switch[aria-checked="true"] i { transform: translateX(16px); }
-#view-settings .row-remove { width: 32px; min-width: 32px; min-height: 32px; border: 0; background: transparent; color: var(--ink-400); font-size: var(--font-4); }
-#view-settings .row-remove:hover { background: var(--rust-soft); color: var(--rust); }
+#view-programs .row-remove { width: 32px; min-width: 32px; min-height: 32px; border: 0; background: transparent; color: var(--ink-400); font-size: var(--font-4); }
+#view-programs .row-remove:hover { background: var(--rust-soft); color: var(--rust); }
 #view-settings .event-type-form { display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(2, minmax(120px, .8fr)) minmax(190px, 1fr) auto minmax(140px, .9fr); align-items: end; gap: var(--space-3); padding: var(--space-4); border-top: 1px solid var(--border-soft); background: var(--surface); }
 #view-settings .event-type-form label { display: grid; gap: 5px; color: var(--ink-500); font-size: var(--font-1); font-weight: 500; }
 #view-settings .event-type-form .form-check { display: inline-flex; align-self: end; padding-bottom: 9px; }

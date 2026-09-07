@@ -21,7 +21,7 @@ function renderDriverCoachingOverview() {
   const candidates = directory.filter(driver => Number.isFinite(driver.safetyScore) && Number.isFinite(driver.scoreChange));
   const best = candidates.filter(driver => driver.scoreChange > 0).sort((a, b) => b.scoreChange - a.scoreChange || a.name.localeCompare(b.name))[0];
   const help = document.getElementById('driver-improvement-help');
-  if (help) help.dataset.tooltip = 'Largest recorded safety-score increase among the ' + directory.length + ' drivers in this directory. Comparison dates are unavailable; higher is safer.';
+  if (help) help.dataset.tooltip = 'Largest recorded Elevate-score increase among the ' + directory.length + ' drivers in this directory. Comparison dates are unavailable; higher is safer.';
   winner.hidden = !best;
   const empty = document.getElementById('driver-improvement-empty');
   if (empty) empty.hidden = Boolean(best);
@@ -30,7 +30,7 @@ function renderDriverCoachingOverview() {
   winner.dataset.overviewDriver = best.name;
   winner.querySelector('.person-avatar').textContent = best.initials;
   winner.querySelector('.overview-driver-name strong').textContent = best.name;
-  winner.querySelector('.overview-driver-name .overview-scope').textContent = previous + ' → ' + best.safetyScore + ' safety score';
+  winner.querySelector('.overview-driver-name .overview-scope').textContent = previous + ' → ' + best.safetyScore;
   winner.querySelector('.overview-driver-gain').textContent = '+' + best.scoreChange + ' pts';
   winner.setAttribute('aria-label', 'View ' + best.name + ', largest recorded improvement among ' + directory.length + ' directory drivers: up ' + best.scoreChange + ' points, from ' + previous + ' to ' + best.safetyScore + '.');
 }
@@ -44,7 +44,7 @@ function renderSafetyChartDetails() {
   card.classList.add('chart-card');
   card.querySelector('h2')?.classList.add('chart-title');
   scope.classList.add('chart-context');
-  scope.textContent = '1,024 fleet drivers · score 0–100 · higher is safer · snapshot date unavailable';
+  scope.textContent = 'Fleet snapshot · date unavailable';
   if (!mix.parentElement.classList.contains('chart-plot')) {
     const plot = document.createElement('div'); plot.className = 'chart-plot'; mix.before(plot); plot.append(mix);
   }
@@ -54,7 +54,7 @@ function renderSafetyChartDetails() {
   keys.forEach((key, index) => card.querySelectorAll('[data-driver-score-filter="' + key + '"]').forEach(button => { button.dataset.chartSeries = ['primary', 'secondary', 'tertiary', 'quaternary'][index]; }));
   const tiers = keys.map(key => driverTierCounts.find(tier => tier.key === key));
   const summary = tiers.map(tier => tier.label + ': ' + tier.count + ' drivers').join('; ') + '. Tier selection filters the representative 14-driver directory, not these fleet totals.';
-  chartMountSummary(card, summary, chartTableMarkup('Fleet safety-score distribution', ['Score band', 'Fleet drivers'], driverDistributionBins.map(bin => [bin.label, bin.count])), 'Source: 1,024-driver prototype fleet distribution, including 65 unscored drivers. Update time and score coverage dates are unavailable. Directory filtering does not recalculate fleet totals.');
+  chartMountSummary(card, summary, chartTableMarkup('Fleet Elevate-score distribution', ['Score band', 'Fleet drivers'], driverDistributionBins.map(bin => [bin.label, bin.count])), 'Source: 1,024-driver prototype fleet distribution, including 65 unscored drivers. Update time and score coverage dates are unavailable. Directory filtering does not recalculate fleet totals.');
 }
 
 function renderGroupChartOverview() {
@@ -67,7 +67,7 @@ function renderGroupChartOverview() {
   const ordered = groups.slice().sort((a, b) => started[b[0]] - started[a[0]] || a[0].localeCompare(b[0]));
   const max = Math.max(1, ...Object.values(started));
   const summary = ordered.map(([name]) => name + ': ' + started[name] + ' automated sessions').join('; ') + '. Counts describe sessions, not unique drivers.';
-  const workload = '<article class="chart-card overview-panel overview-workload-panel" aria-labelledby="group-workload-title"><h2 class="chart-title" id="group-workload-title">Coaching by group</h2><p class="chart-context" id="group-workload-scope">Started automatically · ' + escapeHtml(periodScopeLabel()) + ' · sessions</p><div class="chart-legend">' + chartLegendMarkup([{ tone: 'primary', label: 'Automated sessions' }]) + '</div><div class="chart-plot overview-workload" id="group-coaching-workload" role="group" aria-label="Automated sessions by group">' + ordered.slice(0, 4).map(([name]) => '<button class="overview-workload-row" type="button" data-open-group="' + escapeHtml(name) + '" aria-label="' + escapeHtml('Open ' + name + ': ' + started[name] + ' automated sessions') + '"><span>' + escapeHtml(name) + '</span><span class="overview-bar-track" aria-hidden="true"><i style="width:' + (started[name] / max * 100) + '%"></i></span><strong>' + started[name] + '</strong></button>').join('') + '</div><p class="chart-footnote">Source: prototype session ledger in the selected period. One-on-one sessions and pending flags excluded; update time unavailable.</p>' + chartSummaryMarkup(summary, chartTableMarkup('Automated coaching workload', ['Group', 'Sessions'], ordered.map(([name]) => [name, started[name]]))) + '</article>';
+  const workload = '<article class="chart-card overview-panel overview-workload-panel" aria-labelledby="group-workload-title"><h2 class="chart-title" id="group-workload-title">Coaching by group</h2><p class="chart-context" id="group-workload-scope">Sessions</p><div class="chart-legend">' + chartLegendMarkup([{ tone: 'primary', label: 'Automated' }]) + '</div><div class="chart-plot overview-workload" id="group-coaching-workload" role="group" aria-label="Automated sessions by group">' + ordered.slice(0, 4).map(([name]) => '<button class="overview-workload-row" type="button" data-open-group="' + escapeHtml(name) + '" aria-label="' + escapeHtml('Open ' + name + ': ' + started[name] + ' automated sessions') + '"><span>' + escapeHtml(name) + '</span><span class="overview-bar-track" aria-hidden="true"><i style="width:' + (started[name] / max * 100) + '%"></i></span><strong>' + started[name] + '</strong></button>').join('') + '</div><p class="chart-footnote">Source: prototype session ledger in the selected period. One-on-one sessions and pending flags excluded; update time unavailable.</p>' + chartSummaryMarkup(summary, chartTableMarkup('Automated coaching workload', ['Group', 'Sessions'], ordered.map(([name]) => [name, started[name]]))) + '</article>';
   const best = groups.slice().sort((a, b) => a[1].change - b[1].change)[0];
   const adverse = groups.filter(([, group]) => group.change > 0).sort((a, b) => b[1].change - a[1].change)[0];
   const trend = ([name, group], label) => {

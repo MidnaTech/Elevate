@@ -32,7 +32,7 @@ function uiSessionState(session) {
 
 function uiSessionAttention(session) {
   if (['completed', 'archived'].includes(session.state)) return '—';
-  return ({ reminders_exhausted: 'Overdue', repeat_after_coaching: 'Repeated', session_needed: 'Needs review', driver_reply: 'Needs review' })[session.attentionReason] || (session.state === 'manager_attention' ? 'Needs review' : '—');
+  return ({ reminders_exhausted: 'Overdue', repeat_after_coaching: 'Repeated', driver_reply: 'Needs review' })[session.attentionReason] || (session.state === 'manager_attention' ? 'Needs review' : '—');
 }
 
 function uiKpi({ label, value, context = '', action = '', meter }) {
@@ -57,12 +57,14 @@ function renderDesignLibraryKpis() {
     const host = document.getElementById(id);
     if (host) host.innerHTML = uiKpiStrip(label, items);
   };
-  const action = filter => 'data-view-link="inbox" data-inbox-filter="' + filter + '"';
-  update('sessions-kpis', 'Sessions · ' + periodLabel(), [
-    { label: 'Identified', value: cycle.identified, context: periodLabel(), action: action('all') },
-    { label: 'In progress', value: sessionFleetTotals.system_handling, context: 'Automated and one-on-one', action: action('system_handling') },
-    { label: 'Needs review', value: sessionFleetTotals.manager_attention, context: 'Current backlog', action: action('attention') },
-    { label: 'Completed', value: cycle.completed, context: 'of ' + cycle.identified + ' identified', action: action('completed'), meter: { value: cycle.completed, max: cycle.identified } }
+  const action = (filter, programId = 'all') => 'data-view-link="inbox" data-inbox-filter="' + filter + '" data-inbox-program="' + programId + '"';
+  const sessionCycle = currentCycleCounts(coachingPeriod, activeSessionProgram);
+  const sessionScope = (activeSessionProgram === 'all' ? 'All programs' : categoryNameFor(activeSessionProgram)) + ' · ' + periodLabel();
+  update('sessions-kpis', 'Sessions · ' + sessionScope, [
+    { label: 'Identified', value: sessionCycle.identified, context: sessionScope + '. Coaching sessions in scope.', action: action('all', activeSessionProgram) },
+    { label: 'In progress', value: sessionCycle.inProgress, context: sessionScope + '. Automated and one-on-one.', action: action('system_handling', activeSessionProgram) },
+    { label: 'Needs review', value: sessionCycle.needsReview, context: sessionScope + '. Current review backlog.', action: action('attention', activeSessionProgram) },
+    { label: 'Completed', value: sessionCycle.completed, context: sessionScope + '. Of ' + sessionCycle.identified + ' identified.', action: action('completed', activeSessionProgram), meter: { value: sessionCycle.completed, max: sessionCycle.identified } }
   ]);
   update('drivers-kpis', 'Driver directory summary', [
     { label: 'Drivers', value: '1,024', context: 'Fleet total' },
@@ -82,9 +84,10 @@ function renderDesignLibraryKpis() {
     { label: 'Mapped programs', value: categories.filter(category => category.training).length, context: 'Programs with assigned content' }
   ]);
   update('settings-kpis', 'Automation configuration summary', [
-    { label: 'Active event types', value: draftEventTypeRules.filter(rule => rule.enabled).length, context: 'Current configuration draft' },
-    { label: 'Coaching rules', value: draftCoachingRules.length, context: 'Current configuration draft' },
-    { label: 'Cadence', value: draftCadenceWeeks === 1 ? 'Weekly' : '2 weeks', context: 'One coaching cycle per interval' }
+    { label: 'Mode', value: draftAutomationMode === 'fully' ? 'Fully automated' : draftAutomationMode === 'semi' ? 'Semi-automated' : 'Manual', context: 'Current configuration draft' },
+    { label: 'Cadence', value: draftCadenceWeeks === 1 ? 'Weekly' : '2 weeks', context: 'One coaching cycle per interval' },
+    { label: 'Programs', value: categories.length, context: 'Thresholds, rules and coach routing are configured per program in Programs' },
+    { label: 'Active rules', value: eventTypeRules.filter(rule => rule.enabled).length, context: 'Across all programs · edited in Programs › Configuration' }
   ]);
 }
 
@@ -279,7 +282,21 @@ document.addEventListener('click', event => {
   const index = Number(button.dataset.tableSort);
   const rows = [...table.tBodies[0].rows];
   const text = row => row.cells[index]?.textContent.trim().replace(/[−,]/g, match => match === '−' ? '-' : '') || '';
-  rows.sort((a,b) => text(a).localeCompare(text(b), undefined, { numeric: true }) * (descending ? -1 : 1));
+  const numeric = heading.classList.contains('num');
+  const quantity = row => {
+    const cell = row.cells[index];
+    const raw = cell?.dataset.sortValue ?? cell?.querySelector('input[type="number"]')?.value ?? text(row);
+    return raw.trim() ? Number.parseFloat(raw) : NaN;
+  };
+  rows.sort((a, b) => {
+    if (numeric) {
+      const first = quantity(a), second = quantity(b);
+      if (!Number.isFinite(first)) return Number.isFinite(second) ? 1 : 0;
+      if (!Number.isFinite(second)) return -1;
+      return (first - second) * (descending ? -1 : 1);
+    }
+    return text(a).localeCompare(text(b), undefined, { numeric: true }) * (descending ? -1 : 1);
+  });
   rows.forEach(row => table.tBodies[0].append(row));
 }, true);
 

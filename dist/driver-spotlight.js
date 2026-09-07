@@ -20,8 +20,8 @@ function profileScoreComparison(driver) {
   const scored = Number.isFinite(driver.safetyScore);
   const changed = scored && Number.isFinite(driver.scoreChange);
   const previous = changed ? driver.safetyScore - driver.scoreChange : null;
-  const context = !scored ? 'Not enough data to score' : changed ? 'Previous ' + previous + ' · ' + (driver.scoreChange > 0 ? '+' : '') + driver.scoreChange + ' points · dates unavailable' : 'Previous score unavailable';
-  return uiKpi({ label: 'Latest safety score', value: scored ? driver.safetyScore : '—', context, meter: scored ? { value: driver.safetyScore, max: 100 } : null }).replace('class="kpi-tile"', 'class="kpi-tile profile-score" data-week-metric="score"');
+  const context = (!scored ? 'Not enough data to score' : changed ? 'Previous ' + previous + ' · ' + (driver.scoreChange > 0 ? '+' : '') + driver.scoreChange + ' points · dates unavailable' : 'Previous score unavailable') + '. Recorded prototype score; the weighted program roll-up is not configured yet.';
+  return uiKpi({ label: 'Latest Elevate score', value: scored ? driver.safetyScore : '—', context, meter: scored ? { value: driver.safetyScore, max: 100 } : null }).replace('class="kpi-tile"', 'class="kpi-tile profile-score" data-week-metric="score"');
 }
 
 function profileWeeklyOverview(driver) {

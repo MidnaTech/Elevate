@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 
 const expectedPeriods = [
-  {weeks:1,identified:154,sessionTotal:151,pendingSessionReviews:3,automatedTotal:147,oneOnOneTotal:4,automatedInProgress:8,oneOnOneInProgress:2,inProgress:10,sessionReviews:11,needsReview:14,completed:130},
-  {weeks:4,identified:164,sessionTotal:161,pendingSessionReviews:3,automatedTotal:155,oneOnOneTotal:6,automatedInProgress:8,oneOnOneInProgress:2,inProgress:10,sessionReviews:11,needsReview:14,completed:140},
-  {weeks:8,identified:180,sessionTotal:177,pendingSessionReviews:3,automatedTotal:171,oneOnOneTotal:6,automatedInProgress:8,oneOnOneInProgress:2,inProgress:10,sessionReviews:11,needsReview:14,completed:156}
+  {weeks:1,identified:151,sessionTotal:151,pendingSessionReviews:0,automatedTotal:147,oneOnOneTotal:4,automatedInProgress:8,oneOnOneInProgress:2,inProgress:10,sessionReviews:11,needsReview:11,completed:130},
+  {weeks:4,identified:161,sessionTotal:161,pendingSessionReviews:0,automatedTotal:155,oneOnOneTotal:6,automatedInProgress:8,oneOnOneInProgress:2,inProgress:10,sessionReviews:11,needsReview:11,completed:140},
+  {weeks:8,identified:177,sessionTotal:177,pendingSessionReviews:0,automatedTotal:171,oneOnOneTotal:6,automatedInProgress:8,oneOnOneInProgress:2,inProgress:10,sessionReviews:11,needsReview:11,completed:156}
 ];
 
 async function readReconciliation(page,weeks) {
@@ -64,7 +64,6 @@ export async function auditMetricReconciliation(page,base) {
     assert.equal(await page.locator('#automation-session-total').textContent(),String(expected.sessionTotal));
     assert.equal(await page.locator('#automation-week-automated').textContent(),String(expected.automatedTotal));
     assert.equal(await page.locator('#automation-week-manual').textContent(),String(expected.oneOnOneTotal));
-    assert.equal(await page.locator('#automation-week-pending').textContent(),String(expected.pendingSessionReviews));
     assert.equal(await page.locator('#automation-share').textContent(),Math.round(expected.automatedTotal/expected.sessionTotal*100)+'%');
     assert.equal(result.origins.automated.all,expected.automatedTotal,'Automated source totals exclude pending flags');
     assert.equal(result.origins.manual_override.all,expected.oneOnOneTotal);
@@ -82,8 +81,7 @@ export async function auditMetricReconciliation(page,base) {
     assert.ok((await page.locator('.session-footer').textContent()).includes('of '+expected.identified+' records'));
     await page.keyboard.press('Escape');
 
-    await page.locator('.primary-nav [data-view="outcomes"]').click();
-    await page.locator('[data-analytics-tab="activity"]').click();
+    await page.goto(base+'/?period='+expected.weeks+'&analytics=activity#analytics'); // Retained detailed report, no longer a primary nav item.
     assert.deepEqual(await page.locator('#analytics-activity .kpi-strip .kpi-label > span').allTextContents(),['Identified','In progress','Needs review','Completed','Automated sessions','One-on-one sessions']);
     assertWeeklySnapshot(await readReconciliation(page,expected.weeks));
     const programCounts=await page.locator('#coaching-queue tbody tr').evaluateAll(rows=>rows.map(row=>[...row.cells].slice(2,7).map(cell=>Number(cell.textContent))));
@@ -92,14 +90,13 @@ export async function auditMetricReconciliation(page,base) {
     assertReconciled(await readReconciliation(page,1),expectedPeriods[0]);
   }
 
-  // A direct manual start creates an additional record; converting a pending flag
-  // replaces its record while moving one review into in-progress one-on-one work.
-  for(const candidate of [false,true]) {
+  // A direct manual start creates an additional record. Automation opens every other session
+  // itself, so there is no pending flag to convert.
+  {
     await page.goto(base+'/?period=1#sessions');
-    if(candidate) await page.locator('[data-start-session-for="flag-casey-speeding"]').click();
-    else await page.locator('#view-inbox [data-manual-session]').click();
+    await page.locator('#view-inbox [data-manual-session]').click();
     await page.locator('[data-confirm-manual-session]').click();
-    const expected={...expectedPeriods[0],identified:candidate?154:155,sessionTotal:152,pendingSessionReviews:candidate?2:3,oneOnOneTotal:5,oneOnOneInProgress:3,inProgress:11,needsReview:candidate?13:14};
+    const expected={...expectedPeriods[0],identified:152,sessionTotal:152,pendingSessionReviews:0,oneOnOneTotal:5,oneOnOneInProgress:3,inProgress:11,needsReview:11};
     const result=await readReconciliation(page,1);
     assertReconciled(result,expected);assertWeeklySnapshot(result,expected);await assertStageTiles(page,expected);
     assert.equal(await page.locator('.session-record').count(),3,'Creation opens the three active one-on-one sessions');

@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="./drivers-refinement.css?v=design-library-1" />
     <link rel="stylesheet" href="./supporting-refinement.css?v=design-library-1" />
     <link rel="stylesheet" href="./session-workspace.css?v=design-library-1" />
+    <link rel="stylesheet" href="./programs.css?v=program-review-1" />
     <link rel="stylesheet" href="./design-system.css?v=design-library-1" />
   </head>
   <body>
@@ -46,6 +47,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="m4 7 6-3 5 3 5-4"/></svg>
             <span>Analytics</span>
           </a>
+          <a class="nav-item" data-view="programs" aria-label="Programs" title="Programs" data-label="Programs" href="#programs">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v15H4zM4 10h16M9 10v10"/></svg>
+            <span>Programs</span>
+          </a>
           <a class="nav-item nav-item-secondary" data-view="library" aria-label="Content" title="Content" data-label="Content" href="#content">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h13a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H19M8 8h7"/></svg>
             <span>Content</span>
@@ -69,6 +74,7 @@
               <h1 id="coaching-title">Automation Centre</h1>
             </div>
             <div class="heading-actions">
+              <label class="filter-button period-control"><span class="sr-only">Program</span><select id="landing-program-filter" aria-label="Program"></select></label>
               <label class="filter-button period-control"><span class="sr-only">Period</span><select data-coaching-period aria-label="Period"><option value="1" selected>This week</option><option value="4">Last 4 weeks</option><option value="8">Last 8 weeks</option></select></label>
               <span class="automation-heading-note">Last updated <b id="automation-last-run">Aug 31, 8:04 AM</b></span>
             </div>
@@ -76,7 +82,7 @@
 
           <section class="analytics-kpi-strip" aria-label="Fleet coaching at a glance">
             <div class="analytics-kpi-tile">
-              <div class="analytics-metric-label"><span>Identified</span><button class="info-hint" type="button" data-tooltip="Coaching records automation surfaced this cycle: sessions plus flagged reviews without a session yet. Automated + One-on-one + Needs review + Completed add up to this." aria-label="Coaching records automation surfaced this cycle: sessions plus flagged reviews without a session yet. Automated + One-on-one + Needs review + Completed add up to this."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div>
+              <div class="analytics-metric-label"><span>Identified</span><button class="info-hint" type="button" data-tooltip="Coaching sessions automation opened this cycle. In progress + Needs review + Completed add up to this." aria-label="Coaching sessions automation opened this cycle. In progress + Needs review + Completed add up to this."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div>
               <button class="analytics-metric-value kpi-link" type="button" data-view-link="inbox" data-inbox-filter="all" aria-describedby="kpi-identified-trend"><strong id="kpi-identified">154</strong><small class="kpi-trend" id="kpi-identified-trend" data-tone="neutral"></small></button>
             </div>
             <div class="analytics-kpi-tile">
@@ -84,7 +90,7 @@
               <button class="analytics-metric-value kpi-link" type="button" data-view-link="inbox" data-inbox-filter="system_handling" aria-describedby="kpi-in-progress-trend"><strong id="kpi-in-progress">10</strong><small class="kpi-trend" id="kpi-in-progress-trend" data-tone="neutral"></small></button>
             </div>
             <div class="analytics-kpi-tile is-attention">
-              <div class="analytics-metric-label"><span>Needs review</span><button class="info-hint" type="button" data-tooltip="Sessions waiting on a person: Overdue, Session needed, Repeated, or Replied. Opens the review queue." aria-label="Sessions waiting on a person: Overdue, Session needed, Repeated, or Replied. Opens the review queue."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div>
+              <div class="analytics-metric-label"><span>Needs review</span><button class="info-hint" type="button" data-tooltip="Sessions waiting on a person: Overdue, Repeated, or Replied. Opens the review queue." aria-label="Sessions waiting on a person: Overdue, Repeated, or Replied. Opens the review queue."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div>
               <button class="analytics-metric-value kpi-link" type="button" data-view-link="inbox" data-inbox-filter="attention" aria-describedby="kpi-needs-review-trend"><strong id="kpi-needs-review">14</strong><small class="kpi-trend" id="kpi-needs-review-trend" data-tone="neutral"></small></button>
             </div>
             <div class="analytics-kpi-tile">
@@ -92,33 +98,24 @@
               <button class="analytics-metric-value kpi-link" type="button" data-view-link="inbox" data-inbox-filter="completed" aria-describedby="kpi-completed-trend"><strong id="kpi-completed">130</strong><small class="kpi-trend" id="kpi-completed-trend" data-tone="neutral"></small></button>
             </div>
             <div class="analytics-kpi-tile">
-              <div class="analytics-metric-label"><span>Fleet safety</span><button class="info-hint" type="button" data-tooltip="Fleet safety score from 0 to 100; higher is safer. Opens Analytics › Outcomes." aria-label="Fleet safety score from 0 to 100; higher is safer. Opens Analytics › Outcomes."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div>
+              <div class="analytics-metric-label"><span id="landing-score-label">Elevate score</span><button id="landing-score-hint" class="info-hint" type="button" data-tooltip="Fleet Elevate score from 0 to 100; higher is safer. Opens program reports." aria-label="Fleet Elevate score from 0 to 100; higher is safer. Opens program reports."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div>
               <button class="analytics-metric-value kpi-link" type="button" data-view-link="outcomes" data-analytics-link="outcomes" aria-describedby="kpi-safety-trend"><strong id="kpi-fleet-safety">74</strong><small class="kpi-trend" id="kpi-safety-trend" data-tone="neutral"></small></button>
             </div>
             <div class="analytics-kpi-tile">
-              <div class="analytics-metric-label"><span>Events / 100K trips</span><button class="info-hint" type="button" data-tooltip="Coached safety events per 100,000 trips across all programs, latest week. Lower is safer. Opens Analytics › Outcomes." aria-label="Coached safety events per 100,000 trips across all programs, latest week. Lower is safer. Opens Analytics › Outcomes."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div>
+              <div class="analytics-metric-label"><span>Events / 100K trips</span><button class="info-hint" type="button" data-tooltip="Coached safety events per 100,000 trips across all programs, latest week. Lower is safer. Opens program reports." aria-label="Coached safety events per 100,000 trips across all programs, latest week. Lower is safer. Opens program reports."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div>
               <button class="analytics-metric-value kpi-link" type="button" data-view-link="outcomes" data-analytics-link="outcomes" aria-describedby="kpi-events-trend"><strong id="kpi-event-rate">2,200</strong><small class="kpi-trend" id="kpi-events-trend" data-tone="neutral"></small></button>
             </div>
           </section>
 
+          <div class="program-context-link"><button class="text-link" id="landing-program-link" type="button" data-open-category="following">Explore programs</button></div>
           <section class="command-overview" aria-label="This week’s work and automation">
             <article class="command-card attention-card" aria-labelledby="prioritized-attention-title">
               <header class="command-card-header">
                 <div><h2 id="prioritized-attention-title">Needs you this week</h2><span class="command-card-scope" id="attention-scope">14 sessions need a person</span></div>
                 <button class="card-link" id="attention-total-button" type="button" data-view-link="inbox" data-inbox-filter="attention" aria-label="Open all 14 sessions needing review">View all <span id="attention-total-count">14</span> <b aria-hidden="true">→</b></button>
               </header>
-              <div class="attention-next">
-                <span class="attention-next-avatar" id="ai-priority-avatar" aria-hidden="true">HN</span>
-                <button class="attention-next-copy" type="button" data-open-driver-record="Harper Nguyen">
-                  <span class="attention-next-name"><strong id="ai-priority-name">Harper Nguyen</strong><em id="ai-priority-score">Score 58</em></span>
-                  <span class="attention-next-meta" id="ai-priority-meta">Distracted driving · overdue after reminder</span>
-                </button>
-                <button class="attention-next-clips" id="ai-priority-clips" type="button" data-open-driver-record="Harper Nguyen" data-focus-footage aria-label="Play 2 clips for Harper Nguyen">2 clips</button>
-                <button class="attention-review-button" id="ai-priority-review" type="button" data-open-driver-record="Harper Nguyen">Review</button>
-              </div>
               <div class="attention-rows" aria-label="Review reasons by severity">
                 <button class="attention-row" type="button" data-view-link="inbox" data-inbox-filter="overdue" data-severity="high" data-attention-reason="reminders_exhausted"><span class="attention-row-label"><i class="attention-dot" aria-hidden="true"></i>Overdue</span><span class="attention-bar" aria-hidden="true"><i></i></span><strong id="attention-overdue-count">4</strong><em>Contact driver</em></button>
-                <button class="attention-row" type="button" data-view-link="inbox" data-inbox-filter="session_needed" data-severity="high" data-attention-reason="session_needed"><span class="attention-row-label"><i class="attention-dot" aria-hidden="true"></i>Session needed</span><span class="attention-bar" aria-hidden="true"><i></i></span><strong id="attention-session-needed-count">3</strong><em>Start session</em></button>
                 <button class="attention-row" type="button" data-view-link="inbox" data-inbox-filter="repeat" data-severity="medium" data-attention-reason="repeat_after_coaching"><span class="attention-row-label"><i class="attention-dot" aria-hidden="true"></i>Repeated</span><span class="attention-bar" aria-hidden="true"><i></i></span><strong id="attention-repeat-count">3</strong><em>Review pattern</em></button>
                 <button class="attention-row" type="button" data-view-link="inbox" data-inbox-filter="reply" data-severity="reply" data-attention-reason="driver_reply"><span class="attention-row-label"><i class="attention-dot" aria-hidden="true"></i>Replied</span><span class="attention-bar" aria-hidden="true"><i></i></span><strong id="attention-reply-count">4</strong><em>Review reply</em></button>
               </div>
@@ -127,7 +124,7 @@
             <article class="command-card automation-card" aria-labelledby="automation-week-title">
               <header class="command-card-header">
                 <div><h2 id="automation-week-title">Automation this week</h2><span class="command-card-scope" id="automation-week-scope">Week of Aug 31</span></div>
-                <button class="info-hint" type="button" aria-label="How the automation share is calculated" data-tooltip="All automatically started sessions divided by all started sessions in the selected period, including completed sessions. Flagged reviews without a session are excluded."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button>
+                <button class="info-hint" type="button" aria-label="How the automation share is calculated" data-tooltip="All automatically started sessions divided by all started sessions in the selected period, including completed sessions."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button>
               </header>
               <div class="automation-headline">
                 <strong id="automation-share">97%</strong>
@@ -137,7 +134,6 @@
               <div class="automation-rows">
                 <div class="automation-row is-automated"><span class="automation-row-label"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h7l-1 8 10-13h-7l0-7Z"/></svg>Started automatically</span><span class="automation-bar" aria-hidden="true"><i></i></span><strong id="automation-week-automated">147</strong></div>
                 <div class="automation-row is-manual"><span class="automation-row-label"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Started by a manager</span><span class="automation-bar" aria-hidden="true"><i></i></span><strong id="automation-week-manual">4</strong></div>
-                <div class="automation-row is-pending"><span class="automation-row-label"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Awaiting session</span><span class="automation-bar" aria-hidden="true"><i></i></span><strong id="automation-week-pending">3</strong></div>
               </div>
               <div class="automation-card-foot">
                 <button class="card-link" type="button" data-view-link="inbox" data-inbox-filter="all" data-inbox-origin="automated" id="automation-sessions-link">View automated sessions <b aria-hidden="true">→</b></button>
@@ -147,11 +143,12 @@
           </section>
         </section>
 
+        <section class="app-view" id="view-programs" aria-labelledby="program-title"></section>
+
         <section class="app-view" id="view-inbox" aria-labelledby="inbox-title">
           <header class="page-heading">
             <div><h1 id="inbox-title">Sessions</h1></div>
             <div class="heading-actions">
-              <label class="filter-button period-control"><span class="sr-only">Period</span><select data-coaching-period aria-label="Period"><option value="1" selected>This week</option><option value="4">Last 4 weeks</option><option value="8">Last 8 weeks</option></select></label>
               <button class="text-action" type="button" data-manual-session><span aria-hidden="true">+</span> Start one-on-one coaching</button>
             </div>
           </header>
@@ -159,7 +156,8 @@
           <div class="data-toolbar session-toolbar">
             <fieldset class="segmented session-view-tabs" id="session-view-tabs" aria-label="Session status"></fieldset>
             <div class="toolbar-actions">
-              <label class="search-control session-search-control" for="session-search"><span>Search sessions</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="session-search" type="search" placeholder="Search driver or program" autocomplete="off"/></label>
+              <label class="filter-button period-control"><span class="sr-only">Period</span><select data-coaching-period aria-label="Period"><option value="1" selected>This week</option><option value="4">Last 4 weeks</option><option value="8">Last 8 weeks</option></select></label>
+              <label class="search-control session-search-control" for="session-search"><span class="sr-only">Search sessions</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="session-search" type="search" placeholder="Search driver or program" autocomplete="off"/></label>
               <div id="session-filter-controls"></div>
             </div>
           </div>
@@ -175,29 +173,29 @@
             </div>
           </header>
           <div class="data-toolbar analytics-view-toolbar">
-            <div class="segmented view-tabs analytics-tabs" role="tablist" aria-label="Analytics view">
+            <div class="segmented view-tabs analytics-tabs" role="tablist" aria-label="Analytics views">
               <button class="is-active" id="analytics-outcomes-tab" type="button" role="tab" data-analytics-tab="outcomes" aria-selected="true" aria-controls="analytics-outcomes">Outcomes</button>
               <button id="analytics-activity-tab" type="button" role="tab" data-analytics-tab="activity" aria-selected="false" aria-controls="analytics-activity" tabindex="-1">Activity</button>
               <button id="analytics-drivers-tab" type="button" role="tab" data-analytics-tab="drivers" aria-selected="false" aria-controls="view-drivers" tabindex="-1">Drivers</button>
               <button id="analytics-groups-tab" type="button" role="tab" data-analytics-tab="groups" aria-selected="false" aria-controls="view-groups" tabindex="-1">Groups</button>
             </div>
-            <div class="analytics-report-scope"><label class="filter-button period-control"><span class="sr-only">Period</span><select data-coaching-period aria-label="Period"><option value="1" selected>This week</option><option value="4">Last 4 weeks</option><option value="8">Last 8 weeks</option></select></label><span class="analytics-scope-divider" aria-hidden="true">·</span><span id="analytics-report-scope-detail">Week of Aug 31 · All programs</span></div>
+            <div class="toolbar-actions analytics-report-scope"><label class="filter-button period-control"><span class="sr-only">Period</span><select data-coaching-period aria-label="Period"><option value="1" selected>This week</option><option value="4">Last 4 weeks</option><option value="8">Last 8 weeks</option></select></label><span id="analytics-report-scope-detail">Week of Aug 31 · All programs</span></div>
           </div>
           <section class="analytics-panel" id="analytics-activity" role="tabpanel" aria-labelledby="analytics-activity-tab" tabindex="0" hidden>
             <section class="analytics-kpi-strip" aria-label="Coaching activity summary">
-              <div><div class="analytics-metric-label"><span>Identified</span><button class="info-hint" type="button" data-tooltip="In progress + Needs review + Completed. Includes sessions and flagged reviews awaiting session creation." aria-label="About identified"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-identified-count">154</strong></div>
+              <div><div class="analytics-metric-label"><span>Identified</span><button class="info-hint" type="button" data-tooltip="In progress + Needs review + Completed." aria-label="About identified"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-identified-count">154</strong></div>
               <div><div class="analytics-metric-label"><span>In progress</span><button class="info-hint" type="button" data-tooltip="Automated and one-on-one sessions still in progress. Sessions needing review and completed sessions are counted separately." aria-label="About in progress"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-in-progress-count">10</strong></div>
-              <div><div class="analytics-metric-label"><span>Needs review</span><button class="info-hint" type="button" data-tooltip="Sessions waiting on a person, plus flagged reviews that still need a session." aria-label="About needs review"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-escalated-count">14</strong></div>
+              <div><div class="analytics-metric-label"><span>Needs review</span><button class="info-hint" type="button" data-tooltip="Sessions waiting on a person: Overdue, Repeated, or Replied." aria-label="About needs review"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-escalated-count">14</strong></div>
               <div><div class="analytics-metric-label"><span>Completed</span><button class="info-hint" type="button" data-tooltip="Sessions completed in the selected period, including archived completions." aria-label="About completed"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-completed-count">130</strong></div>
               <div><div class="analytics-metric-label"><span>Automated sessions</span><button class="info-hint" type="button" data-tooltip="All sessions started automatically in the selected period: in progress, needing review, or completed. Excludes flags without a session." aria-label="About automated sessions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-coached-count">147</strong></div>
               <div><div class="analytics-metric-label"><span>One-on-one sessions</span><button class="info-hint" type="button" data-tooltip="All manager-started sessions in the selected period: in progress, needing review, or completed. Excludes flags without a session." aria-label="About one-on-one sessions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-one-to-one-count">4</strong></div>
             </section>
               <section class="analytics-chart-card analytics-activity-chart chart-card" aria-labelledby="activity-chart-title">
-                <header><div><h2 class="chart-title" id="activity-chart-title">Weekly activity</h2><span class="chart-context">In-progress sessions · weekly snapshots Jul 13–Aug 31. Bars use left axis; score uses right axis.</span></div></header>
+                <header><div><h2 class="chart-title" id="activity-chart-title">Weekly activity</h2><span class="chart-context">In-progress sessions · weekly snapshots Jul 13–Aug 31.</span></div></header>
                 <div class="activity-legend chart-legend"></div>
                 <div id="coaching-activity-chart" aria-describedby="activity-chart-summary"></div>
-                <p class="sr-only" id="activity-chart-summary">Across eight weekly cycles, identified and completed coaching generally increased while in-progress and review counts stayed small. For the week of Aug 31: 154 identified = 8 automated + 2 one-on-one + 14 need review + 130 completed. The fleet safety score rose from 70 to 74 over the same weeks.</p>
-                <details class="chart-data-summary chart-summary"><summary>Summary and data</summary><p>Across eight weekly cycles, identified and completed coaching generally increased while in-progress and review counts stayed small. For the week of Aug 31: 154 identified = 8 automated + 2 one-on-one + 14 need review + 130 completed. The fleet safety score rose from 70 to 74 over the same weeks.</p></details>
+                <p class="sr-only" id="activity-chart-summary">Across eight weekly cycles, identified and completed coaching generally increased while in-progress and review counts stayed small. For the week of Aug 31: 154 identified = 8 automated + 2 one-on-one + 14 need review + 130 completed. The fleet Elevate score rose from 70 to 74 over the same weeks.</p>
+                <details class="chart-data-summary chart-summary"><summary>Summary and data</summary><p>Across eight weekly cycles, identified and completed coaching generally increased while in-progress and review counts stayed small. For the week of Aug 31: 154 identified = 8 automated + 2 one-on-one + 14 need review + 130 completed. The fleet Elevate score rose from 70 to 74 over the same weeks.</p></details>
               </section>
             <section class="queue-section analytics-queue-section" aria-labelledby="queue-heading">
               <header class="section-heading">
@@ -240,18 +238,18 @@
           <div class="kpi-region" id="drivers-kpis"></div>
           <section class="overview-band" aria-label="Fleet overview">
             <article class="overview-panel" aria-labelledby="driver-safety-title">
-              <header class="overview-heading"><h2 id="driver-safety-title">Safety mix <button class="info-hint" type="button" aria-label="About fleet safety mix" data-tooltip="Fleet safety scores from 0 to 100; higher is safer. Counts cover the full fleet and stay fixed when the directory is filtered. Select a tier to filter the directory."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 11v5m0-9v1"/></svg></button></h2><span class="overview-scope" id="driver-safety-scope"></span></header>
+              <header class="overview-heading"><h2 id="driver-safety-title">Safety mix <button class="info-hint" type="button" aria-label="About fleet safety mix" data-tooltip="Fleet Elevate scores from 0 to 100; higher is safer. Counts cover the full fleet and stay fixed when the directory is filtered. Select a tier to filter the directory."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 11v5m0-9v1"/></svg></button></h2><span class="overview-scope" id="driver-safety-scope"></span></header>
               <div class="overview-stacked-bar" id="driver-safety-mix" role="group" aria-label="Filter drivers by fleet safety mix"></div>
               <div class="overview-key" id="driver-tier-totals" role="group" aria-label="Filter drivers by safety tier"></div>
               <details class="driver-distribution-card overview-disclosure">
                 <summary><span id="driver-distribution-title">Score breakdown</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></summary>
-                <div class="driver-distribution-context"><span class="overview-scope">Safety score · higher is safer</span></div>
+                <div class="driver-distribution-context"><span class="overview-scope">Elevate score · higher is safer</span></div>
                 <div class="driver-distribution" id="driver-distribution" role="group" aria-labelledby="driver-distribution-title"></div>
               </details>
             </article>
             <article class="overview-panel overview-driver-coaching" aria-label="Driver improvement">
               <div class="overview-driver-highlight">
-                <header class="overview-heading"><h3>Top score improvement <button class="info-hint" id="driver-improvement-help" type="button" aria-label="About the most improved driver"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 11v5m0-9v1"/></svg></button></h3><span class="overview-scope">Directory · prior period</span></header>
+                <header class="overview-heading"><h3>Top score improvement <button class="info-hint" id="driver-improvement-help" type="button" aria-label="About the most improved driver"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 11v5m0-9v1"/></svg></button></h3><span class="overview-scope">Directory · dates unavailable</span></header>
                 <button class="overview-driver-winner" id="driver-improvement" type="button" data-overview-driver=""><span class="person-avatar" aria-hidden="true"></span><span class="overview-driver-name"><strong></strong><span class="overview-scope"></span></span><strong class="overview-driver-gain"></strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
                 <span class="overview-empty" id="driver-improvement-empty" hidden>No score increases yet</span>
               </div>
@@ -296,7 +294,7 @@
             <div><h1 id="library-title">Content</h1></div>
             <button class="primary-button" type="button" data-toast="New lesson draft created">New lesson</button>
           </header>
-          <div class="kpi-region" id="content-kpis"></div><div class="data-toolbar"><label class="search-control" for="content-search"><span>Search content</span><input id="content-search" type="search" placeholder="Lesson or program" autocomplete="off"></label></div>
+          <div class="kpi-region" id="content-kpis"></div><div class="data-toolbar"><div class="toolbar-actions"><label class="search-control" for="content-search"><span class="sr-only">Search content</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="content-search" type="search" placeholder="Search lesson or program" autocomplete="off"></label></div></div>
           <section class="library-grid" id="library-grid"></section>
         </section>
 
@@ -350,16 +348,6 @@
               <div class="settings-fact"><span>Reminder</span><strong>Automatic after 48 hours</strong></div>
             </section>
           </div>
-          <section class="settings-section event-types-settings" aria-labelledby="event-types-title">
-            <header><div><h2 id="event-types-title">Safety event types</h2><span class="settings-summary-count" id="event-types-count"></span></div><button class="secondary-button" type="button" data-add-event-type aria-expanded="false">Add event type</button></header>
-            <p class="settings-help">What automation listens for. Turn a type off to keep its history without coaching it; severity and video requirements feed the rules below.</p>
-            <div id="event-type-rows"></div>
-          </section>
-          <section class="settings-section rules-settings" aria-labelledby="rules-title">
-            <header><div><h2 id="rules-title">Coaching rules</h2><span class="settings-summary-count" id="rules-count"></span></div><button class="secondary-button" type="button" data-add-rule>Add rule</button></header>
-            <p class="settings-help">Rules run after an event type matches and can change the coaching path or hold the match for review.</p>
-            <div id="rule-rows"></div>
-          </section>
         </section>
       </main>
     </div>
@@ -390,7 +378,7 @@
         <nav aria-label="More destinations">
           <button class="mobile-more-link" type="button" data-open-global-search><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span><strong>Search</strong><small>Find drivers, sessions, and programs</small></span><b aria-hidden="true">›</b></button>
           <button class="mobile-more-link" type="button" data-mobile-view="library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h13a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H19M8 8h7"/></svg><span><strong>Content</strong><small>Manage mapped lessons</small></span><b aria-hidden="true">›</b></button>
-          <button class="mobile-more-link" type="button" data-mobile-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6.2L14.7 4h-5.4L9 6.2a8 8 0 0 0-1.5.9l-2.4-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 1.5.9l.3 2.2h5.4l.3-2.2a8 8 0 0 0 1.5-.9l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z"/></svg><span><strong>Settings</strong><small>Preview and activate automation changes</small></span><b aria-hidden="true">›</b></button>
+          <button class="mobile-more-link" type="button" data-mobile-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6.2L14.7 4h-5.4L9 6.2a8 8 0 0 0-1.5.9l-2.4-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 1.5.9l.3 2.2h5.4l.3-2.2a8 8 0 0 0 1.5-.9l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z"/></svg><span><strong>Settings</strong><small>Automation mode and cadence</small></span><b aria-hidden="true">›</b></button>
         </nav>
       </div>
     </dialog>
@@ -420,6 +408,7 @@
     <script src="./session-evidence.js?v=design-library-1"></script>
     <script src="./session-workspace.js?v=design-library-1"></script>
     <script src="./driver-spotlight.js?v=design-library-1"></script>
+    <script src="./programs.js?v=program-review-1"></script>
     <script src="./app.js?v=design-library-1"></script>
   </body>
 </html>

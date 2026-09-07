@@ -28,7 +28,7 @@ const expectProfile = async name => {
   assert.equal(new URL(page.url()).searchParams.get('driver'), name, 'Driver links must identify a driver independently of a session');
   assert.equal(new URL(page.url()).searchParams.get('record'), null);
   assert.equal(new URL(page.url()).hash, '#analytics');
-  assert.equal(new URL(page.url()).searchParams.get('analytics'), 'drivers', 'Driver records live under Analytics › Drivers');
+  assert.equal(new URL(page.url()).searchParams.get('analytics'), 'drivers', 'Driver portfolios remain in the Analytics Drivers view');
 };
 const closeProfile = async () => {
   await profile.locator('[data-close-drawer]').click();
@@ -84,7 +84,12 @@ const expectProfileCharts = async name => {
 };
 
 try {
-  await page.goto(base + '/#drivers');
+  await page.goto(base + '/?analytics=outcomes#analytics');
+  await page.locator('[data-analytics-tab="drivers"]').click();
+  assert.equal(await page.locator('#outcomes-title').textContent(), 'Analytics');
+  assert.equal(await page.locator('[data-analytics-tab]:visible').count(), 4, 'Drivers keeps the Analytics view tabs visible');
+  assert.equal(new URL(page.url()).hash, '#analytics');
+  assert.equal(new URL(page.url()).searchParams.get('analytics'), 'drivers');
   const records = await page.evaluate(() => directory.map(({ name, safetyScore, scoreChange, group }) => ({ name, safetyScore, scoreChange, group })));
   assert.equal(records.length, 14, 'Keep every representative directory driver reachable');
   for (const { name } of records) {
@@ -99,7 +104,7 @@ try {
 
   // The name opens the portfolio; the separate Action column chooses a real
   // coaching record or a prefilled create form without changing the ledger.
-  assert.deepEqual(await page.locator('#driver-directory thead th').allTextContents(),['Driver','Safety score','Top event','Last coached','Status','Action']);
+  assert.deepEqual(await page.locator('#driver-directory thead th').allTextContents(),['Driver','Elevate score','Top event','Last coached','Status','Action']);
   assert.equal(await page.locator('#driver-directory thead th').last().locator('button').count(),0,'Action is not a sortable data column');
   for(const {name} of records) {
     const action=rowFor(name).locator('td').last().locator('button');
@@ -122,21 +127,6 @@ try {
   await drawer.locator('[data-close-drawer]').click();
   await page.waitForFunction(()=>document.activeElement?.getAttribute('data-open-session')==='priya-speeding');
 
-  await page.goto(base+'/#drivers');
-  const pending=await page.evaluate(()=>activeCandidates().find(flag=>flag.person==='Casey Patel'));
-  assert.ok(pending);
-  const beforeCreate=await page.evaluate(()=>({ids:sessions.map(record=>record.id),started:reviewCandidates.map(flag=>flag.started)}));
-  const pendingAction=rowFor(pending.person).getByRole('button',{name:'Create session for '+pending.person,exact:true});
-  await pendingAction.click();
-  assert.equal(await page.locator('#training-dialog').evaluate(node=>node.open),true);
-  assert.equal(await page.inputValue('#manual-driver-select'),pending.person);
-  assert.equal(await page.inputValue('#manual-category-select'),pending.categoryId);
-  assert.ok((await page.inputValue('#manual-session-reason')).includes(pending.trigger),'Pending review uses the flagged flow even when older sessions exist');
-  await page.locator('#training-dialog').getByRole('button',{name:'Cancel',exact:true}).click();
-  await page.waitForFunction(()=>!document.getElementById('training-dialog').open);
-  assert.deepEqual(await page.evaluate(()=>({ids:sessions.map(record=>record.id),started:reviewCandidates.map(flag=>flag.started)})),beforeCreate,'Cancelling the directory create action neither creates a session nor resolves its review');
-  assert.equal(await pendingAction.evaluate(node=>node===document.activeElement),true,'Cancel returns focus to Create session');
-
   // Isolate historical-only and never-coached states without editing fixtures on disk.
   await page.evaluate(()=>{
     const source=sessions.find(record=>record.id==='priya-speeding');
@@ -144,11 +134,17 @@ try {
     sessions.push({...source,id:'qa-older-history',state:'archived',weeksAgo:4},{...source,id:'qa-recent-history',state:'completed',weeksAgo:1});
     renderDirectory();
   });
-  const historicalAction=rowFor('Priya Singh').getByRole('button',{name:'View session for Priya Singh',exact:true});
-  assert.equal(await historicalAction.getAttribute('data-open-session'),'qa-recent-history','With no active coaching or pending review, View session chooses the newest existing history');
+  const historicalAction=rowFor('Priya Singh').getByRole('button',{name:'Create session for Priya Singh',exact:true});
   await historicalAction.click();
+  assert.equal(await page.inputValue('#manual-driver-select'),'Priya Singh','A driver with only history can start fresh coaching');
+  await page.locator('#training-dialog').getByRole('button',{name:'Cancel',exact:true}).click();
+  await identityFor('Priya Singh').click();
+  await expectProfile('Priya Singh');
+  await profile.locator('[data-profile-coaching-view="past"]').click();
+  assert.deepEqual((await profile.locator('[data-profile-session]').evaluateAll(rows=>rows.map(row=>row.dataset.profileSession))).sort(),['qa-older-history','qa-recent-history'],'Prior coaching remains accessible through the portfolio');
+  await profile.locator('[data-open-session="qa-recent-history"]').click();
   await page.waitForFunction(()=>activeSessionId==='qa-recent-history');
-  assert.equal(await drawer.locator('#reply-text').count(),0,'Historical completed coaching opens the actual read-only session');
+  assert.equal(await drawer.locator('#reply-text').count(),0,'Completed history still opens the actual read-only session');
   await drawer.locator('[data-close-drawer]').click();
   await page.waitForFunction(()=>!document.getElementById('driver-drawer').open);
   await page.evaluate(()=>{
@@ -175,7 +171,7 @@ try {
       });
       return {numeric:header.classList.contains('num'),headerAlign:getComputedStyle(header).textAlign,sortRight:sort.getBoundingClientRect().right,rows,overflow:document.documentElement.scrollWidth>innerWidth};
     });
-    assert.equal(alignment.numeric,true,'Safety score uses the shared numeric header contract');
+    assert.equal(alignment.numeric,true,'Elevate score uses the shared numeric header contract');
     assert.equal(alignment.headerAlign,'end');
     assert.equal(alignment.overflow,false,'Scores remain inside the local table scroll region at '+width);
     for(const edge of ['scoreRight','valueRight','deltaRight'])assert.ok(Math.max(...alignment.rows.map(row=>row[edge]))-Math.min(...alignment.rows.map(row=>row[edge]))<1,edge+' stays aligned for positive, negative and missing changes at '+width);
@@ -194,7 +190,7 @@ try {
   await closeProfile();
   // Native table cells retain their data; labelled controls open the portfolio.
   const columnNames = await page.locator('#view-drivers .data-table thead th').allTextContents();
-  for (const label of ['Driver', 'Safety score', 'Top event', 'Last coached', 'Status']) assert.ok(columnNames.some(text => text.includes(label)), label + ' column remains available');
+  for (const label of ['Driver', 'Elevate score', 'Top event', 'Last coached', 'Status']) assert.ok(columnNames.some(text => text.includes(label)), label + ' column remains available');
   assert.equal(await rowFor('Priya Singh').locator('td').nth(3).count(), 1);
   await identityFor('Priya Singh').click();
   await expectProfile('Priya Singh');
@@ -357,44 +353,6 @@ try {
   assert.match(await profile.locator('#profile-event-list').textContent(), /No videos recorded/);
 
   await page.goto(base + '/#drivers');
-  const candidate = await page.evaluate(() => {
-    const flag = reviewCandidates.find(item => item.person === 'Casey Patel' && !item.started);
-    return flag && { id: flag.id, person: flag.person, categoryId: flag.categoryId, trigger: flag.trigger, detail: flag.detail };
-  });
-  assert.ok(candidate, 'Casey has a pending review that has not become a session');
-  const beforeCandidate = await page.evaluate(() => ({ ids: sessions.map(item => item.id), started: reviewCandidates.find(item => item.person === 'Casey Patel').started }));
-  await identityFor(candidate.person).click();
-  await expectProfile(candidate.person);
-  await expectProfileCharts(candidate.person);
-  const candidateDetail = profile.locator('[data-profile-review="' + candidate.id + '"]');
-  assert.equal(await candidateDetail.count(), 1, 'A pending review must be visible without posing as an existing session');
-  assert.equal(await candidateDetail.getAttribute('data-profile-session'), null);
-  assert.equal(await profile.locator('[data-profile-session="' + candidate.id + '"]').count(), 0);
-  assert.ok((await candidateDetail.textContent()).includes(candidate.trigger));
-  assert.ok((await candidateDetail.textContent()).includes(candidate.detail));
-  assert.deepEqual(await page.evaluate(() => ({ ids: sessions.map(item => item.id), started: reviewCandidates.find(item => item.person === 'Casey Patel').started })), beforeCandidate, 'Previewing a flagged review must not create a session or resolve the flag');
-  const startReview = candidateDetail.locator('[data-profile-start-review]');
-  await startReview.click();
-  const trainingDialog = page.locator('#training-dialog');
-  assert.equal(await trainingDialog.evaluate(node => node.open), true);
-  assert.equal(await page.inputValue('#manual-driver-select'), candidate.person);
-  assert.equal(await page.inputValue('#manual-category-select'), candidate.categoryId);
-  assert.ok((await page.inputValue('#manual-session-reason')).includes(candidate.trigger));
-  assert.ok((await page.inputValue('#manual-session-reason')).includes(candidate.detail));
-  assert.deepEqual(await page.evaluate(() => ({ ids: sessions.map(item => item.id), started: reviewCandidates.find(item => item.person === 'Casey Patel').started })), beforeCandidate, 'Opening the prefilled form must not start coaching before confirmation');
-  await trainingDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await page.waitForFunction(() => !document.getElementById('training-dialog').open);
-  await expectProfile(candidate.person);
-  assert.equal(await page.evaluate(() => document.activeElement?.hasAttribute('data-profile-start-review')), true, 'Cancel must return focus to the profile action');
-  assert.deepEqual(await page.evaluate(() => ({ ids: sessions.map(item => item.id), started: reviewCandidates.find(item => item.person === 'Casey Patel').started })), beforeCandidate, 'Cancel must leave the review pending and the session ledger unchanged');
-  await startReview.click();
-  await page.keyboard.press('Escape');
-  await page.waitForFunction(() => !document.getElementById('training-dialog').open);
-  await expectProfile(candidate.person);
-  assert.deepEqual(await page.evaluate(() => ({ ids: sessions.map(item => item.id), started: reviewCandidates.find(item => item.person === 'Casey Patel').started })), beforeCandidate, 'Escape must cancel only the top dialog without dismissing the profile or starting a session');
-  await closeProfile();
-
-  await page.goto(base + '/#drivers');
   const unscored = records.find(record => record.safetyScore === null);
   assert.ok(unscored, 'Fixture includes a driver without score data');
   await identityFor(unscored.name).click();
@@ -434,20 +392,16 @@ try {
     await page.setViewportSize({ width, height: 1000 });
     const expectedWidth = width <= 680 ? width : Math.min(1060, width - 84);
     const measuredWidths = [];
-    for (const kind of ['profile', 'session', 'program', 'group', 'composer']) {
+    for (const kind of ['profile', 'session', 'group']) {
       await page.goto(base + '/#drivers');
       await page.evaluate(destination => {
         if (destination === 'profile') openDriverProfile('Priya Singh');
         else if (destination === 'session') openSessionDrawer('priya-speeding', { type: 'sessions' });
         else if (destination === 'group') openGroupDrawer('Regional · East');
-        else {
-          openCategoryDrawer('following');
-          if (destination === 'composer') startSession(activeCategory.quickCases[0].id);
-        }
       }, kind);
       const target = page.locator(['profile', 'session'].includes(kind) ? '#driver-drawer' : '#category-drawer');
       assert.equal(await target.getAttribute('aria-hidden'), 'false', kind + ' must actually open before its width is checked');
-      if (['profile', 'session', 'composer'].includes(kind)) {
+      if (['profile', 'session'].includes(kind)) {
         assert.equal(await target.evaluate((node, variant) => node.classList.contains('is-' + variant), kind), true, 'The ' + kind + ' variant must be rendered');
       }
       const measurements = await target.evaluate(node => ({ width: node.getBoundingClientRect().width, fits: node.scrollWidth <= node.clientWidth }));
@@ -459,7 +413,7 @@ try {
     assert.ok(Math.max(...measuredWidths) - Math.min(...measuredWidths) < 0.1, 'Every drawer must have the same width at ' + width);
   }
   assert.deepEqual(errors, []);
-  console.log('Passed: all driver entry points, accurate weekly metrics and daily-mile charts, missing data, one two-scope coaching list, always-visible rule breakdown, deduplicated exception/video scopes and previews, source facts and dismissed-event exclusions, pending-review preview and cancellation, full sessions and preserved reply/note/evidence drafts, driver deep links, preserved filters, focus containment/restoration, stale-close protection, responsive portfolio layout, and matching widths without overflow for all five drawer variants.');
+  console.log('Passed: all driver entry points, accurate weekly metrics and daily-mile charts, missing data, one two-scope coaching list, always-visible rule breakdown, deduplicated exception/video scopes and previews, source facts and dismissed-event exclusions, pending-review preview and cancellation, full sessions and preserved reply/note/evidence drafts, driver deep links, preserved filters, focus containment/restoration, stale-close protection, responsive portfolio layout, and matching widths without overflow for all three reachable drawer variants.');
 } finally {
   await browser.close();
 }

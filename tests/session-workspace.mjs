@@ -19,6 +19,8 @@ page.on('response', response => {
 const drawer = page.locator('#driver-drawer');
 const picker = page.locator('#session-event-browser');
 const reply = page.locator('#reply-text');
+// The explicit Action cell opens a session; the driver-name shortcut remains separate.
+const sessionAction = id => page.locator('#view-inbox .session-record > td:last-child [data-open-session="' + id + '"]');
 const session = () => page.evaluate(() => {
   const record = sessions.find(item => item.id === activeSessionId);
   const state = sessionWorkspaceState(record);
@@ -32,7 +34,7 @@ const reopenWithoutReload = async id => {
   await drawer.locator('[data-close-drawer]').click();
   await page.waitForFunction(() => document.getElementById('driver-drawer').getAttribute('aria-hidden') === 'true');
   await page.locator('[data-session-filter="all"]').locator('..').click();
-  await page.locator('[data-open-session="' + id + '"]').click();
+  await sessionAction(id).click();
   await page.waitForFunction(expected => activeSessionId === expected && document.getElementById('driver-drawer').classList.contains('is-session'), id);
 };
 const openPicker = async (scope = 'driver') => {
@@ -214,11 +216,11 @@ try {
   await reply.fill('Rowan draft remains here.');
   await drawer.locator('[data-close-drawer]').click();
   await page.locator('[data-session-filter="all"]').locator('..').click();
-  await page.locator('[data-open-session="alex-following"]').click();
+  await sessionAction('alex-following').click();
   assert.equal(await reply.inputValue(), '');
   await reply.fill('Alex has a separate draft.');
   await drawer.locator('[data-close-drawer]').click();
-  await page.locator('[data-open-session="rowan-distraction"]').click();
+  await sessionAction('rowan-distraction').click();
   assert.equal(await reply.inputValue(), 'Rowan draft remains here.');
 
   await openSession('alex-following');
@@ -234,16 +236,16 @@ try {
   await page.goto(base + '/#sessions');
   const manualId = await page.evaluate(() => sessions.find(item => item.origin === 'manual_override' && item.state === 'system_handling').id);
   await page.locator('[data-session-filter="all"]').locator('..').click();
-  await page.locator('[data-open-session="' + manualId + '"]').click();
+  await sessionAction(manualId).click();
   await drawer.locator('[data-complete-session]').click();
-  await page.locator('[data-open-session="' + manualId + '"]').click();
+  await sessionAction(manualId).click();
   assert.equal((await session()).state, 'completed');
   assert.equal(await reply.count(), 0);
   assert.equal(await drawer.locator('[data-open-session-events]:visible').count(), 0);
   const cycleBeforeArchive=await page.evaluate(()=>currentCycleCounts());
   await drawer.locator('[data-archive-session]').click();
   assert.deepEqual(await page.evaluate(()=>currentCycleCounts()),cycleBeforeArchive,'Archiving current completed work retains it in the same reporting period');
-  await page.locator('[data-open-session="' + manualId + '"]').click();
+  await sessionAction(manualId).click();
   assert.equal((await session()).state, 'archived');
   assert.equal(await reply.count(), 0);
   await drawer.locator('[data-restore-session]').click();
@@ -252,17 +254,17 @@ try {
   // Restoring a historical archive retains its original observation period.
   await page.goto(base+'/?period=8&session=archived#sessions');
   const historical=await page.evaluate(()=>{const item=sessions.find(record=>record.state==='archived'&&sessionWeeksAgo(record)>0);return {id:item.id,age:sessionWeeksAgo(item)};});
-  await page.locator('[data-open-session="'+historical.id+'"]').click();
+  await sessionAction(historical.id).click();
   await drawer.locator('[data-restore-session]').click();
   assert.equal(await page.evaluate(id=>sessionWeeksAgo(sessions.find(record=>record.id===id)),historical.id),historical.age);
   await page.selectOption('#view-inbox [data-coaching-period]','1');
   assert.equal(await page.evaluate(()=>currentCycleCounts().completed),130,'Restoring past history does not add a current-week completion');
-  assert.equal(await page.evaluate(()=>currentCycleCounts().identified),154);
+  assert.equal(await page.evaluate(()=>currentCycleCounts().identified),151);
 
   await page.goto(base + '/#sessions');
   const retryingId = await page.evaluate(() => sessions.find(item => item.eventType === 'Training delivery retrying').id);
   await page.locator('[data-session-filter="system_handling"]').locator('..').click();
-  await page.locator('[data-open-session="' + retryingId + '"]').click();
+  await sessionAction(retryingId).click();
   assert.equal(await drawer.locator('[data-relink-driver]').count(), 0, 'Delivery retries run automatically; there is no manual relink step');
   assert.match(await drawer.innerText(), /Automated|retr(y|ies|ying)/i);
   assert.equal(await reply.count(), 1, 'A retrying automated session still accepts coach messages');
