@@ -46,7 +46,7 @@ try {
       assert.equal(await status.getAttribute('role'),'status');
       assert.equal(await status.evaluate(node=>node.classList.contains('sr-only')),true,'The result count remains available to assistive technology without repeated visible prose');
       assert.equal(await view.getByRole('combobox',{name:'State',exact:true}).count(),1);
-      assert.equal(await view.getByRole('combobox',{name:'Coach',exact:true}).count(),1);
+      assert.equal(await view.getByRole('combobox',{name:'Started by',exact:true}).count(),1);
     }
     await page.goto(base+'/?session=manager_attention#sessions');
     const sessions=page.locator('#view-inbox'),toolbar=sessions.locator('.session-toolbar');
@@ -58,11 +58,14 @@ try {
     assert.equal(await sessions.locator('nav[aria-label="Session pages"]').isVisible(),false,'A single page has no pagination chrome');
     await noOverflow('Sessions at '+width);
     await page.goto(base+'/#content');
-    const content=page.locator('#view-library'),search=content.getByRole('searchbox',{name:'Search content',exact:true});
+    const content=page.locator('#view-library'),search=content.getByRole('searchbox',{name:'Search training library',exact:true});
     assert.equal(await search.count(),1);
     if(width===1440) {
-      const control=await search.locator('..').boundingBox(),bar=await content.locator('.data-toolbar').boundingBox();
-      assert.ok(Math.abs(control.x+control.width-bar.x-bar.width)<=2,'Content search sits at the right edge of its toolbar');
+      const behavior=content.locator('#tl-behavior'),searchControl=search.locator('..'),filters=content.locator('[data-filter-sheet="training"] [data-filter-sheet-trigger]');
+      await rightOf(behavior,searchControl,'Training library Behavior → Search');
+      await rightOf(searchControl,filters,'Training library Search → Filters');
+      const control=await filters.boundingBox(),bar=await content.locator('.data-toolbar').boundingBox();
+      assert.ok(Math.abs(control.x+control.width-bar.x-bar.width)<=2,'Training library controls finish with Filters at the right edge of their toolbar');
     }
     await noOverflow('Content at '+width);
   }
@@ -81,5 +84,5 @@ try {
   assert.equal(await page.locator('#view-inbox [data-record-id]').count(),0);
   assert.equal(await pager.isVisible(),false,'Empty results also hide paging controls');
   assert.deepEqual(errors,[]);
-  console.log('Passed: stable Programs heading, accessible right-hand dataset controls, one exact scope, retained live count, compact single-page pagination, working multiple pages, Content search alignment and mobile overflow.');
+  console.log('Passed: stable Programs heading, accessible right-hand dataset controls, one exact scope, retained live count, compact single-page pagination, working multiple pages, Training library control order and mobile overflow.');
 } finally {await browser.close();}

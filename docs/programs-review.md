@@ -1,5 +1,7 @@
 # Programs review prototype — September 7, 2026
 
+Current setup/workflow decisions are in [Automated program configuration and coaching](program-configuration.md). That approved contract supersedes the older configuration, quiz, recurrence and manager-resume assumptions below; recorded call notes and historical review findings are retained.
+
 Programs now presents one comparison at a time: an all-program coaching table or an event-rate chart. Selecting a program leads to its chart, Coaching records, and one Recorded outcomes disclosure. This is the current September 7 content contract; earlier navigation and validation notes are retained below as history.
 
 ## Current interface

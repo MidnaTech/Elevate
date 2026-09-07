@@ -15,6 +15,16 @@ Elevate is an interactive prototype for automated driver coaching. It demonstrat
 - Draft-first automation mode and cadence settings with previews and audit history
 - Native tables with local narrow-screen scrolling, filter dialogs, global search, and a collapsible sidebar with saved preferences
 
+## Automated program setup
+
+Programs now supports guided setup and a single editable Configuration page. Review suggested connected rules, prepared course selections, deadlines and escalation limits, then save a draft or activate the local program. **Preview coaching** opens a separate sample driver/manager workflow with quiz retries, follow-up assessments, queuing, reminders and explicit manager decisions. No notifications are sent and no production scoring or LMS service is connected. See [the current program contract](docs/program-configuration.md).
+
+Run `npm run test:config` for program setup, `npm run test:coaching` for the driver and manager scenario workflow, and `npm test` for the deterministic coaching engine. The sample course catalog has quiz content and video specifications. Authored courses can link hosted video files for native playback; scripts without media remain visibly planned previews.
+
+**Training library** replaces the top-level Content label, retaining `#content` links. It features the supplied three-level heavy-truck speeding pack, searchable course materials, behavior/level/readiness filters, and accessible course previews for lessons, video scripts, quizzes and follow-up guides. Speeding course IDs are unchanged; version 2 incorporates the source learning content. All 12 source questions remain available for review, while assigned courses retain three questions and the agreed retry policy. No source-pack administrator proposals override program automation. Run `npm run test:library` for this workflow.
+
+**Create course** opens a template-first editor for an ordered series of one to three courses. Each level has its own lesson, hosted video link or planned script, three-question quiz with explanations, and follow-up commitment. Start from a generic path, the supplied speeding pack, a blank course, or a saved template. Drafts autosave locally; **Add to library** validates and publishes locally, while edits to published courses require **Save new version**. Existing assignments retain their original course snapshots. Templates create independent copies with fresh IDs. Program Configuration can explicitly select a series with **Use this series**; it advances one level at a time only after course completion and a complete follow-up assessment. Missing approved levels require manager review. Run `npm run test:authoring` for creation, templates, versioning, program selection and responsive keyboard checks. This prototype does not upload or generate videos, verify remote video access, or send content to drivers.
+
 ## Run locally
 
 No build step is required. Serve the `dist` directory with any static web server. For example:

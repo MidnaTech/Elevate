@@ -34,6 +34,14 @@ Keep 24px between major sections, 16px from a heading to its content, and 8px be
 
 Reference review: [Linear's compact views and right-hand controls](https://mobbin.com/screens/fd1b4d88-f021-49a3-98af-4cd3a87e1d29) and [Stripe's compact transaction summary and table](https://mobbin.com/screens/f576b06e-b290-4864-a0be-2d753324fd1d). The right-hand filter placement is Elevate's consistency rule; the references inform grouping and density, not an exact copied layout.
 
+## Automated program amendment — 7 September 2026
+
+The top-level Content page is now **Training library**, while existing `#content` routes and the Programs Content tab remain. Use the shared table, filters and status labels to distinguish prepared materials, sample outlines and incomplete lessons. Course inspection uses the shared native drawer with Lesson, Video, Quiz and Follow-up tabs. Source scripts are labelled as planned media; document administrator proposals do not silently alter the approved program policy.
+
+The Training library also provides Courses and Templates views and a **Create course** action. Authoring reuses the shared native drawer, labelled fields, segmented level selector and content tabs. A course series contains one to three ordered video-and-quiz levels. Local drafts, published versions and reusable template copies remain distinct; saved course versions never rewrite existing assignments. Hosted media uses native playback with an honest loading failure state. Planned scripts remain visibly unproduced. Program Configuration explicitly approves an authored series and retains the existing assessment, workload and manager-review boundaries.
+
+The approved [program setup and coaching workflow](docs/program-configuration.md) adds guided creation, a single editable Configuration page, stable course selection, and an explicit sample driver/manager preview. Reuse the same native controls, table helpers, shared status semantics, focus rules and 1060px record dialog contract. Configuration and Content remain independent of reporting periods. A video plus a three-question quiz replaces the earlier acknowledgement-only concept; a manager reply preserves review until an explicit resume or close decision. The sample simulator is independent of historical fleet records. Earlier implementation scope exclusions for this local workflow are superseded; production scoring, media generation, ingestion and LMS integrations remain outside this build.
+
 ## 0. Research and evidence
 
 ### Method and limits

@@ -1,5 +1,7 @@
 # Program model review
 
+Current setup/workflow decisions are in [Automated program configuration and coaching](program-configuration.md). That approved contract supersedes the older configuration, quiz, recurrence and manager-resume assumptions below; recorded call notes and historical review findings are retained.
+
 Read-only product/domain review of the Kevin / Calvin call notes dated September 7, 2026, against the current static prototype. Source: the supplied `pasted-text.txt` attachment. This document proposes decisions and a local review scope; it does not activate configuration, change fixture records, send notifications, or authorize GCP work. Sharing with Jobin remains a prepared handoff until a recipient and channel are provided.
 
 ## What the notes establish

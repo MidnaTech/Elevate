@@ -60,8 +60,8 @@ function programPageRecordTable(program, records) {
   const rows = selected.map(record => '<tr data-program-record="' + escapeHtml(record.id) + '"><td>' + programPageDriverName(record.person) + sessionClipBadge(record) + '</td>' + (isAll ? '<td>' + programPageLink(categories.find(item => item.id === record.categoryId)) + '</td>' : '') + '<td>' + uiStatus(compactSessionStatus(record)[1]) + '</td><td>' + escapeHtml(record.candidate ? '—' : coachLabel(record)) + '</td><td>' + escapeHtml(sessionStartedLabel(record)) + '</td><td>' + escapeHtml(sessionCompletedLabel(record)) + '</td><td>' + escapeHtml(sessionDueLabel(record)) + '</td><td>' + programPageRecordAction(record) + '</td></tr>').join('');
   return '<div class="program-section-heading"><div class="program-section-title"><h2 class="section-title" id="program-records-title">Coaching</h2><span class="sr-only" id="program-record-count" role="status">' + selected.length + ' ' + (selected.length === 1 ? 'record' : 'records') + '</span></div><div class="program-record-controls">' +
     '<label class="field"><span class="field-label">State</span><select class="filter-control" id="program-record-view">' + programRecordViews.map(([value, label]) => '<option value="' + value + '"' + (scope.view === value ? ' selected' : '') + '>' + label + ' · ' + records.filter(record => matchesView(record, value) && matchesMethod(record, scope.method)).length + '</option>').join('') + '</select></label>' +
-    '<label class="field"><span class="field-label">Coach</span><select class="filter-control" id="program-record-method">' + [['all', 'All coaches'], ['automated', 'Automated'], ['manual_override', 'One-on-one']].map(([value, label]) => '<option value="' + value + '"' + (scope.method === value ? ' selected' : '') + '>' + label + ' · ' + records.filter(record => matchesMethod(record, value) && matchesView(record, scope.view)).length + '</option>').join('') + '</select></label></div></div>' +
-    (rows ? uiTable(program.name + ' coaching records', ['Driver', ...(isAll ? ['Program'] : []), 'State', 'Coach', 'Started', 'Completed', 'Due', 'Action'], rows) : '<div class="card empty-state compact"><strong>No matching coaching records</strong><span>Choose another state, coach or reporting period.</span></div>');
+    '<label class="field"><span class="field-label">Started by</span><select class="filter-control" id="program-record-method">' + [['all', 'All origins'], ['automated', 'Automation'], ['manual_override', 'Manager']].map(([value, label]) => '<option value="' + value + '"' + (scope.method === value ? ' selected' : '') + '>' + label + ' · ' + records.filter(record => matchesMethod(record, value) && matchesView(record, scope.view)).length + '</option>').join('') + '</select></label></div></div>' +
+    (rows ? uiTable(program.name + ' coaching records', ['Driver', ...(isAll ? ['Program'] : []), 'State', 'Coach', 'Started', 'Completed', 'Due', 'Action'], rows) : '<div class="card empty-state compact"><strong>No matching coaching records</strong><span>Choose another state, origin or reporting period.</span></div>');
 }
 
 function programPageRateChart(program) {
@@ -123,6 +123,7 @@ function programPageLessons(program) {
 }
 
 function programPageContent(program) {
+  if (typeof ProgramSetup !== 'undefined') return ProgramSetup.renderContent(program);
   const mapped = programPageLessons(program);
   const isAll = program.id === 'all';
   const rows = mapped.map(lesson => '<tr data-program-lesson="' + escapeHtml(lesson.title) + '"><td>' + escapeHtml(lesson.title) + '</td>' + (isAll ? '<td>' + programPageLink(categories.find(item => item.name === lesson.category), 'content') + '</td>' : '') + '<td>' + escapeHtml(lesson.length) + '</td><td>' + escapeHtml(lesson.version) + '</td></tr>').join('');
@@ -213,6 +214,7 @@ function deleteProgram(programId) {
     saveSetting('elevate-deleted-programs', JSON.stringify((Array.isArray(deleted) ? deleted : []).concat(programId)));
   }
   removeProgramRecords(programId);
+  if (typeof ProgramSetup !== 'undefined') ProgramSetup.removePolicy(programId);
   saveProgramRules();
   saveProgramSettings();
   if (selectedProgramId === programId) selectedProgramId = 'all';
@@ -301,6 +303,7 @@ function programCreateForm() {
 }
 
 function programPageConfiguration(program) {
+  if (typeof ProgramSetup !== 'undefined') return ProgramSetup.renderConfiguration(program);
   if (program.id !== 'all') return programConfigurationDetail(program);
   const rows = categories.map(item => {
     const rules = eventTypeRules.filter(rule => rule.programId === item.id);
@@ -468,7 +471,7 @@ function renderProgramsPage() {
   const tab = renderTab[programTab] ? programTab : 'overview';
   const returnContext = typeof programPageReturn !== 'undefined' ? programPageReturn : null;
   programChartObserver?.disconnect();
-  host.innerHTML = '<header class="page-heading"><div>' + (returnContext ? '<button class="text-link program-page-back" type="button" data-back-program-page>← ' + escapeHtml(returnContext.label) + '</button>' : '') + '<div class="program-title-line"><h1 class="page-title" id="program-title">Programs</h1>' + (returnContext?.groupScrollTop != null ? '<span class="caption">All groups</span>' : '') + '</div></div>' + (isAll ? '' : '<div class="heading-actions"><button class="button button--secondary" type="button" data-manual-session aria-haspopup="dialog">Start one-on-one</button></div>') + '</header>' +
+  host.innerHTML = '<header class="page-heading"><div>' + (returnContext ? '<button class="text-link program-page-back" type="button" data-back-program-page>← ' + escapeHtml(returnContext.label) + '</button>' : '') + '<div class="program-title-line"><h1 class="page-title" id="program-title">Programs</h1>' + (returnContext?.groupScrollTop != null ? '<span class="caption">All groups</span>' : '') + '</div></div>' + (isAll ? (tab === 'configuration' ? '' : '<div class="heading-actions"><button class="button button--primary" type="button" data-open-program-setup>New program</button></div>') : '<div class="heading-actions"><button class="button button--secondary" type="button" data-manual-session aria-haspopup="dialog">Start one-on-one</button></div>') + '</header>' +
     (tab === 'overview' ? '<div class="kpi-region" id="program-page-kpis">' + programPageSummary(program) + '</div>' : '') + '<div class="data-toolbar program-page-toolbar"><div class="view-tabs" role="tablist" aria-label="Program sections">' + programPageTabs.map(([value, label]) => '<button class="view-tab' + (tab === value ? ' is-active' : '') + '" type="button" role="tab" id="program-tab-' + value + '" data-program-tab="' + value + '" aria-controls="program-page-panel" aria-selected="' + (tab === value) + '" tabindex="' + (tab === value ? '0' : '-1') + '">' + label + '</button>').join('') + '</div><div class="toolbar-actions program-page-controls"><label class="field"><span class="sr-only">Program</span><select class="filter-control" id="program-page-select">' + [allProgramsPage, ...categories].map(item => '<option value="' + escapeHtml(item.id) + '"' + (item.id === program.id ? ' selected' : '') + '>' + escapeHtml(item.name) + '</option>').join('') + '</select></label>' + (tab === 'overview' ? '<label class="field"><span class="sr-only">Period</span><select class="filter-control" id="program-page-period" data-coaching-period>' + periodOptions() + '</select></label><span class="caption" id="program-page-scope">' + escapeHtml(periodScopeLabel()) + '</span>' : '') + '</div></div>' +
     '<div id="program-page-panel" class="program-page-panel" role="tabpanel" aria-labelledby="program-tab-' + tab + '" tabindex="0">' + renderTab[tab](program, records) + '</div>';
   renderProgramRateChart();

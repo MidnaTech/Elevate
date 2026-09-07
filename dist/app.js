@@ -77,6 +77,8 @@ const driverGroups = ['Long haul · North', 'Regional · East', 'Local delivery'
 
 // Who coached: automation, or the manager who ran the one-on-one.
 function coachLabel(session) {
+  if (session.handlingMode === 'automated' && session.state !== 'manager_attention') return 'Automated';
+  if (session.handlingMode === 'manager' || session.state === 'manager_attention') return session.owner && session.owner !== 'Unassigned' ? session.owner : 'Manager';
   if (session.origin !== 'manual_override' && session.source === 'Automated') return 'Automated';
   return session.owner && session.owner !== 'Unassigned' ? session.owner : 'Manager';
 }
@@ -1414,7 +1416,7 @@ const internalViewNames = Object.fromEntries(Object.entries(routeViewNames).map(
 
 function updateUrlState(replace = false) {
   const url = new URL(window.location.href);
-  ['session', 'origin', 'analytics', 'outcome', 'queue', 'lens', 'period', 'driverStatus', 'group', 'program', 'programTab', 'programState', 'programCoach', 'programComparison', 'programPreview', 'programStage', 'groupPreview', 'score', 'sort', 'view', 'q', 'record', 'driver'].forEach((key) => url.searchParams.delete(key));
+  ['session', 'origin', 'analytics', 'outcome', 'queue', 'lens', 'period', 'driverStatus', 'group', 'program', 'programTab', 'programState', 'programCoach', 'programComparison', 'libraryTab', 'programPreview', 'programStage', 'groupPreview', 'score', 'sort', 'view', 'q', 'record', 'driver'].forEach((key) => url.searchParams.delete(key));
   if (currentView === 'inbox') {
     url.searchParams.set('session', activeSessionFilter);
     url.searchParams.set('origin', activeSessionSource);
@@ -1433,6 +1435,7 @@ function updateUrlState(replace = false) {
     if (scope.view !== 'all') url.searchParams.set('programState', scope.view);
     if (scope.method !== 'all') url.searchParams.set('programCoach', scope.method);
   }
+  if (currentView === 'library' && typeof TrainingLibrary !== 'undefined' && TrainingLibrary.getView() === 'templates') url.searchParams.set('libraryTab', 'templates');
   if (coachingPeriod !== 1) url.searchParams.set('period', String(coachingPeriod));
   if (currentView === 'outcomes' && analyticsTab === 'drivers') {
     url.searchParams.set('driverStatus', activeDriverFilter);
@@ -3318,10 +3321,19 @@ function openAttentionDriver(name, programId = null) {
 function renderLibrary() {
   renderDesignLibraryKpis();
   const term = document.getElementById('content-search')?.value.trim().toLowerCase() || '';
+  if (typeof TrainingLibrary !== 'undefined') {
+    document.getElementById('library-grid').innerHTML = TrainingLibrary.render(term);
+    if (typeof applyDesignLibrary === 'function') applyDesignLibrary(document.getElementById('view-library'));
+    return;
+  }
+  if (typeof ProgramSetup !== 'undefined') {
+    document.getElementById('library-grid').innerHTML = ProgramSetup.renderLibrary(term);
+    return;
+  }
   const visible = lessons.filter(lesson => [lesson.title, lesson.category].join(' ').toLowerCase().includes(term));
   document.getElementById('library-grid').innerHTML = visible.map((lesson) => [
     '<article class="lesson-card">',
-      '<div class="lesson-card-top"><span class="lesson-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4"/></svg></span><button class="info-hint" type="button" data-tooltip="' + escapeHtml(lesson.version + ' · Requires video review, acknowledgement, and a two-question quiz.') + '" aria-label="' + escapeHtml('Requirements and version for ' + lesson.title) + '">' + uiIcon('info') + '</button></div>',
+      '<div class="lesson-card-top"><span class="lesson-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4"/></svg></span><button class="info-hint" type="button" data-tooltip="' + escapeHtml(lesson.version + ' · Imported lesson metadata. Video and quiz content have not been supplied.') + '" aria-label="' + escapeHtml('Requirements and version for ' + lesson.title) + '">' + uiIcon('info') + '</button></div>',
       '<h2>' + escapeHtml(lesson.title) + '</h2>',
       '<p>' + escapeHtml(lesson.category) + '</p>',
       '<div class="lesson-meta"><span>' + escapeHtml(lesson.length) + '</span><span>' + escapeHtml(lesson.completion) + ' completion</span></div>',
@@ -4581,6 +4593,20 @@ document.addEventListener('keydown', (event) => {
       event.preventDefault();
       first.focus();
     }
+  }
+});
+
+if (typeof CourseAuthoringStore !== 'undefined') CourseAuthoringStore.init();
+if (typeof ProgramSetup !== 'undefined') ProgramSetup.init();
+sessions.forEach(session => {
+  session.initiatedBy = session.origin === 'manual_override' ? 'coach' : 'automation';
+  session.handlingMode = session.state === 'manager_attention' || session.origin === 'manual_override' ? 'manager' : 'automated';
+});
+
+document.addEventListener('click', event => {
+  if (event.target.closest('[data-open-program-setup]')) {
+    openProgramPage('all', 'configuration');
+    ProgramSetup.start();
   }
 });
 

@@ -183,7 +183,7 @@ try {
   assert.deepEqual(sent.clips.slice().sort(), expectedClips.slice().sort(), 'The sent reply must carry all selected camera clips once');
   assert.ok(sent.events.includes(group.id));
   assert.equal(afterSend.selected.length, 0, 'Sending must clear that reply’s selected evidence');
-  assert.equal(afterSend.state, 'system_handling', 'Replying must retain the existing coaching lifecycle transition');
+  assert.equal(afterSend.state, initial.state, 'Sending a manager reply must not resolve review or resume automation');
   const immutableKeys = ['id', 'eventId', 'categoryId', 'categoryName', 'eventType', 'source', 'time', 'location', 'vehicle', 'duration', 'video'];
   const afterClips = await page.evaluate(ids => ids.map(id => ({ ...findClip(id) })), group.clips.map(clip => clip.id));
   const sharedEvent = await page.evaluate(id => ({ person: evidenceEvent(id).person, sessionIds: evidenceEvent(id).sessionIds, original: evidenceEvent(id).original }), group.id);

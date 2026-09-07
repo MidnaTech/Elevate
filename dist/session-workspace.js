@@ -126,11 +126,11 @@ function sessionOpenedLabel(session) {
 
 function sessionWorkspaceHeader(session) {
   const [, label] = compactSessionStatus(session);
-  const waiting = session.state === 'system_handling' && session.origin === 'automated';
+  const waiting = session.state === 'system_handling' && (session.handlingMode === 'automated' || (!session.handlingMode && session.origin === 'automated'));
   const action = session.state === 'completed' ? '<button class="secondary-button" type="button" data-archive-session>Archive</button>' : session.state === 'archived' ? '<button class="secondary-button" type="button" data-restore-session>Restore</button>' : waiting ? '' : '<button class="primary-button" type="button" data-complete-session>Complete session</button>';
   const coach = coachLabel(session);
   const opened = sessionOpenedLabel(session);
-  const context = ['Coaching session', session.person, 'opened by ' + (coach === 'Automated' ? 'Autocoach' : coach) + (opened ? ', ' + opened : '')].join(' · ');
+  const context = ['Coaching session', session.person, 'opened by ' + (session.origin === 'automated' ? 'Autocoach' : (session.owner || 'Manager')) + (opened ? ', ' + opened : '')].join(' · ');
   return '<div class="sw-header-identity">' + (sessionDrawerOrigin?.type === 'driver-profile' ? '<button class="profile-back" type="button" data-back-driver-profile>← Driver profile</button>' : ['program-page', 'program-drawer'].includes(sessionDrawerOrigin?.type) ? '<button class="profile-back" type="button" data-back-program-drawer>← ' + escapeHtml(session.category) + '</button>' : '') + '<div class="sw-identity"><span class="person-avatar" aria-hidden="true">' + session.initials + '</span><div><h2 id="driver-drawer-title">' + escapeHtml(session.category) + '</h2><span class="sw-program">' + escapeHtml(context) + '</span></div></div></div><div class="sw-header-actions"><span class="sw-status ' + sessionStatusClass(session) + '"' + (session.sla ? ' title="' + escapeHtml(session.sla) + '"' : '') + '><i class="sw-status-dot" aria-hidden="true"></i>' + escapeHtml(label) + (!sessionIsReadOnly(session) && session.due ? ' · ' + escapeHtml(session.due) : '') + '</span>' + action + '<button class="icon-button" type="button" data-close-drawer aria-label="Close session">' + uiIcon('close') + '</button></div>';
 }
 
@@ -139,16 +139,48 @@ function renderSessionWorkspace(session) {
   return '<div class="sw-shell" data-session-id="' + escapeHtml(session.id) + '"><header class="drawer-header sw-header">' + sessionWorkspaceHeader(session) + '</header><div id="sw-kpis"></div><div class="sw-body"><aside class="drawer drawer--persistent sw-evidence-pane" aria-label="Session evidence"><header class="drawer__header"><h3 class="drawer__title">Evidence</h3></header><div class="drawer__body"><p class="sw-why">' + escapeHtml(session.summary) + '</p><div id="session-evidence"></div></div></aside><section class="sw-conversation-pane" aria-label="Session conversation"><div class="sw-conversation-scroll"><div class="sw-conversation-heading"><h3>Conversation</h3><div id="sw-activity"></div></div><div id="sw-messages"></div></div><div id="sw-composer-region">' + workspaceComposer(session, state) + '</div></section></div></div>';
 }
 
+function workspaceReviewControls(session) {
+  if (session.state !== 'manager_attention') return '';
+  const day = new Date();
+  day.setDate(day.getDate() + 7);
+  const value = day.toISOString().slice(0, 10);
+  return '<details class="sw-review-controls"><summary>Resolve manager review</summary><form id="sw-resume-form" class="stack"><p>Sending a reply keeps this review open. Confirm a new due date to resume the remaining coaching assignment, or use Complete session to close this review.</p><label class="field"><span>New due date</span><input class="filter-control" type="date" name="due" required min="' + new Date().toISOString().slice(0, 10) + '" value="' + value + '"></label><label><input type="checkbox" name="confirmed" required> Resume the remaining coaching assignment</label>' + (automationMode !== 'fully' ? '<p>Fully automated mode is off. Enable it in Automation settings before resuming.</p>' : '') + '<button class="button button--primary" type="submit"' + (automationMode !== 'fully' ? ' disabled' : '') + '>Confirm and resume coaching</button></form></details>';
+}
+
+document.addEventListener('submit', event => {
+  if (event.target.id !== 'sw-resume-form') return;
+  event.preventDefault();
+  const session = workspaceSession();
+  if (!session || session.state !== 'manager_attention' || automationMode !== 'fully' || !event.target.reportValidity()) return;
+  const values = new FormData(event.target);
+  const previousReason = session.attentionReason;
+  session.history.unshift(['Manager resumed remaining coaching; due ' + values.get('due'), 'Just now']);
+  session.state = 'system_handling';
+  session.stateLabel = 'Automated';
+  session.handlingMode = 'automated';
+  session.attentionReason = null;
+  session.due = String(values.get('due'));
+  session.latest = 'Manager resumed coaching · just now';
+  adjustSessionFleetTotals('manager_attention', session.state, session.source, previousReason, null);
+  clearAttentionForSession(session);
+  driverDrawerContent.querySelector('.sw-header').innerHTML = sessionWorkspaceHeader(session);
+  updateWorkspaceComposer(session, true);
+  updateWorkspaceConversation(session);
+  renderInbox();
+  document.getElementById('reply-text')?.focus();
+  showToast('Coaching resumed with the confirmed due date');
+});
+
 function workspaceComposer(session, state) {
   if (sessionIsReadOnly(session)) return '';
-  return '<div class="sw-composer"><div class="sw-composer-tools"><label><span class="sr-only">Message type</span><select id="session-composer-mode"><option value="reply"' + (state.mode === 'reply' ? ' selected' : '') + '>Reply to ' + escapeHtml(session.person.split(' ')[0]) + '</option><option value="note"' + (state.mode === 'note' ? ' selected' : '') + '>Private note</option></select></label><button class="text-action" type="button" data-open-session-events data-composer-attachment-count>' + uiIcon('paperclip') + '<span></span></button></div><label class="sr-only" id="sw-reply-label" for="reply-text">Reply</label><textarea id="reply-text" rows="3"></textarea><div class="sw-composer-footer"><span id="sw-message-visibility"></span><button class="primary-button" type="button" data-send-reply>Send</button></div></div>';
+  return workspaceReviewControls(session) + '<div class="sw-composer"><div class="sw-composer-tools"><label><span class="sr-only">Message type</span><select id="session-composer-mode"><option value="reply"' + (state.mode === 'reply' ? ' selected' : '') + '>Reply to ' + escapeHtml(session.person.split(' ')[0]) + '</option><option value="note"' + (state.mode === 'note' ? ' selected' : '') + '>Private note</option></select></label><button class="text-action" type="button" data-open-session-events data-composer-attachment-count>' + uiIcon('paperclip') + '<span></span></button></div><label class="sr-only" id="sw-reply-label" for="reply-text">Reply</label><textarea id="reply-text" rows="3"></textarea><div class="sw-composer-footer"><span id="sw-message-visibility"></span><button class="primary-button" type="button" data-send-reply>Send</button></div></div>';
 }
 
 function updateWorkspaceComposer(session, restoreText = false) {
   const state = sessionWorkspaceState(session);
   const region = document.getElementById('sw-composer-region');
   if (!region) return;
-  const kind = sessionIsReadOnly(session) ? 'readonly' : 'composer';
+  const kind = sessionIsReadOnly(session) ? 'readonly' : session.state === 'manager_attention' ? 'review-composer' : 'composer';
   if (region.dataset.kind !== kind) {
     region.innerHTML = workspaceComposer(session, state);
     region.dataset.kind = kind;
@@ -328,16 +360,12 @@ function sendSessionWorkspaceReply() {
     session.latest = 'Private note added · just now';
   } else {
     const previousState = session.state;
-    const previousReason = session.attentionReason;
     const linked = linkEvidenceEvents(session, events.map(event => event.id));
     session.messages.push({ author: 'manager', text, time: 'Just now', events: linked.map(event => event.id), clips: linked.flatMap(eventClips).map(clip => clip.id) });
     state.selectedEvents.clear();
-    session.state = 'system_handling';
-    session.stateLabel = inProgressLabel(session.origin);
-    session.attentionReason = null;
     session.latest = 'Coach replied · just now';
-    adjustSessionFleetTotals(previousState, session.state, session.source, previousReason, null);
-    if (isAttentionSessionState(previousState)) clearAttentionForSession(session);
+    // A message is communication, not a decision to resume automation.
+    if (previousState === 'manager_attention') session.handlingMode = 'manager';
   }
   state.drafts[state.mode] = '';
   state.carets[state.mode] = [0, 0];

@@ -288,3 +288,7 @@
 @media (prefers-reduced-motion: reduce) { .sw-video-stage.is-playing .sw-demo-vehicle { animation: none; } }
 
 }
+
+.sw-review-controls { padding: var(--space-4); border-top: 1px solid var(--border); }
+.sw-review-controls > form { padding-top: var(--space-4); gap: var(--space-3); }
+.sw-review-controls .field { max-inline-size: 20rem; }

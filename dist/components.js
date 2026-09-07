@@ -78,7 +78,17 @@ function renderDesignLibraryKpis() {
     { label: 'Improving groups', value: Object.values(groupComparisonData).filter(group => group.change < 0).length, context: 'Fewer events · ' + periodLabel() },
     { label: 'Needs review', value: sessionFleetTotals.manager_attention, context: 'Sessions · ' + periodLabel(), action: action('attention') }
   ]);
-  update('content-kpis', 'Content library summary', [
+  const content = typeof ProgramSetup !== 'undefined' ? ProgramSetup.libraryMetrics() : null;
+  const training = typeof TrainingLibrary !== 'undefined' ? TrainingLibrary.metrics() : null;
+  update('content-kpis', 'Training library summary', training ? [
+    { label: 'Courses', value: training.courses, context: 'Published authored courses, prepared previews, sample outlines and preserved imported lessons. Drafts stay separate.' },
+    { label: 'Materials prepared', value: training.authored, context: 'Courses with prepared teaching and quiz materials. Video availability is shown on each course.' },
+    { label: 'Incomplete lessons', value: training.incomplete, context: 'Imported lesson metadata still missing the video and quiz needed for assignment.' }
+  ] : content ? [
+    { label: 'Sample courses', value: content.courses, context: 'Prepared video specifications and quizzes for local preview. Training videos are not connected.' },
+    { label: 'Programs with courses', value: content.mappedPrograms, context: 'Programs with a selected sample course pool, including drafts.' },
+    { label: 'Incomplete legacy lessons', value: content.legacyCourses, context: 'Retained metadata without the video and quiz required for assignment.' }
+  ] : [
     { label: 'Programs', value: categories.length, context: 'Coaching programs' },
     { label: 'Lessons', value: lessons.length, context: 'Available coaching content' },
     { label: 'Mapped programs', value: categories.filter(category => category.training).length, context: 'Programs with assigned content' }

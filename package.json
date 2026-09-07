@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check dist/app.js && node --check dist/design-system.js && node --check dist/overview.js && node --check dist/driver-spotlight.js && node --check dist/session-evidence.js && node --check dist/session-workspace.js && node --check dist/components.js && node --check dist/charts.js && node --check dist/programs.js && node --check dist/program-drawer.js",
+    "check": "node --check dist/app.js && node --check dist/design-system.js && node --check dist/overview.js && node --check dist/driver-spotlight.js && node --check dist/session-evidence.js && node --check dist/session-workspace.js && node --check dist/components.js && node --check dist/charts.js && node --check dist/programs.js && node --check dist/program-drawer.js && node --check dist/coaching-engine.js && node --check dist/program-setup.js && node --check dist/coaching-preview.js && node --check dist/speeding-course-pack.js && node --check dist/training-library.js && node --check dist/course-authoring-store.js && node --check dist/course-builder.js",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/browser-smoke.mjs",
     "test:drivers": "node tests/driver-spotlight.mjs",
@@ -13,6 +13,9 @@
     "test:programs": "node tests/programs-review.mjs",
     "test:program-drawer": "node tests/program-drawer.mjs",
     "test:cleanup": "node tests/ui-cleanup.mjs",
-    "test:config": "node tests/program-configuration.mjs"
+    "test:config": "node tests/program-configuration.mjs",
+    "test:coaching": "node tests/automated-coaching-browser.mjs",
+    "test:library": "node tests/training-library.mjs",
+    "test:authoring": "node tests/course-authoring-browser.mjs"
   }
 }

@@ -4,6 +4,10 @@ The governing specification is [Elevate Autocoach — Design Library v1.1](Eleva
 
 The library replaces the former cobalt palette, font downloads, tinted panels, decorative gradients, aliased root tokens, status-as-method conflation, filled view tabs, and separate KPI/table styles. Earlier screenshots and concept pages under `docs/` are historical references only.
 
+## Automated program amendment — September 7, 2026
+
+The approved [automated program contract](docs/program-configuration.md) supersedes the earlier read-only configuration and video/acknowledgement-only flow. Programs uses guided creation followed by one editable page, and stable-ID course mappings on Content. A local driver/manager preview is now explicitly in scope. It uses the shared native dialog and drawer width and is accessed from program setup, without changing the primary navigation. Courses require a short video plus a quiz with explanatory retries. Sending a manager reply does not resolve review; resuming requires an explicit assignment/deadline decision. Historical creation origin and current handling mode are separate. Sample simulation records remain separate from the fleet ledger.
+
 ## Sources of truth
 
 | File | Responsibility |
@@ -20,7 +24,12 @@ The library replaces the former cobalt palette, font downloads, tinted panels, d
 | `dist/session-evidence.js` | Event identity, source metadata, and driver/session associations |
 | `dist/session-workspace.js` | Evidence review, sharing, conversation, and per-session drafts |
 | `dist/driver-spotlight.js` | Driver portfolio and its session return context |
-| `dist/programs.js` | Full-page program review, source-scoped records, content metadata, and read-only configuration proposal |
+| `dist/programs.js` | Full-page program review, source-scoped records, and Content/Configuration integration |
+| `dist/program-setup.js` | Guided setup, editable configuration, added rules, and versioned local program policies |
+| `dist/training-library.js` | Searchable training materials and accessible course inspection using the shared drawer |
+| `dist/course-builder.js` | Template-first course series editor using shared drawer, fields, tabs and segmented controls |
+| `dist/course-authoring-store.js` | Local drafts, reusable templates and versioned published course materials |
+| `dist/speeding-course-pack.js` | Learning content extracted from the supplied heavy-truck speeding pack |
 | `dist/program-drawer.js` | Retired, unloaded program-drawer reference; its source data now appears in `dist/programs.js` |
 | `tests/design-library.test.mjs` | Static design-library acceptance and palette contrast |
 | `tests/design-library-browser.mjs` | Shared states, native semantics, KPI geometry, charts, accessibility, and responsive acceptance |
@@ -42,7 +51,7 @@ Charts use title → concise context → legend → plot → collapsed **Summary
 
 ## Workspace navigation
 
-The user's latest September 7 clarification places the **data from the former program drawer directly on Programs**. Analytics remains a primary destination with Outcomes, Activity, Drivers and Groups. Program links in Analytics, Groups, Automation Centre and search open the full Programs page. There is no Quick view detour or loaded program-modal renderer. A Back action restores the originating report or group, including its scroll and source control. See [Programs review scope](docs/programs-review.md). Do not restore the fleet switcher, account footer, or driver-app preview.
+The user's latest September 7 clarification places the **data from the former program drawer directly on Programs**. Analytics remains a primary destination with Outcomes, Activity, Drivers and Groups. Program links in Analytics, Groups, Automation Centre and search open the full Programs page. There is no Quick view detour or loaded program-modal renderer. A Back action restores the originating report or group, including its scroll and source control. See [Programs review scope](docs/programs-review.md). Do not restore the fleet switcher or account footer. The program coaching preview is governed by the automated program amendment.
 
 Programs opens **All programs / Overview** with one summary strip ordered Identified, In progress, Needs review, Completed, Automated sessions and One-on-one sessions. The first four reconcile the lifecycle; method totals include completed sessions and exclude pending flags. One comparison module uses a native **Coaching / Event rates** control. Coaching is the default and shows one table: Program, Needs review, In progress, Completed, Automated sessions, One-on-one sessions and Event-rate change. Event rates replaces that table with the full Before/After chart; do not repeat the ten-program list in two simultaneously visible modules. Both views retain every program, including those with no current coaching. Compare rates individually without averaging a fleet rate. Underlying Coaching records remain in one collapsed disclosure, opened and filtered by summary shortcuts.
 
