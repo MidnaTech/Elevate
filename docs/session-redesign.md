@@ -1,6 +1,8 @@
 # Session workspace
 
-The session drawer is an evidence review and conversation workspace in the application served from `dist/`. It uses the shared record drawer width: 1060px maximum, capped to the available viewport, and full width on mobile. The earlier [interactive concept](session-redesign.html) remains a design reference with separate sample data.
+Apply the governing [Design Library](../Elevate-Autocoach-Design-Library.md): one session KPI strip, shared drawer header, neutral conversation bubbles, native controls and dialogs, and independent status/method meanings. This document retains the evidence and draft behavior; the standalone concept and prior screenshots are historical.
+
+The session drawer is an evidence review and conversation workspace in the application served from `dist/`. It uses the shared record drawer width: 1060px maximum, capped to the available viewport, and full width on mobile. The earlier [interactive concept](session-redesign.html) is historical, with separate sample data and retired visual rules.
 
 ## Layout
 
@@ -9,7 +11,8 @@ Evidence sits on the left and the conversation on the right. The manager can rev
 | Area | Content and behavior |
 | --- | --- |
 | Header | The program as the title, one context line (Coaching session · driver · opened by coach, date), one operational status with its due time, the available lifecycle action, and Close. A session opened from a portfolio retains its return path. |
-| Evidence | **Why this session was created** leads the pane. A program card shows the linked event count and cycle with a collapsible event-type breakdown (count, type, rule, source). **Videos** lists one row per event: duration chip, timestamp, type, and source. Choosing a row opens an inline viewer with the incident map on the left and the footage on the right; choosing it again closes it. A camera selector appears only when the event has multiple clips. |
+| Summary | One shared KPI strip beneath the header uses the same tile anatomy as every major page. |
+| Evidence | A shared **Evidence** header and one source summary introduce the pane. **Videos** lists one row per event: duration, timestamp, type, and source. Choosing a row opens an inline viewer with the incident map on the left and the footage on the right; choosing it again closes it. A camera selector appears only when the event has multiple clips. |
 | Conversation | Human messages and private notes with authors and times. Shared evidence opens in the same viewer. |
 | Composer | Reply / Private note mode, a compact input, one selection count, and Send or Save note. The selection count opens the same event browser as Add events. |
 | Earlier activity | One collapsed log for assignment, acceptance, reminders, and lifecycle facts. Duplicate system messages are removed from this view. |
@@ -29,7 +32,7 @@ An event is the incident or recorded pattern being coached. An event can own mul
 
 After Send, the reply's selection clears. Previously shared events remain available from the message and linked event selectors; closing and reopening the drawer does not silently select them again. Removing an event from the reply selection does not delete it or its media.
 
-Reply text, private-note text, cursor positions, the active event/camera, and unsent selections belong to each session. Browsing events, toggling the viewer or breakdown, or returning through the driver portfolio preserves the draft. These states last for the current page session; the prototype does not persist them to a backend or across a page reload.
+Reply text, private-note text, cursor positions, the active event/camera, and unsent selections belong to each session. Browsing events, toggling the viewer, or returning through the driver portfolio preserves the draft. These states last for the current page session; the prototype does not persist them to a backend or across a page reload.
 
 Private note mode hides sharing controls, preserves the separate reply selection, and saves only a team-visible note. It does not assign unassigned events or share the reply's attachments.
 
@@ -37,7 +40,7 @@ Private note mode hides sharing controls, preserves the separate reply selection
 
 Completed and archived sessions retain evidence, conversation, and Earlier activity. They have no composer or Add events action. Completed records can be archived. Restore returns an archived record to Completed; it does not resume active coaching.
 
-A blocked delivery retains the account-link problem and **Relink driver** action. Relinking queues the existing automated retry flow. Both blocked and retry-queued sessions remain guarded against replies and evidence assignment while coaching delivery is unresolved.
+Failed deliveries retry automatically within the existing automated workflow. They do not introduce a Blocked state or a manual Relink driver action. Evidence and reply permissions follow the current session lifecycle.
 
 On narrower screens, the evidence workspace stacks above the conversation while keeping video and map together where space permits. The event browser's list and preview also stack. Scrolling stays inside the drawer or dialog; the surrounding page must not gain horizontal overflow. Native dialogs contain focus, support Escape and backdrop dismissal, and return focus to the opening control.
 
@@ -65,6 +68,8 @@ npm run check
 npm test
 npm run test:sessions
 ```
+
+Browser tests block all external requests before navigation. They verify the map container, source coordinates and missing-location behavior locally; they do not validate remote map availability or send fixture coordinates to map services.
 
 The session suite covers draft preservation, preview versus selection, Cancel and Escape, grouped camera clips, assignment only on Send, original source metadata, private-note isolation, pattern evidence, missing media/location, closed records, delivery guards, focus, and responsive layouts. Run the shared browser and driver checks when a change also affects navigation or record drawer behavior; see [README](../README.md).
 

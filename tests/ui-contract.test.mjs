@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 const html = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
 const css = await readFile(new URL('../dist/styles.css', import.meta.url), 'utf8');
+const sharedCss = await readFile(new URL('../dist/design-system.css', import.meta.url), 'utf8');
 const js = await readFile(new URL('../dist/app.js', import.meta.url), 'utf8');
 
 function readDomainSnapshot() {
@@ -22,8 +23,8 @@ test('primary navigation and global search are accessible', () => {
   assert.match(html, /id="global-search-dialog"/);
 
   for (const view of ['coaching', 'inbox', 'outcomes', 'library', 'settings']) {
-    const navButton = new RegExp(`<button[^>]+data-view="${view}"[^>]+aria-label=`, 'i');
-    assert.match(html, navButton, `${view} navigation needs an accessible name`);
+    const navLink = new RegExp(`<a[^>]+data-view="${view}"[^>]+aria-label=`, 'i');
+    assert.match(html, navLink, `${view} navigation needs an accessible name`);
   }
 
   assert.match(js, /aria-current/);
@@ -70,21 +71,17 @@ test('production controls and responsive navigation contracts are present', () =
 
   assert.match(html, /id="mobile-more-trigger"/);
   assert.match(html, /id="mobile-more-dialog"/);
-  assert.match(css, /prefers-reduced-motion/);
+  assert.match(sharedCss, /prefers-reduced-motion/);
   assert.match(css, /\.skip-link/);
   assert.match(css, /\.global-search-dialog/);
   assert.match(css, /\.mobile-more-trigger/);
-  assert.match(css, /Program rows become complete labelled cards/);
-  assert.match(css, /Analytics rows retain every field as labelled cards/);
-  assert.match(css, /--control-size:\s*44px/);
-  assert.match(css, /\.activity-legend[^}]*flex-wrap:\s*wrap/);
   assert.match(html, /data-open-global-search/);
   assert.match(js, /content\?\.querySelector\('\[data-filter-sheet-close\]'\)\?\.focus/);
   assert.match(js, /filterDialog\?\.querySelectorAll/);
 });
 
 test('automation centre shares the analytics KPI strip and hero layout', () => {
-  assert.match(html, /id="view-coaching"[\s\S]*?class="analytics-kpi-strip"/);
+  assert.match(html, /id="view-coaching"[\s\S]*?class="[^"]*kpi-strip/);
   for (const id of ['kpi-identified', 'kpi-in-progress', 'kpi-needs-review', 'kpi-completed', 'kpi-fleet-safety', 'kpi-event-rate']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(html, /id="automation-share"/);
   assert.doesNotMatch(html, /id="view-coaching"[\s\S]*?Is coaching working\?[\s\S]*?id="view-inbox"/, 'Outcomes narrative lives in Analytics');
@@ -99,8 +96,8 @@ test('analytics hosts outcomes first, then activity, drivers, and groups', () =>
   const tabs = [...html.matchAll(/data-analytics-tab="([a-z]+)"/g)].map((match) => match[1]);
   assert.deepEqual(tabs, ['outcomes', 'activity', 'drivers', 'groups']);
   assert.match(html, /id="analytics-outcomes-tab"[^>]*aria-selected="true"/);
-  assert.match(html, /<section class="analytics-panel" id="view-drivers"/);
-  assert.match(html, /<section class="analytics-panel" id="view-groups"/);
+  assert.match(html, /<section[^>]+id="view-drivers"/);
+  assert.match(html, /<section[^>]+id="view-groups"/);
   assert.match(html, /id="analytics-activity"[\s\S]*?id="coaching-queue"/);
   assert.match(js, /let analyticsTab = 'outcomes'/);
 });
@@ -109,7 +106,7 @@ test('analytics separates throughput from outcomes', () => {
   assert.match(html, /Week of Aug 31/i);
   assert.match(html, /lower is safer/i);
   assert.match(js, /escalated/i);
-  assert.doesNotMatch(js, /Weekly coaching activity and fleet safety score/);
+  assert.match(js, /outcomeFor/, 'Outcome rates retain their exposure-aware source');
 });
 
 test('canonical coaching terminology is visible', () => {

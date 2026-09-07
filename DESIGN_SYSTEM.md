@@ -1,210 +1,99 @@
 # Elevate design system
 
-This is the shared design contract for Elevate. Apply it to every new screen and every UI edit, including work by Codex and Claude. Change shared patterns here and in their implementation together. Preserve explicit user decisions when they supersede a rule.
+The governing specification is [Elevate Autocoach — Design Library v1.1](Elevate-Autocoach-Design-Library.md), dated September 7, 2026. Read it before any UI work. This file supplements that library with repository integration and product behavior; it does not define a competing palette or component system. Current explicit user decisions take precedence.
 
-The interface should make the next decision easy to see. Show the record, the meaningful result, and its action. Reveal definitions, metadata, and advanced controls when requested.
+The library replaces the former cobalt palette, font downloads, tinted panels, decorative gradients, aliased root tokens, status-as-method conflation, filled view tabs, and separate KPI/table styles. Earlier screenshots and concept pages under `docs/` are historical references only.
 
 ## Sources of truth
 
 | File | Responsibility |
 | --- | --- |
-| `DESIGN_SYSTEM.md` | Layout, hierarchy, placement, content, and interaction rules |
-| `dist/design-system.css` | Shared tokens, toolbars, view tabs, filters, help, and responsive behavior; loaded last |
-| `dist/design-system.js` | Shared `uiIcon()` vocabulary and accessible tooltip behavior |
-| `dist/overview.js` | Compact chart helper, Sessions summaries, and Drivers coaching/improvement summaries |
-| `dist/session-evidence.js` | Event and clip identity, original incident metadata, and driver/session associations |
-| `dist/session-workspace.js` | Session evidence browser, conversation, and per-session reply/private-note drafts |
-| `dist/session-workspace.css` | Evidence, map, conversation, and event-browser layout inside shared drawer sizing |
-| `dist/styles.css` | Existing brand foundations, shell, and base components |
-| `dist/sessions.css` | Session row layouts |
-| `dist/analytics-refinement.css` | Analytics-specific charts and tables |
-| `dist/drivers-refinement.css` | Driver-specific distribution and rows |
-| `dist/supporting-refinement.css` | Groups, Content, and Settings details |
-| `tests/browser-smoke.mjs` | Functional and layout contract checks |
-| `tests/session-workspace.mjs` | Session evidence sharing, draft preservation, state guards, focus, and responsive checks |
+| `Elevate-Autocoach-Design-Library.md` | Exact tokens, shared component states, typography, charts, native semantics, accessibility, and release requirements |
+| `DESIGN_SYSTEM.md` | Product-specific behavior, data scope, navigation, and the shared-width override |
+| `dist/styles.css` | Application layout in the legacy composition layer |
+| `dist/design-system.css` | Sole literal root, shared components, and accessibility rules, loaded after layout styles |
+| `dist/design-system.js` | Shared icons and accessible help |
+| `dist/components.js` | Shared KPI, status dictionary, table, and native-control components |
+| `dist/charts.js` | Reusable chart marks, scales, legends, summaries, and equivalent tables |
+| `dist/app.js` | Fixture data, ledger scopes, navigation, filtering, and lifecycle actions |
+| `dist/overview.js` | Shared KPI and chart data bindings |
+| `dist/session-evidence.js` | Event identity, source metadata, and driver/session associations |
+| `dist/session-workspace.js` | Evidence review, sharing, conversation, and per-session drafts |
+| `dist/driver-spotlight.js` | Driver portfolio and its session return context |
+| `tests/design-library.test.mjs` | Static design-library acceptance and palette contrast |
+| `tests/design-library-browser.mjs` | Shared states, native semantics, KPI geometry, charts, accessibility, and responsive acceptance |
+| `tests/browser-smoke.mjs` | Existing navigation, filtering, data, lifecycle, and route regression checks |
 
-Page-specific styles may define content layout. Common control placement, typography, colors, tab appearance, and disclosure behavior belong in the shared system. Avoid solving a common issue with another page-specific override.
+Page-specific code may arrange content and bind data. It must not redefine shared tokens, typography, KPI tiles, table cells, status colors, focus, or selection states. Dynamic data widths are allowed; inline colors are not.
+
+## Visual and semantic baseline
+
+Apply the complete library, including its appendix. Every root token is literal. Ember orange `#B84A00` identifies actions and location; petrol `#236C72` identifies neutral data. Headline numbers remain ink. Status and directional colors are independent from brand and categorical series. Use the native system font stack and the six rem-based type steps, reduced to 85% by the dated user amendment. At the unchanged 16px HTML root, body/control text is 11.9px and section/drawer headings are 13.6px. Keep spacing, hit targets, chart geometry and drawer widths unchanged. The amended neutrals are canvas `#FAFBFD`, soft `#FCFDFE`, strong `#F3F5F7`, border `#DEE4EB`, and separator `#EEF1F5`; segmented containers are white. Permanent surfaces have borders and no shadows; only overlays float.
+
+Each major page and session workspace has one `.kpi-strip`, with `.kpi-tile` children on a single nonwrapping row. Narrow strips scroll locally with a label and keyboard access. Use label with accessible info hint → value → optional useful change → optional meaningful meter. Put explanatory scope/definitions in the hint; omit empty context rows. Do not invent denominators or zeroes to fill a tile.
+
+Use real navigation links, native radio groups in fieldsets, native tables with header cells, labelled inputs, and native modal dialogs. Declare table alignment once per column: text/status columns align left and quantities align right. The shared renderer propagates that declaration to both headers and every body/footer cell; do not style a numeric header independently from its cells. Sort controls inherit the same alignment, and number inputs align their entered values right. This includes chart data equivalents, Settings editors, and all drawer tables. View tabs use the shared underline selection and manual keyboard activation: arrow keys/Home/End move focus; Enter/Space activates. Navigation uses an edge marker; radio segments use a bounded selected cell. Focus overlays selection rather than replacing it.
+
+State, Attention, and Method are independent dimensions. Shared status words and icons come from one dictionary. Completed clears obsolete attention. Automated and One-on-one are neutral methods, not success or danger. Delivery problems retry automatically; do not restore a Blocked workflow.
+
+Charts use title → concise context → legend → plot → collapsed **Summary and data**. Put long source/exposure notes inside that disclosure. Use one petrol colour for Automation/Attention Centre category dots and bars; retain the declared categorical series in other charts. Before/after charts use adjacent grey/petrol horizontal bars with a common zero baseline and a separate signed change. Weekly activity uses petrol/umber bars and a cased ink score line on a fixed 0–100 axis. Preserve exact values, source windows, and equivalent tables; a before/after observation does not establish causation.
 
 ## Workspace navigation
 
-The sidebar contains the brand, a collapse/expand button at the top, global search, and five primary destinations: Automation Centre, Sessions, Analytics, Content, Settings (last). Drivers and Groups are tabs inside Analytics, not destinations; the legacy `#drivers` and `#groups` routes open those tabs. Do not add the removed fleet switcher, account footer, or driver-app preview to this navigation.
+There are five destinations, in order: Automation Centre, Sessions, Analytics, Content, Settings. Analytics contains Outcomes (default), Activity, Drivers, and Groups. Activity places its weekly chart at full width above one combined program table with records, coaching state/method counts, event rate and signed change. Do not repeat Program pivot and Program performance tables. Legacy `#drivers` and `#groups` routes open the corresponding Analytics tabs. Do not restore the fleet switcher, account footer, or driver-app preview.
 
-On desktop, the sidebar expands to 224px or collapses to a 72px icon rail, returning the space to the workspace. Keep every destination accessible in both states; collapsed icons show their names on hover and keyboard focus. The toggle retains focus and exposes its state through `aria-expanded`. Remember the user's choice locally, with a usable fallback when browser storage is unavailable.
+Desktop navigation expands to 224px or collapses to 72px. The toggle preserves focus, reports `aria-expanded`, and remembers the preference locally with a storage-unavailable fallback. Collapsed icons expose names on hover and focus. At 681–900px expansion overlays the workspace; mobile retains bottom navigation and More. Returning to desktop restores the saved preference.
 
-Without a saved choice, medium screens default to the icon rail. At 681–900px, expanding navigation overlays the rail and workspace instead of narrowing the tables. Mobile retains the bottom navigation and More menu. Returning to desktop restores the saved sidebar preference.
+## Control placement
 
-## Page anatomy and placement
+Use page header → one KPI strip → dataset toolbar → applied filters → primary content → supporting detail. The header places the title left and actions right. Put view tabs left in the dataset toolbar; search immediately before Filters on the right. Reporting-only scope replaces unsupported search or filters. Keep visible labels, and keep the search input mounted as results change.
 
-Use this order in the DOM and on screen:
+Filters open on request and show an applied count when closed. Reset is in the panel footer left; Done is right. Escape, backdrop, and Done dismiss the panel and restore its invoker. Native modal state must be released during navigation. Announce results through one restrained live region.
 
-1. **Page header:** one H1 on the left; page-level actions on the right.
-2. **Optional compact overview:** two or three panels of useful context for an operational page, following the overview rules below.
-3. **View/data toolbar:** view tabs or quick scopes on the left; search, then Filters, on the right. Reporting screens put their fixed period/scope on the right instead of unsupported search/filter controls.
-4. **Applied filters:** one optional line directly below the toolbar. Show chosen values and Clear/Reset only when useful. A closed filter button carries its active count.
-5. **Primary content:** table/list for operational pages; KPI summary followed by charts for analytical pages.
-6. **Detail or supporting content:** breakdown tables, secondary analysis, and summaries.
+Manual coaching is a secondary action because automated coaching is the ordinary workflow. Settings Save/Discard stay with the dirty draft. Settings changes share the draft → Preview → Save and activate flow; cancelling or discarding must not modify active configuration.
 
-Use `.page-heading`, `.heading-actions`, `.data-toolbar`, `.view-tabs`, and `.toolbar-actions`. A dataset toolbar sits directly above the dataset it controls. It may be inside the table card; its control order stays the same.
+## Shared reporting period and data
 
-| Control | Required position and behavior |
-| --- | --- |
-| Page action | Header right; one emphasized action at most; secondary actions before it |
-| Search | Dataset toolbar right, immediately before Filters; visible label for assistive technology; text input remains mounted while results update |
-| Filters | Last toolbar control; opens a panel; active count visible when closed |
-| Quick view tabs | Toolbar left; one selected view; counts only where they aid selection |
-| Fixed report scope | Toolbar right; plain text/calendar context, not a fake dropdown |
-| Sort | Inside filter panel unless sorting is the page's principal task |
-| Reset | Filter-panel footer left; disabled when nothing can be reset |
-| Done / Show results | Filter-panel footer right; closes panel and returns focus |
-| Row action | Last column/right edge; descriptive accessible name includes record identity |
-| Help | Immediately after the label it explains; no standing paragraph for routine definitions |
-| Search results count | One quiet footer or filter-summary location; do not repeat totals in multiple summary strips |
+Automation Centre, Sessions, and Analytics share `data-coaching-period` and the `period` URL value: This week, Last 4 weeks, Last 8 weeks. `currentCycleCounts(period)`, `coachingCounts(predicate, period)`, `rateChange()`, and `periodScopeLabel()` provide the common scope. Counts, rates, tables, shortcuts, and program/group drawers must describe that same selected window.
 
-**Allowed exceptions:** manual coaching stays a secondary action because automated coaching is the primary workflow. The Drivers full safety histogram may be collapsed; its compact fleet safety mix remains visible in the overview. Settings puts Save/Discard with the dirty draft, not in the generic data toolbar. Global search stays in workspace navigation. Settings configuration tables (safety event types, coaching rules) carry inline switches, selects, and numeric inputs; every control names its record, and every change enters the same draft → Preview → Save and activate flow.
+The initial weekly fixture has **154 identified = 151 actual sessions + 3 pending flags = 10 in progress + 14 needing review + 130 completed**. Actual sessions split into **147 automated + 4 one-on-one**. The automated total includes 128 completed, 11 needing review, and 8 in progress; the one-on-one total includes 2 completed and 2 in progress. Review comprises 4 Overdue, 3 Session needed, 3 Repeated, and 4 Replied. Pending session-needed flags belong to identified/review counts, but are not created sessions and have no session method yet. “Automated sessions” and “One-on-one sessions” always describe actual totals; use “Automated in progress” and “One-on-one in progress” for the 8/2 active subset. Automation share is 147 ÷ 151, rounded to 97%, and its Awaiting session row exposes the 3 pending flags separately.
 
-On narrow screens preserve the same order: header, stacked overview panels when present, full-width view tabs, search and Filters together, applied filters, content. Actions may wrap without reversing order. Never move tabs back into the H1 row to save space.
+Activity, Automation Centre, and Sessions begin with the same four stage totals. Activity then adds the two actual method totals; its combined program table retains explicit in-progress method columns. Source-specific Sessions filters exclude pending flags; All origins includes them. A mixed list uses “records” rather than claiming every item is a session. The [metric definitions and source reconciliation](docs/metric-definitions.md) specify the 1/4/8-week scopes, lifecycle invariants, and test coverage. Latest-week chart/run snapshots stay weekly when the reporting selector changes. Settings may describe how a draft mode/cadence would work, but next-cycle driver volume remains **Not estimated** without source observations.
 
-## Shared period
+Fleet summaries remain stable while their tables are filtered. A summary shortcut clears conflicting table filters, then opens its named scope. Current workload and completed history must remain distinguishable. Data tests should reconcile visible results to the selected-period records and pending candidates, rather than preserve an obsolete all-history count.
 
-Automation Centre, Sessions, and Analytics carry the same period control in their page header (This week · Last 4 weeks · Last 8 weeks, `[data-coaching-period]`, `?period=` in the URL). It is one global value: changing it anywhere changes every count, rate, and event-change on every page, and program/group drawers follow it. Rules:
+Event-rate changes use the latest week against its previous week for a one-week span, otherwise against the first week of the displayed span. Longer-period Automation Centre deltas say **No prior window** when no comparable prior period is supplied. Keep events per 1,000 trips distinct from events per 100,000 trips; never average rates without exposure.
 
-- Ledger counts (`currentCycleCounts()`, `coachingCounts()`, session tabs, overview bands, tables, drawers) treat archived records inside the span as completed and everything else as its lifecycle state. The initial one-week span reads 154 = 10 + 14 + 130; eight weeks reads 180 = 10 + 14 + 156.
-- Event-rate movement (`rateChange()`) compares the latest week with last week for a one-week span, otherwise with the first week of the span. Program performance, Groups, Outcomes, and the Automation Centre event-rate tile all use it, so the same program never shows two different changes.
-- Week-over-week trends on the Automation Centre tiles exist only for the one-week span; longer spans say "No prior window" instead of inventing a comparison.
-- Every scope line uses `periodScopeLabel()` (Week of Aug 31 · Jul 13 – Aug 31 · 8 weeks). No page hard-codes a week.
-
-## Automation Centre
-
-The home page answers two questions and nothing else: what needs a person this week, and how much of the coaching the system did on its own. Its order is header → KPI strip → hero. It has no programs table, no outcome narrative, and no charts beyond the two compact bars below.
-
-- The KPI strip reuses `.analytics-kpi-strip` exactly as Analytics does (label, help icon, value). Tiles, in order: **Identified**, **In progress**, **Needs review**, **Completed**, **Fleet safety**, **Events / 100K trips**. The first four reconcile: Identified 154 = In progress 10 (Automated + One-on-one) + Needs review 14 + Completed 130; completion is unknown for anything still open or waiting on a person. Every tile carries a trend (`.kpi-trend`: direction glyph, signed change, visible comparison window) and its value opens the records it counts. Identified, In progress, Needs review, and Completed read `currentCycleCounts()`; Fleet safety is the fixture score with its prior-period change; the event rate is the sum of program weekly rates × 100, compared to the first week of the window and labelled lower is safer.
-- The hero is **Needs you this week** (wide) with the spotlight driver and one row per review reason, ordered and colour-coded by severity (Overdue and Session needed danger, Repeated warning, Replied insight). Each row shows a share bar of the review total, its count, and its action.
-- Beside it, **Automation this week** shows the automated share as the headline, a split bar, and label · bar · count rows for **Started automatically**, **Started by a manager**, and **Completed**. Those two origin labels are deliberately not the state words Automated/One-on-one. A link opens the automated sessions; the schedule/mode status sits in the footer.
-- The **Is coaching working?** narrative and the programs table live in Analytics (Outcomes and Activity). Do not add them back to the home page.
-
-## Operational overview bands
-
-Sessions, Drivers, and Groups share one compact overview pattern above their dataset. Use two or three panels with short visible labels, a meaningful value, and a compact distribution or trend where the data supports it. Keep the table within easy reach; avoid duplicating all of its status tabs as KPI cards. Put definitions in accessible help, while keeping metric scope, time window, units, and comparison direction visible where needed.
-
-- Fleet summaries remain stable while the table is searched or filtered. A fleet summary shortcut clears conflicting table filters and selects its named scope, so the resulting records match the shortcut. Show the selected state and keep result counts with the dataset.
-- One denominator everywhere: the session ledger for the current cycle, summarised by `currentCycleCounts()`. The initial fixture has **154 identified = 8 Automated + 2 One-on-one + 14 Needs review + 130 Completed**, of which 150 started automatically and 4 by a manager; completion is 130 ÷ 154 = 84%. Needs review is 4 Overdue + 3 Session needed + 3 Repeated + 4 Replied. The Automation Centre strip, the Sessions overview, Analytics Activity (KPIs, weekly bars, Program performance), Drivers, Groups, program/group drawers, and Settings projections all read these numbers; never introduce a second cohort with its own totals.
-- Drivers use three panels: safety mix, current coaching activity, and a driver improvement. Safety tiers describe the 1,024-driver fixture fleet, while the directory contains 14 representative records. Include Unscored in the fleet distribution; do not derive fleet averages or improving-driver totals from the sample.
-- The Drivers coaching panel separates **In progress** from **Completed**. Initially, in-progress work is 8 automated sessions and 2 manager-created sessions labeled One-on-one; derive these from `sessionOriginTotals.automated.system_handling` and `sessionOriginTotals.manual_override.system_handling`. Explain the manual-coaching scope in help. Show the 130 completed sessions separately with **All recorded sessions** as their scope. Never use all-history origin totals as current workload, or imply that these session counts are unique drivers.
-- A Drivers improvement highlight must name its sample scope and use the recorded score change. The initial example is Taylor Brooks, **+7 points**, from **71 to 78**, among the 14 directory records. Do not call this driver the fleet leader or imply an unsupported time window.
-- Coaching by group belongs on the Groups tab of Analytics. Its three panels show records started automatically by group for the current cycle (read from the ledger, so they sum to 150), the most improved event-rate trend, and a worsening event-rate trend. Local delivery improves 29% and Long haul · North worsens 8%. Keep the highest safety score in the comparison table rather than repeating it as an overview highlight.
-- Group event-rate changes use events per 1,000 trips over the displayed eight-week window. Do not present an attention-count tie as a unique leader or average group rates without trip exposure. Workload counts describe assignments, not unique drivers.
-- Compact charts use shared tokens, stable semantic colors, accessible summaries, and honest scales. Interactive segments retain short visible labels and work with keyboard and touch. The full driver histogram is an optional disclosure inside the safety panel.
-- Stack panels on narrow screens without changing their order or introducing page-level horizontal scrolling. Reuse shared overview styles and `overviewSparkline()` rather than introducing a separate chart style per page.
-
-## Tables and statuses
-
-- Put identity first, one value per comparison column, and actions last. Prefer semantic `<table>` markup for numerical analysis.
-- Use sentence-case headers, quiet separators, and tabular numerals. Right-align numerical comparison columns and their headers. Keep names and descriptive fields left-aligned.
-- Default to a single line per desktop row. Keep secondary metadata in help or record detail; do not repeat owner, reporting cycle, units, and lifecycle explanations under every value.
-- Display one meaningful operational status. Do not stack a lifecycle badge and a reason badge in the same cell.
-- One coaching vocabulary everywhere. Lifecycle: **Automated** (in progress under automation, bolt icon), **One-on-one** (manager-led coaching, user icon), **Needs review**, **Completed**, **Archived**; drivers only: **On track**. "In progress" is used solely as the umbrella for Automated + One-on-one (tabs, overview headings). Review reasons, in severity order: **Overdue** (clock), **Session needed** (alert), **Repeated** (repeat), **Replied** (message). There is no Blocked state: a delivery that fails retries automatically and stays **Automated**. Never use System handling, Escalated, Attention, Manual, Coached, Monitoring, Reminders exhausted, Driver replies, or Repeated events as status words. Session lists and records show **Coach**: "Automated" for automated sessions, otherwise the name of the manager who ran the one-on-one. A review that has no session yet (repeat offender, critical event) is still **Needs review**; its row action reads **Start session**, and a record that already has one reads **View session**.
-- Programs, Groups, and Drivers share the column set **Automated · One-on-one · Needs review · Completed** (plus the entity’s own metrics), and every count is read from the session ledger so tables and the Automation Centre stat band add up.
-- Status meaning must survive loss of color. Visible words and distinct icon shapes carry it. Reserve stronger color for attention states.
-- Compact analytical result icons may stand alone if they have accessible names and focus/tap explanations. Operational statuses retain visible text.
-- On mobile, operational records become compact cards that retain identity, core status, and next action. Numerical analytics tables may scroll inside their own named, keyboard-focusable region, retaining all columns. The page itself must not scroll horizontally.
-
-## Charts and analytics order
-
-The reporting page order is **scope/view → KPIs → main chart → detail table**. Do not scatter competing KPI strips below unrelated tables.
-
-Analytics tabs are **Outcomes** (default) → **Activity** → **Drivers** → **Groups**. Outcomes carries the shared KPI strip with meters (Completion, Improved drivers, Median start time) and then one card, **Is coaching working?**: its header holds the question, the unit/window line, and the sort control (Biggest change · Current level · A–Z); a lede row underneath carries the headline change, programs improving with a per-program dot row, and the exposure facts (trips, drivers, window); the horizontal before/after bar chart follows full width with the latest level solid, the reduction since the start of the span hatched, an increase marked, and a footnote with the median change and any increases. Do not split the headline and the chart into side-by-side panels again. Outcome details reads the same `outcomeFor()` figures as the chart and the Program performance table; completion there is ledger completion. Activity carries the throughput KPIs (Identified · Automated · One-on-one · Completed · Needs review · On-time response), a two-column band with the weekly activity chart on the left (grouped bars plus one dashed fleet safety score line on a right-hand 40–100 axis) and the **Program pivot** on the right (records this cycle and latest events per 1,000 trips with inline meters, change at the row end; program names open the program drawer), and **Program performance**: the same programs table as before (period control, ledger-backed columns) whose rows open the program drawer one for one. Nothing repeats across tabs: there is no group lens on Program performance and no review-reason list in Activity, because Groups has its own tab and review reasons live on the Automation Centre and Sessions. Outcome details is grouped by Program or Driver only. Drivers and Groups keep their overview bands, toolbars, and tables unchanged inside their tabs; the report scope line names the tab's data scope.
-
-Every chart uses this anatomy:
-
-1. Title: the question or metric being shown.
-2. Context: visible unit, comparison direction when relevant, and time window. Examples: “Assignments per week · last 8 weeks” and “Events per 1,000 trips · lower is safer.”
-3. Legend: stable series order and colors, placed before the plot.
-4. Plot: readable labels, subtle gridlines, honest scales, and no decorative borders on bars.
-5. Optional disclosure: collapsed text summary, methodology, or data details.
-
-Before/after comparisons use one paired-dot row per program, group, or driver (hollow dot before, solid dot after, change at the row end) with a Before/After legend; do not stack parallel trend lines for that question.
-
-Keep definitions in help, but keep units, reporting windows, and direction visible. Use the same series colors and legend order wherever a metric recurs. Reduce mobile date-label density before shrinking text; retain all underlying observations. A compact score distribution may omit a separate legend if its labeled interactive tiers already identify every category.
-
-## Visual tokens
-
-One surface language: every card, KPI strip, table container, and chart container uses `--radius-card` (12px), a 1px `--border`, a flat `--surface` background, and no shadow (`#main-content :is(...)` in `design-system.css`). Shadows belong to floating panels and dialogs only. One button family: dark `--button-ink` primary, bordered secondary/filter, blue text links; segmented controls are bordered with a dark active segment. One chart palette: `--primary` for the main series, `--success` for completed and reductions, `--amber` for increases and attention, `--violet` for replies, neutral greys for baselines. Colour marks status or direction only; headline figures stay ink.
-
-
-Use the existing Instrument Sans/system font stack. Use semantic colors from `dist/styles.css`; do not choose page-specific hex colors for established roles.
-
-| Role | Token / default |
-| --- | --- |
-| Main text / supporting text | `--ink` / `--ink-500` |
-| Actions / selected view | `--primary` / `--primary-soft` |
-| Success / warning / danger | `--color-success-text` / `--color-warning-text` / `--color-danger-text` |
-| Surfaces / separators | `--surface`, `--surface-soft`, `--border`, `--border-soft` |
-| Page title / section title | `--font-page-title: 30px` / `--font-section-title: 15px` |
-| Body / metadata | `--font-body: 13px` / `--font-meta: 12px` |
-| Spacing | `--space-1` through `--space-6`: 4, 8, 12, 16, 24, 32px |
-| Control / card radius | `--radius-control: 8px` / `--radius-card: 10px` |
-| Control height | `--control-height: 40px`; 44px on narrow screens; keep touch targets at least 44px for primary controls |
-| Row height | `--table-row-height: 60px` reference; adjust for content, not ornamental whitespace |
-
-Use surface borders for grouping; reserve pronounced shadows for open floating panels and dialogs. Closed drawers must cast no visible shadow. Avoid uppercase labels, redundant pills, and high-contrast outlines around routine values.
-
-## Help and disclosure behavior
-
-Use `uiIcon(name)` for generated UI. Static SVGs must use the same 24×24 coordinate space, currentColor, rounded strokes, and matching geometry.
-
-Help example:
-
-```html
-<button type="button" class="info-hint"
-        aria-label="How completion is calculated"
-        data-tooltip="Completed assignments divided by automatically coached assignments.">
-  <!-- Shared info SVG -->
-</button>
-```
-
-Tooltip text must work on hover, keyboard focus, and tap. Escape dismisses the tooltip without clearing a search field or triggering an unrelated action. Passive focusable icons need an accessible name. Never nest an interactive button inside a clickable table-row button; the row's accessible description and detail view must expose its metadata.
-
-Reuse `.filter-sheet` and its existing open/close helpers. The panel must contain focus, make background content inert, close with Escape/backdrop/Done, and restore focus. Navigation must release modal state. Filters apply to the visible data, preserve URL state where supported, and reset predictably.
+The safety distribution describes 1,024 fixture drivers; the directory contains 14 representative records. Include unscored drivers in the fleet distribution. The Taylor Brooks highlight is +7 points, 71 → 78, among those directory records; it is not a fleet ranking or a dated weekly score change. Coaching by group belongs to Groups. Session counts are not unique-driver counts.
 
 ## Record drawers
 
-All record drawers share one width: `--drawer-width: 1060px`, capped at `calc(100vw - var(--drawer-gutter))` with `--drawer-gutter: 84px`. At 680px and below, every drawer is full viewport width. Programs, Groups, driver portfolios, sessions, and session composers use this same contract. Nested views change their content without changing the drawer's width. Do not introduce page-specific width overrides; shared sizing belongs in `dist/design-system.css`, loaded last.
+**Explicit product override:** all overlay record drawers use the same `--drawer-width: 1060px`, capped by `calc(100vw - var(--drawer-gutter))` with `--drawer-gutter: 84px`; at 680px and below they use the full viewport width. This preserves the user's requirement that every drawer have identical width. It overrides only the illustrative `32rem` width in the library's `.dialog.drawer` CSS example. Programs, Groups, driver portfolios, sessions, and session composers all follow this rule. Nested navigation never changes width.
 
-Keep a compact header, one clear close action, and a scrolling content body. Arrange content to use the shared width; on narrower screens stack content without horizontal page overflow. Drawers contain focus, make background content inert, support Escape and backdrop dismissal, and restore the originating control when closed.
+Use the library's shared `.drawer__header`, native modal dialog behavior, neutral surfaces, and overlay shadow. Move focus inside on opening, contain it while modal, close on Escape/backdrop/Close, and restore the exact invoker. The background is inert. Content scrolls inside the drawer; tables, plots, and KPI strips may scroll in their named local regions.
 
 ### Driver portfolios
 
-The Drivers directory opens a driver portfolio, with identity and group once in the header. The content order is **This week → Rule breakdown → Recent exceptions → Coaching**. Retain the shared record drawer width and one scrolling body. A driver row must not open a session directly.
+The driver name in the Drivers directory opens a portfolio. Its separate **Action** column offers **View session** for an actual active session (prefer the displayed focus), otherwise the newest existing history, or **Create session** for a pending review/no-session driver. Creation uses the existing prefilled form and Cancel changes nothing. Inside a portfolio, **Open session** enters coaching. Driver identity appears once in the header. Keep the recorded latest score distinct from the observed driving week. Weekly miles, trips, and days driven come from dated sample observations; missing coverage is unavailable, not zero. Do not invent a weekly score series.
 
-- The directory columns are **Driver · Safety score · Top event · Last coached · Status · View**. The whole row opens the portfolio; the driver name and **View** remain its keyboard openers.
-- **This week** is one bordered four-cell strip: the latest safety score with its change and previous score inline (58 ↓9 prev 67) above a compact 0–100 scale, then Miles, Trips, and Days driven. Daily-mile bars follow. Display the observed period and data scope. The fixture uses illustrative driving observations for Aug 24–30; the score comparison dates are unknown, so do not describe its point change as a weekly change. Missing driving observations remain unavailable, not zero.
-- **Rule breakdown** is always visible: a heading, the scope line **Recorded evidence · current sessions**, the record count, and one row per rule with its count. Group unique source safety-evidence records from the driver's non-archived sessions by their recorded category or trigger, using stable event IDs. One multi-trip pattern is one record. Exclude explicitly dismissed evidence and coaching workflow failures.
-- **Recent exceptions** has exactly the **Exceptions** and **Video** segments and a scope line naming the sources (Rule exceptions · from Geotab). Rows show the event title and time on one line; expanding a row opens its video/data and map with an explicit linked-session action. Video contains only events with clips. Deduplicate shared events by stable ID. Dismissed history stays labeled; workflow delivery failures are not driving exceptions.
-- **Coaching** has exactly the **Current sessions** and **Past sessions** segments. Current contains automated, one-on-one, and needs-review sessions plus pending reviews with **Start session**; Past contains completed and archived sessions. Each row shows the program and its due or recorded time on one line, one status, and a visible **Open session** action. There are no expandable row details, dropdown filters, repeated summaries, or permanent metadata rails.
+Use the current product arrangement documented in [Driver spotlight](docs/driver-spotlight.md), while applying the library's shared KPI, chart, table, header, and control classes. Deduplicate source evidence by event ID. One multicamera incident is one evidence record, as is one pattern spanning multiple trips. Exclude dismissed events and delivery failures from rule counts; retain dismissed evidence as labelled history where appropriate. Historical rule evaluations need their original rule/version/context, not current configuration.
 
-## Footage in coaching records
+Opening a session preserves coaching scope, expanded exception, active camera, and scroll. Back to driver restores that context. The `driver` URL identifies a portfolio; `record` identifies a session. Closing preserves directory search and filters.
 
-The session is an evidence review and conversation workspace. Keep the shared record drawer width unchanged: compact header, evidence on the left, and conversation with a compact composer on the right. Stack the working areas on narrower screens. The evidence pane reads top to bottom: the **Why this session was created** line, a program card with its collapsible event-type breakdown, then a **Videos** list of compact rows (duration chip, timestamp, event type, source). Choosing a row opens an inline viewer with the incident map on the left and the footage on the right; choosing it again closes the viewer. Camera controls appear only when an event has multiple clips.
+### Session evidence and conversation
 
-- The header names the program, with one context line (Coaching session · driver · opened by coach, date), one operational state with its due time, the lifecycle action, and Close. There is no Details dialog; the breakdown card and row facts carry what a coach needs. Keep one collapsed **Earlier activity** log beside the Conversation heading, and summarise shared evidence under each message as a collapsed **n videos attached** disclosure. Do not restore the large repeated summary, permanent metadata rail, duplicate history, or separate attachment chips.
-- Incident maps use Leaflet with OpenStreetMap tiles when an event has recorded coordinates, with the coordinates and an **Open in Google Maps** link beneath. Leaflet loads on demand from cdnjs; if it is unavailable the same position falls back to an OpenStreetMap embed. Without coordinates the map stays an explicitly labelled illustration.
-- Clips belong to stable event IDs. Selecting an event or camera previews evidence without changing selection or assignment. Selecting an event for a reply selects all its clips together; telematics patterns remain shareable event data with zero video clips.
-- **Add events** opens one browser with **This driver** and **Unassigned** scopes, search, event-level checkboxes, and a preview. **Use selection** stages the draft's choices. **Cancel**, Escape, backdrop dismissal, and Close discard changes made inside the browser. The composer's compact selection count opens this same browser.
-- Only **Send** shares evidence and assigns selected unassigned events to the driver/session. Preserve each event's original category, source, type, timestamp, vehicle, and location; a coaching session link never rewrites incident facts. Show shared events with the message so they reopen in the same viewer.
-- The first draft selects linked evidence not already recorded as shared. Clear that draft's selection after Send and retain the cleared state when the drawer reopens. Keep per-session reply text, private-note text, cursor positions, active event/camera, and unsent selection in memory. Updating evidence must preserve the composer and its draft.
-- Private notes are explicitly team-visible. Hide sharing controls in note mode, preserve the separate reply selection, and never share or assign that selection when saving a note.
-- Completed and archived records retain evidence and conversation but have no composer or Add events action. Preserve Archive/Restore semantics. A session whose delivery is retrying stays an ordinary Automated session with its retry noted in the record.
-- Count only actual video evidence in session row and Automation Centre clip counts. Durations expressed as days, trips, or event totals are patterns, not footage. Never generate extra media, locations, vehicles, or severity from a session hash or workflow status.
-- Use supplied media URLs and valid recorded coordinates when available. Otherwise label footage and map illustrations explicitly, state the missing location/coordinates, and omit the incident pin. Retain source location text where recorded; never infer a route without route data.
+Use one session KPI strip, neutral conversation bubbles with author labels, and the shared evidence header. Retain the useful video/map pairing and compact composer; do not recreate a permanent repeated metadata rail, duplicate history timeline, or attachment strip.
 
-See [session workspace](docs/session-redesign.md) for the installed interaction and data contract. Run `npm run test:sessions` when changing this workflow.
+Stable events own camera clips. Preview changes the viewer only. Selecting an event stages all its clips; patterns remain data with zero video clips. One browser provides This driver and Unassigned scopes, visible search, checkboxes, and preview. Use selection commits the draft; Cancel/Escape/backdrop discards browser changes.
 
-## Content and implementation rules
+Only Send shares evidence and assigns unassigned events. Preserve original category, source, type, timestamp, vehicle, and location. Cross-driver or closed-session assignment is rejected. An attachments-only reply is valid. First drafts select linked evidence not already shared; Send clears selection, and reopening does not reselect it.
 
-Use concrete labels: “Filters,” “Review,” “Completed.” Avoid instructional subtext when the control already explains itself. Preserve explanations that affect a decision, such as automation modes, metric scope, and destructive consequences.
+Reply and private-note text, carets, active event/camera, and selection belong to each session. Evidence refreshes preserve the textarea. Private notes are team-visible, hide sharing controls, retain the separate reply selection, and never assign evidence. These prototype drafts persist in memory, not across reloads.
 
-Every new affordance must perform its named operation. Do not introduce toast-only filters, exports, or creation controls. Existing prototype limitations are recorded in `docs/ui-review.md`; do not imply they have become functional through styling changes.
+Completed and archived sessions have no composer or Add events action. Archive/Restore retain history; Restore returns to Completed. Failed deliveries follow automatic retry under the active automated workflow, without a new Blocked state or manual account-relink gate.
 
-For a new page, reuse the patterns above before adding a variant. If a workflow truly requires a different placement, document the exception here and implement it intentionally. A permanent change to common behavior requires updating the shared classes and the relevant browser checks.
+Actual supplied media URLs use native playback; valid supplied coordinates place the incident map. Missing media/GPS uses explicitly labelled illustrations without an invented incident pin. Do not infer routes or generate incident facts from session hashes. See [Session workspace](docs/session-redesign.md).
 
-Before handing off UI changes, verify the affected interaction and its narrow-screen layout. For shared changes, run `npm run check`, `npm test`, and `npm run test:browser` with the local app served and Playwright available. The browser suite checks actual asset loading, placement, navigation, filtering, tooltips, and overflow at 1440, 1024, 768, and 390px.
+## Validation and future changes
+
+Run the documented commands in [README](README.md), including design-library acceptance for shared changes. Follow [migration and release checks](docs/design-library-migration.md). Verify the shared state specimen and representative pages at desktop, narrow widths, 200% text zoom, reduced motion, and forced colors. Contrast-pair tests do not establish whole-product WCAG conformance; report the checks actually completed and any remaining limitations.

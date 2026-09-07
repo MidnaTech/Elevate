@@ -1,6 +1,10 @@
 /* Shared, labelled iconography and hover / focus / touch explanations. */
 function uiIcon(name) {
   const paths = {
+    gear: '<path d="m9 3 1-2h4l1 2 2 1 2-.2 2 3-1 2v4l1 2-2 3-2-.2-2 1-1 2h-4l-1-2-2-1-2 .2-2-3 1-2V9L3 7l2-3L7 4Z"/><circle cx="12" cy="11" r="3"/>',
+    people: '<circle cx="9" cy="7" r="3"/><path d="M2 21v-3a7 7 0 0 1 14 0v3M16 4a3 3 0 0 1 0 6m3 11v-3a7 7 0 0 0-2-5"/>',
+    checkCircle: '<circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/>',
+    octagon: '<path d="m8 3-5 5v8l5 5h8l5-5V8l-5-5Z"/><path d="M12 7v6m0 3v1"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     map: '<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Zm6-3v15m6-12v15"/>',
     paperclip: '<path d="m8 13 7-7a3 3 0 0 1 4 4L9 20a5 5 0 0 1-7-7L13 2m-8 14 8-8"/>',
@@ -27,7 +31,8 @@ function uiIcon(name) {
     play: '<path d="M8 5v14l11-7L8 5Z" fill="currentColor" stroke="none"/>',
     external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'
   };
-  return '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">' + (paths[name] || paths.info) + '</svg>';
+  const geometry = (paths[name] || paths.info).replace(/<(path|rect|circle)/g, '<$1 vector-effect="non-scaling-stroke"');
+  return '<svg class="ui-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="scale(0.666666667)">' + geometry + '</g></svg>';
 }
 
 (() => {

@@ -1,11 +1,12 @@
+@layer legacy-composition {
 /* Supporting views use the same restrained hierarchy as the main workspaces. */
-#view-groups .group-period { color: var(--ink-500); font-size: 12px; }
+#view-groups .group-period { color: var(--ink-500); font-size: var(--font-1); }
 #view-groups .groups-summary,
-#view-groups .group-comparison-card { box-shadow: none; }
+#view-groups .group-comparison-card {  }
 #view-groups .group-row { min-height: 55px; }
 #view-groups .group-head { min-height: 36px; }
 
-#view-library .lesson-card { min-height: 184px; padding: 18px; border-radius: 12px; box-shadow: none; }
+#view-library .lesson-card { min-height: 184px; padding: 18px; border-radius: 12px;  }
 #view-library .lesson-card-top { display: flex; align-items: center; justify-content: space-between; }
 #view-library .lesson-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 0; color: var(--ink-500); background: transparent; }
 #view-library .lesson-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -17,7 +18,7 @@
 #view-settings .settings-impact.is-saved-quiet { display: none; }
 #view-settings .settings-impact:not(.is-dirty):not(.is-error) .settings-draft-actions { display: none; }
 #view-settings .settings-status-card,
-#view-settings .settings-section { box-shadow: none; }
+#view-settings .settings-section {  }
 #view-settings .settings-status-card > .settings-status-actions { display: flex; gap: 8px; }
 #view-settings .settings-section > header { min-height: 52px; }
 #view-settings .automation-mode-grid > button { min-height: 100px; }
@@ -39,40 +40,42 @@
 /* Settings: event types and coaching rules are edited inline and enter the same draft flow. */
 #view-settings .event-types-settings > header, #view-settings .rules-settings > header { flex-wrap: wrap; gap: 12px; }
 #view-settings .event-types-settings > header > div, #view-settings .rules-settings > header > div { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-#view-settings .settings-help { margin: -6px 0 0; padding: 0 16px 12px; color: var(--ink-500); font-size: 12px; line-height: 1.5; }
+#view-settings .settings-help { margin: -6px 0 0; padding: 0 16px 12px; color: var(--ink-500); font-size: var(--font-1); line-height: 1.5; }
 #view-settings .event-type-head, #view-settings .event-type-row { display: grid; grid-template-columns: 44px minmax(180px, 1.4fr) 112px minmax(210px, 1.1fr) 150px 36px; align-items: center; gap: 12px; padding: 0 16px; }
-#view-settings .event-type-head { min-height: 36px; border-top: 1px solid var(--border-soft); background: var(--surface-soft); color: var(--ink-500); font-size: 12px; font-weight: 500; }
+#view-settings .event-type-head { min-height: 36px; border-top: 1px solid var(--border-soft); background: var(--surface-soft); color: var(--ink-500); font-size: var(--font-1); font-weight: 500; }
 #view-settings .event-type-row { min-height: 56px; border-top: 1px solid var(--border-soft); }
 #view-settings .event-type-row.is-off .event-type-name, #view-settings .event-type-row.is-off .settings-select, #view-settings .event-type-row.is-off .trigger-field { opacity: .5; }
 #view-settings .event-type-name { min-width: 0; display: grid; gap: 1px; }
-#view-settings .event-type-name strong { overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-#view-settings .event-type-name small { color: var(--ink-500); font-size: 12px; }
-#view-settings .settings-select, #view-settings .settings-input { min-height: 34px; padding: 0 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 13px; }
+#view-settings .event-type-name strong { overflow: hidden; font-size: var(--font-2); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+#view-settings .event-type-name small { color: var(--ink-500); font-size: var(--font-1); }
+#view-settings .settings-select, #view-settings .settings-input { min-height: 34px; padding: 0 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: var(--font-2); }
 #view-settings .settings-select { width: 100%; }
 #view-settings .settings-input[type="number"] { width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
-#view-settings .trigger-field { display: flex; align-items: center; gap: 8px; color: var(--ink-500); font-size: 12px; white-space: nowrap; }
-#view-settings .check-field { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-700); font-size: 12px; cursor: pointer; }
+#view-settings .trigger-field { display: flex; align-items: center; gap: 8px; color: var(--ink-500); font-size: var(--font-1); white-space: nowrap; }
+#view-settings .check-field { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-700); font-size: var(--font-1); cursor: pointer; }
 #view-settings .check-field input { width: 15px; height: 15px; margin: 0; accent-color: var(--primary); }
 #view-settings .switch { position: relative; width: 36px; min-width: 36px; height: 20px; min-height: 20px; padding: 0; border: 0; border-radius: 999px; background: var(--border-strong); cursor: pointer; transition: background .15s ease; }
-#view-settings .switch i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(26,32,41,.2); transition: transform .15s ease; }
+#view-settings .switch i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: transform var(--transition-duration) var(--transition-easing); }
 #view-settings .switch[aria-checked="true"] { background: var(--primary); }
 #view-settings .switch[aria-checked="true"] i { transform: translateX(16px); }
-#view-settings .row-remove { width: 32px; min-width: 32px; min-height: 32px; border: 0; background: transparent; color: var(--ink-400); font-size: 18px; }
-#view-settings .row-remove:hover { background: var(--rust-soft); color: var(--color-danger-text); }
-#view-settings .event-type-form { display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(2, minmax(120px, .8fr)) minmax(190px, 1fr) auto minmax(140px, .9fr); align-items: end; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--border-soft); background: var(--spotlight); }
-#view-settings .event-type-form label { display: grid; gap: 5px; color: var(--ink-500); font-size: 12px; font-weight: 500; }
+#view-settings .row-remove { width: 32px; min-width: 32px; min-height: 32px; border: 0; background: transparent; color: var(--ink-400); font-size: var(--font-4); }
+#view-settings .row-remove:hover { background: var(--rust-soft); color: var(--rust); }
+#view-settings .event-type-form { display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(2, minmax(120px, .8fr)) minmax(190px, 1fr) auto minmax(140px, .9fr); align-items: end; gap: var(--space-3); padding: var(--space-4); border-top: 1px solid var(--border-soft); background: var(--surface); }
+#view-settings .event-type-form label { display: grid; gap: 5px; color: var(--ink-500); font-size: var(--font-1); font-weight: 500; }
 #view-settings .event-type-form .form-check { display: inline-flex; align-self: end; padding-bottom: 9px; }
 #view-settings .event-type-form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 #view-settings .rule-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 56px; padding: 8px 16px; border-top: 1px solid var(--border-soft); }
 #view-settings .rule-row .settings-select { width: auto; max-width: 260px; }
-#view-settings .rule-word { color: var(--ink-500); font-size: 13px; }
+#view-settings .rule-word { color: var(--ink-500); font-size: var(--font-2); }
 #view-settings .rule-count { width: 60px; }
 #view-settings .rule-row .row-remove { margin-left: auto; }
-#view-settings .settings-empty { padding: 20px 16px; border-top: 1px solid var(--border-soft); color: var(--ink-500); font-size: 13px; }
+#view-settings .settings-empty { padding: 20px 16px; border-top: 1px solid var(--border-soft); color: var(--ink-500); font-size: var(--font-2); }
 @media (max-width: 960px) {
   #view-settings .event-type-head { display: none; }
   #view-settings .event-type-row { grid-template-columns: 44px minmax(0, 1fr) 36px; row-gap: 8px; padding: 12px 14px; }
   #view-settings .event-type-row .settings-select, #view-settings .event-type-row .trigger-field { grid-column: 2; }
   #view-settings .event-type-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #view-settings .rule-row .settings-select { max-width: 100%; }
+}
+
 }

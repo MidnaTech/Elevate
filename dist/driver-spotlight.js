@@ -19,26 +19,18 @@ function driverProfileRecords(name) {
 function profileScoreComparison(driver) {
   const scored = Number.isFinite(driver.safetyScore);
   const changed = scored && Number.isFinite(driver.scoreChange);
-  if (!scored) return '<div class="profile-week-value profile-score-value"><strong>—</strong></div><small class="profile-week-note">Not enough data to score</small>';
   const previous = changed ? driver.safetyScore - driver.scoreChange : null;
-  const delta = changed ? Math.abs(driver.scoreChange) : '';
-  const point = value => 8 + Math.max(0, Math.min(100, value)) * 2.48;
-  return '<div class="profile-week-value profile-score-value"><strong>' + driver.safetyScore + '</strong>' +
-    (changed ? '<span class="profile-score-change ' + (driver.scoreChange > 0 ? 'positive' : driver.scoreChange < 0 ? 'negative' : '') + '">' + uiIcon(driver.scoreChange < 0 ? 'arrowDown' : 'arrowUp') + delta + '</span><span class="profile-score-prev">prev ' + previous + '</span>' : '<span class="profile-score-prev">Latest</span>') + '</div>' +
-    '<svg class="profile-score-scale profile-score-comparison" viewBox="0 0 264 24" role="img" aria-label="Latest safety score ' + driver.safetyScore + (changed ? ', previous ' + previous : '') + '. Scale 0 to 100; higher is safer. Comparison dates unavailable."><rect class="profile-band-risk" x="8" y="9" width="147" height="6" rx="3"/><rect class="profile-band-watch" x="157" y="9" width="48" height="6" rx="3"/><rect class="profile-band-safe" x="207" y="9" width="49" height="6" rx="3"/>' +
-    (changed ? '<circle class="profile-score-before" cx="' + point(previous) + '" cy="12" r="4"/>' : '') + '<circle class="profile-score-after" cx="' + point(driver.safetyScore) + '" cy="12" r="5"/></svg>';
+  const context = !scored ? 'Not enough data to score' : changed ? 'Previous ' + previous + ' · ' + (driver.scoreChange > 0 ? '+' : '') + driver.scoreChange + ' points · dates unavailable' : 'Previous score unavailable';
+  return uiKpi({ label: 'Latest safety score', value: scored ? driver.safetyScore : '—', context, meter: scored ? { value: driver.safetyScore, max: 100 } : null }).replace('class="kpi-tile"', 'class="kpi-tile profile-score" data-week-metric="score"');
 }
 
 function profileWeeklyOverview(driver) {
   const record = typeof driverActivity !== 'undefined' ? driverActivity[driver.name] : null;
   const days = record?.days || [];
   const totals = days.reduce((sum, day) => ({ miles: sum.miles + day.miles, trips: sum.trips + day.trips, driven: sum.driven + (day.miles > 0 ? 1 : 0) }), { miles: 0, trips: 0, driven: 0 });
-  const scoreHelp = '<button class="info-hint" type="button" aria-label="About this safety score" data-tooltip="Latest recorded score, on a 0–100 scale. Higher is safer. The change compares the previous score; comparison dates are unavailable and do not represent this driving week.">' + uiIcon('info') + '</button>';
-  const metric = (key, label, value) => '<div class="profile-week-stat" data-week-metric="' + key + '"><span>' + label + '</span><div class="profile-week-value"><strong>' + value + '</strong></div></div>';
-  const max = Math.max(...days.map(day => day.miles), 1);
-  return '<section class="profile-week" aria-labelledby="profile-week-title"><header class="profile-week-head"><h3 id="profile-week-title">This week</h3><span class="profile-meta">' + escapeHtml(record?.week || 'No observed week') + '</span></header><div class="profile-week-metrics"><div class="profile-week-stat is-score profile-score"><span>Safety score ' + scoreHelp + '</span>' + profileScoreComparison(driver) + '</div>' +
-    metric('miles', 'Miles', record ? totals.miles.toLocaleString('en-US') : '—') + metric('trips', 'Trips', record ? totals.trips : '—') + metric('days', 'Days driven', record ? totals.driven + ' <small>of ' + days.length + '</small>' : '—') + '</div>' +
-    (record ? '<figure class="profile-daily" aria-labelledby="profile-daily-title"><figcaption><strong id="profile-daily-title">Daily miles</strong><button class="info-hint" type="button" aria-label="About daily driving" data-tooltip="Illustrative prototype observations for ' + escapeHtml(record.week) + '. Each bar starts at zero and uses the same miles scale. Focus or tap a day for its miles and trips.">' + uiIcon('info') + '</button></figcaption><div class="profile-daily-bars">' + days.map((day, index) => '<button class="profile-day" type="button" aria-label="' + escapeHtml(day.date + ': ' + day.miles + ' miles, ' + day.trips + ' trips') + '" data-tooltip="' + escapeHtml(day.date + ' · ' + day.miles.toLocaleString('en-US') + ' miles · ' + day.trips + ' trips') + '"><span class="profile-day-plot"><span class="profile-day-value">' + (day.miles ? day.miles.toLocaleString('en-US') : '<span class="sr-only">0</span>') + '</span><i class="profile-day-bar' + (!day.miles ? ' is-zero' : '') + '" style="height:' + (day.miles / max * 100).toFixed(2) + '%" aria-hidden="true"></i></span><span class="profile-day-label">' + escapeHtml(index ? day.date.replace(/^[A-Za-z]+\s/, '') : day.date) + '</span></button>').join('') + '</div></figure>' : '<p class="profile-empty-inline">No dated driving observations recorded</p>') + '</section>';
+  const metric = (key, label, value, context) => uiKpi({ label, value, context }).replace('class="kpi-tile"', 'class="kpi-tile" data-week-metric="' + key + '"');
+  return '<section class="profile-week" aria-labelledby="profile-week-title"><header class="profile-week-head"><h3 id="profile-week-title">This week</h3><span class="profile-meta">' + escapeHtml(record?.week || 'No observed week') + '</span></header><section class="kpi-strip" tabindex="0" aria-label="Driver score and observed driving">' + profileScoreComparison(driver) +
+    metric('miles', 'Miles', record ? totals.miles.toLocaleString('en-US') : '—', record ? 'Illustrative · ' + record.week : 'No dated observations') + metric('trips', 'Trips', record ? totals.trips : '—', record ? record.week : 'No dated observations') + metric('days', 'Days driven', record ? totals.driven + ' of ' + days.length : '—', record ? record.week : 'No dated observations') + '</section>' + chartDailyMiles(driver, record) + '</section>';
 }
 
 const profileMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -175,6 +167,7 @@ function openDriverProfile(name, options = {}) {
   driverDrawer.classList.remove('is-session');
   driverDrawer.classList.add('is-open', 'is-profile');
   driverDrawer.inert = false;
+  if (!driverDrawer.open) driverDrawer.showModal();
   driverDrawer.setAttribute('aria-hidden', 'false');
   drawerBackdrop.hidden = false;
   document.getElementById('app-shell').inert = true;
@@ -201,7 +194,7 @@ function openProfileSession(sessionId) {
 
 document.addEventListener('click', event => {
   const profile = event.target.closest('[data-open-driver-profile]');
-  // A click anywhere on a directory row opens the driver; focus returns to the row's name control afterwards.
+  // The name opens the portfolio; the separate Action cell opens coaching.
   if (profile) openDriverProfile(profile.dataset.openDriverProfile, { opener: profile.matches('button') ? profile : profile.querySelector('.directory-person') || undefined });
   const back = event.target.closest('[data-back-driver-profile]');
   if (back && sessionDrawerOrigin?.driverName) {
@@ -245,4 +238,3 @@ document.addEventListener('click', event => {
     document.querySelector('[data-sw-camera="' + profileEventClip + '"][data-camera-context="profile"]')?.focus({ preventScroll: true });
   }
 });
-

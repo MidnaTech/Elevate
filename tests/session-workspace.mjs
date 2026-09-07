@@ -4,6 +4,12 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_CHANNEL || 'chrome' });
 const base = process.env.BASE_URL || 'http://localhost:5173';
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+// Local UI validation never sends fixture coordinates or other data to map/CDN services.
+// The approval review requires all external requests to be blocked before navigation.
+await page.route('**/*', route => {
+  const hostname = new URL(route.request().url()).hostname;
+  return ['localhost', '127.0.0.1', '[::1]'].includes(hostname) ? route.continue() : route.abort();
+});
 page.setDefaultTimeout(10000);
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
@@ -25,7 +31,7 @@ const openSession = async id => {
 const reopenWithoutReload = async id => {
   await drawer.locator('[data-close-drawer]').click();
   await page.waitForFunction(() => document.getElementById('driver-drawer').getAttribute('aria-hidden') === 'true');
-  await page.locator('[data-session-filter="all"]').click();
+  await page.locator('[data-session-filter="all"]').locator('..').click();
   await page.locator('[data-open-session="' + id + '"]').click();
   await page.waitForFunction(expected => activeSessionId === expected && document.getElementById('driver-drawer').classList.contains('is-session'), id);
 };
@@ -66,18 +72,13 @@ try {
   assert.ok(initialEvents.length >= 2, 'Rowan has two linked incidents to review');
   assert.deepEqual(initial.selected.slice().sort(), initialEvents.slice().sort(), 'Linked incident clips should be selected for the first reply');
   assert.ok(await page.evaluate(() => attachedClipsFor(sessions.find(item => item.id === activeSessionId)).length) >= 2);
-  // The trigger summary leads the evidence pane; secondary metadata no longer needs a Details dialog.
-  assert.equal(await drawer.locator('.sw-evidence-pane > :first-child').evaluate(node => node.classList.contains('sw-why')), true, 'Why this session was created must lead the evidence pane');
-  assert.match(await drawer.locator('.sw-why').innerText(), /Why this session was created/);
-  assert.equal(await drawer.locator('[data-session-details], #session-details').count(), 0, 'The Details button and dialog are removed');
+  // The shared evidence header and one recorded summary replace the duplicate program breakdown.
+  assert.equal(await drawer.locator('.sw-evidence-pane > .drawer__header').count(), 1);
+  assert.equal(await drawer.locator('.sw-why').count(), 1);
+  assert.ok((await drawer.locator('.sw-why').innerText()).includes('Two video-confirmed'));
+  assert.equal(await drawer.locator('[data-session-details], #session-details').count(), 0, 'A permanent metadata rail is not recreated');
   assert.match(await drawer.locator('#driver-drawer-title').innerText(), /Distracted driving/, 'The program names the session');
   assert.match(await drawer.locator('.sw-program').innerText(), /Rowan Hall/, 'The driver stays in the header context line');
-  assert.equal(await drawer.locator('.sw-breakdown li').count(), 2, 'Breakdown rows group the linked events by type');
-  await drawer.locator('[data-toggle-breakdown]').click();
-  assert.equal(await drawer.locator('#sw-breakdown').isHidden(), true);
-  assert.equal(await drawer.locator('[data-toggle-breakdown]').getAttribute('aria-expanded'), 'false');
-  await drawer.locator('[data-toggle-breakdown]').click();
-  assert.equal(await drawer.locator('#sw-breakdown').isVisible(), true);
   // Video rows open a viewer with the incident map beside the footage; the row toggles it closed again.
   assert.equal(await drawer.locator('#session-evidence .sw-viewer').count(), 0, 'The viewer stays closed until a video row is chosen');
   await drawer.locator('#session-evidence [data-session-event]').first().click();
@@ -146,7 +147,7 @@ try {
   assert.equal(await picker.locator('[data-select-event="' + group.id + '"]').isChecked(), false, 'Preview must remain independent of selection');
   assert.equal(await picker.locator('[data-sw-camera]').count(), group.clips.length, 'All camera angles should be accessible within the event preview');
   assert.match(await picker.locator('#sw-browser-preview').innerText(), /location unavailable|map unavailable|coordinates unavailable|location not available/i, 'No map pin may imply missing coordinates are known');
-  await picker.locator('[data-sw-camera="' + group.clips[1].id + '"]').click();
+  await picker.locator('[data-sw-camera="' + group.clips[1].id + '"]').locator('..').click();
   assert.equal(await picker.locator('[data-media-clip]').getAttribute('data-media-clip'), group.clips[1].id);
   assert.deepEqual((await session()).selected, selectedBeforePreview, 'Switching camera angle must not attach evidence');
   await picker.locator('[data-select-event="' + group.id + '"]').check();
@@ -212,7 +213,7 @@ try {
   // Drafts belong to the session, not to whichever drawer was opened last.
   await reply.fill('Rowan draft remains here.');
   await drawer.locator('[data-close-drawer]').click();
-  await page.locator('[data-session-filter="all"]').click();
+  await page.locator('[data-session-filter="all"]').locator('..').click();
   await page.locator('[data-open-session="alex-following"]').click();
   assert.equal(await reply.inputValue(), '');
   await reply.fill('Alex has a separate draft.');
@@ -232,23 +233,35 @@ try {
   // Preserve existing lifecycle actions, including restore-to-completed semantics.
   await page.goto(base + '/#sessions');
   const manualId = await page.evaluate(() => sessions.find(item => item.origin === 'manual_override' && item.state === 'system_handling').id);
-  await page.locator('[data-session-filter="all"]').click();
+  await page.locator('[data-session-filter="all"]').locator('..').click();
   await page.locator('[data-open-session="' + manualId + '"]').click();
   await drawer.locator('[data-complete-session]').click();
   await page.locator('[data-open-session="' + manualId + '"]').click();
   assert.equal((await session()).state, 'completed');
   assert.equal(await reply.count(), 0);
   assert.equal(await drawer.locator('[data-open-session-events]:visible').count(), 0);
+  const cycleBeforeArchive=await page.evaluate(()=>currentCycleCounts());
   await drawer.locator('[data-archive-session]').click();
+  assert.deepEqual(await page.evaluate(()=>currentCycleCounts()),cycleBeforeArchive,'Archiving current completed work retains it in the same reporting period');
   await page.locator('[data-open-session="' + manualId + '"]').click();
   assert.equal((await session()).state, 'archived');
   assert.equal(await reply.count(), 0);
   await drawer.locator('[data-restore-session]').click();
   assert.equal(await page.evaluate(id => sessions.find(item => item.id === id).state, manualId), 'completed', 'Restoring an archive must not resume an active coaching session');
 
+  // Restoring a historical archive retains its original observation period.
+  await page.goto(base+'/?period=8&session=archived#sessions');
+  const historical=await page.evaluate(()=>{const item=sessions.find(record=>record.state==='archived'&&sessionWeeksAgo(record)>0);return {id:item.id,age:sessionWeeksAgo(item)};});
+  await page.locator('[data-open-session="'+historical.id+'"]').click();
+  await drawer.locator('[data-restore-session]').click();
+  assert.equal(await page.evaluate(id=>sessionWeeksAgo(sessions.find(record=>record.id===id)),historical.id),historical.age);
+  await page.selectOption('#view-inbox [data-coaching-period]','1');
+  assert.equal(await page.evaluate(()=>currentCycleCounts().completed),130,'Restoring past history does not add a current-week completion');
+  assert.equal(await page.evaluate(()=>currentCycleCounts().identified),154);
+
   await page.goto(base + '/#sessions');
   const retryingId = await page.evaluate(() => sessions.find(item => item.eventType === 'Training delivery retrying').id);
-  await page.locator('[data-session-filter="system_handling"]').click();
+  await page.locator('[data-session-filter="system_handling"]').locator('..').click();
   await page.locator('[data-open-session="' + retryingId + '"]').click();
   assert.equal(await drawer.locator('[data-relink-driver]').count(), 0, 'Delivery retries run automatically; there is no manual relink step');
   assert.match(await drawer.innerText(), /Automated|retr(y|ies|ying)/i);
@@ -269,7 +282,7 @@ try {
     await page.waitForFunction(() => !document.getElementById('session-event-browser').open);
   }
   assert.deepEqual(errors, [], 'Session interactions must not throw script or asset-loading errors');
-  console.log('Passed: linked-event defaults, grouped footage staging/cancel/share, source preservation, private-note isolation, attachment-only replies, persistent drafts/caret, trigger summary/breakdown/viewer toggles, Activity, lifecycle actions, missing-media honesty, modal dismissal, and shared responsive drawer widths.');
+  console.log('Passed: linked-event defaults, grouped footage staging/cancel/share, source preservation, private-note isolation, attachment-only replies, persistent drafts/caret, source summary and viewer toggles, Activity, lifecycle actions, missing-media honesty, modal dismissal, and shared responsive drawer widths.');
 } catch (error) {
   if (errors.length) console.error('Browser errors:', errors);
   throw error;

@@ -1,9 +1,16 @@
 // Run against a locally served dist/ with Playwright available (see README).
 import assert from 'node:assert/strict';
+import { auditMetricReconciliation } from './metric-reconciliation.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_CHANNEL || 'chrome' });
 const base = process.env.BASE_URL || 'http://localhost:5173';
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+// Local UI validation never sends fixture coordinates or other data to map/CDN services.
+// The approval review requires all external requests to be blocked before navigation.
+await page.route('**/*', route => {
+  const hostname = new URL(route.request().url()).hostname;
+  return ['localhost', '127.0.0.1', '[::1]'].includes(hostname) ? route.continue() : route.abort();
+});
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 page.on('response', response => { if (response.url().startsWith(base) && response.status() >= 400) errors.push(response.status() + ' ' + response.url()); });
@@ -96,34 +103,42 @@ try {
     const layout = await page.locator('#view-' + view).evaluate(section => ({
       searchInToolbar: Boolean(section.querySelector('.data-toolbar input[type="search"]')),
       searchInHeading: Boolean(section.querySelector('.page-heading input[type="search"]')),
-      tabsInToolbar: Boolean(section.querySelector('.data-toolbar .view-tabs')),
+      tabsInToolbar: Boolean(section.querySelector('.data-toolbar .view-tabs, .data-toolbar fieldset.segmented')),
       filterAfterSearch: Boolean(section.querySelector('.data-toolbar input[type="search"]').compareDocumentPosition(section.querySelector('[data-filter-sheet-trigger]')) & Node.DOCUMENT_POSITION_FOLLOWING)
     }));
     assert.deepEqual(layout, { searchInToolbar: true, searchInHeading: false, tabsInToolbar: true, filterAfterSearch: true }, view + ' must follow the design system');
   }
   assert.equal(await page.locator('#view-outcomes .page-heading [role="tablist"]').count(), 0);
   assert.equal(await page.locator('#view-outcomes .data-toolbar [role="tablist"]').count(), 1);
-  assert.equal(await page.locator('.session-row').count(), 17);
-  await page.locator('[data-session-filter="all"]').click();
-  assert.equal(await page.locator('.session-row').count(), 180);
+  assert.equal(await page.locator('.session-record').count(), await page.evaluate(() => sessions.filter(record => record.state === 'manager_attention').length + activeCandidates().length));
+  await page.locator('[data-session-filter="all"]').locator('..').click();
+  const allRecordCount = await page.evaluate(() => sessions.filter(sessionInPeriod).length + activeCandidates().length);
+  assert.equal(await page.locator('.session-record').count(), Math.min(50, allRecordCount));
+  assert.ok((await page.locator('.session-footer').textContent()).includes('of ' + allRecordCount + ' records'));
+  const firstPageIds = await page.locator('.session-record').evaluateAll(rows => rows.map(row => row.dataset.recordId));
+  await page.getByRole('button', {name:'Next',exact:true}).click();
+  assert.equal(await page.locator('.session-record').count(), 50);
+  const secondPageIds = await page.locator('.session-record').evaluateAll(rows => rows.map(row => row.dataset.recordId));
+  assert.ok(secondPageIds.every(id => !firstPageIds.includes(id)), 'Next shows distinct source records');
+  await page.getByRole('button', {name:'Previous',exact:true}).click();
   await page.locator('#view-inbox [data-filter-sheet-trigger]').click();
   await page.selectOption('#session-origin-filter', 'manual_override');
-  assert.equal(await page.locator('.session-row').count(), 6);
+  assert.equal(await page.locator('.session-record').count(), await page.evaluate(() => sessions.filter(record => record.origin === 'manual_override' && sessionInPeriod(record)).length));
   await page.selectOption('#session-reason-filter', 'driver_reply');
-  assert.equal(await page.locator('.session-row').count(), 0);
+  assert.equal(await page.locator('.session-record').count(), 0);
   await page.locator('#session-filters [data-clear-session-filters]').click();
-  assert.equal(await page.locator('.session-row').count(), 17);
+  assert.equal(await page.locator('.session-record').count(), await page.evaluate(() => sessions.filter(record => record.state === 'manager_attention').length + activeCandidates().length));
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#view-inbox [data-filter-sheet-trigger]').getAttribute('aria-expanded'), 'false');
   assert.equal(await page.evaluate(() => document.activeElement.hasAttribute('data-filter-sheet-trigger')), true);
   await page.fill('#session-search', 'Rowan Hall');
-  assert.equal(await page.locator('.session-row').count(), 1);
-  await page.locator('.session-origin-icon').hover();
+  assert.equal(await page.locator('.session-record').count(), 1);
+  await page.locator('.session-clips').first().hover();
   assert.equal(await page.locator('#ui-tooltip').isVisible(), true);
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#ui-tooltip').isVisible(), false);
   assert.equal(await page.inputValue('#session-search'), 'Rowan Hall', 'Tooltip Escape must preserve search');
-  await page.locator('.session-row').click();
+  await page.locator('.session-record [data-open-session], .session-record[data-open-session]').first().click();
   assert.equal(await page.locator('#driver-drawer').getAttribute('aria-hidden'), 'false');
   await page.keyboard.press('Escape');
   await page.fill('#session-search', '');
@@ -131,78 +146,86 @@ try {
   await page.keyboard.press('ArrowRight');
   assert.equal(await page.evaluate(() => document.activeElement.dataset.sessionFilter), 'archived');
 
-  const readSessionOverview = () => page.locator('#session-overview').evaluate(node => ({
-    rate: node.querySelector('#session-overview-rate').textContent,
-    completed: node.querySelector('#session-overview-completed').textContent,
-    week: node.querySelector('#session-overview-week').textContent,
-    review: node.querySelector('#session-overview-review-count').textContent,
-    reasons: Array.from(node.querySelectorAll('[data-overview-session-reason] strong'), value => value.textContent)
-  }));
-  const sessionOverview = {
-    rate: '84%', completed: '130 of 154 identified', week: 'Week of Aug 31',
-    review: '17', reasons: ['3', '4', '4', '3', '3']
-  };
+  const readSessionOverview = () => page.locator('#sessions-kpis').evaluate(node => {
+    const values = Object.fromEntries([...node.querySelectorAll('.kpi-tile')].map(tile => [tile.querySelector('.kpi-label').textContent, tile.querySelector('.kpi-value').textContent]));
+    const meter = node.querySelector('[role="meter"]');
+    return { values, completed: meter.getAttribute('aria-valuenow'), identified: meter.getAttribute('aria-valuemax') };
+  });
+  const sessionOverview = { values: { Identified: '154', 'In progress': '10', 'Needs review': '14', Completed: '130' }, completed: '130', identified: '154' };
   await page.goto(base + '/?session=archived#sessions');
   assert.deepEqual(await readSessionOverview(), sessionOverview, 'Archived rows must not redefine the weekly summary');
+  for (const [weeks, all, completed, archived] of [[1,154,130,0],[4,164,140,10],[8,180,156,26]]) {
+    await page.selectOption('#view-inbox [data-coaching-period]',String(weeks));
+    for (const [filter,total] of [['all',all],['completed',completed],['archived',archived]]) {
+      await page.locator('[data-session-filter="'+filter+'"]').locator('..').click();
+      assert.equal(await page.locator('.session-record').count(),Math.min(50,total),filter+' rows honor '+weeks+'-week scope');
+      if(total) assert.ok((await page.locator('.session-footer').textContent()).includes('of '+total+' records'),filter+' footer reconciles to period source');
+      else assert.match(await page.locator('#view-inbox').textContent(),/Change the period to view earlier history/);
+    }
+    const scopedOverview=await readSessionOverview();
+    assert.equal(scopedOverview.values.Identified,String(all),'Shared identified count uses the same period as All');
+    assert.equal(scopedOverview.values.Completed,String(completed),'Reporting Completed includes archived history within the period');
+  }
+  await page.selectOption('#view-inbox [data-coaching-period]','1');
   await page.locator('#view-inbox [data-filter-sheet-trigger]').click();
   await page.selectOption('#session-origin-filter', 'manual_override');
   await page.keyboard.press('Escape');
   assert.deepEqual(await readSessionOverview(), sessionOverview, 'Manual origin must not redefine the automated weekly summary');
   await page.fill('#session-search', 'no matching driver');
-  assert.equal(await page.locator('.session-row').count(), 0);
+  assert.equal(await page.locator('.session-record').count(), 0);
   assert.deepEqual(await readSessionOverview(), sessionOverview, 'Search must leave fleet summary counts intact');
+  await page.fill('#session-search', '');
   for (const [reason, count] of [['driver_reply', 4], ['reminders_exhausted', 4], ['repeat_after_coaching', 3], ['session_needed', 3]]) {
-    const shortcut = page.locator('[data-overview-session-reason="' + reason + '"]');
-    await shortcut.click();
-    assert.equal(await page.locator('.session-row').count(), count, reason + ' must open its review queue');
-    assert.equal(await page.inputValue('#session-search'), '', 'Overview shortcuts must clear conflicting search');
-    assert.equal(await page.inputValue('#session-origin-filter'), 'all', 'Overview shortcuts must clear conflicting origin');
-    assert.equal(await shortcut.getAttribute('aria-pressed'), 'true');
-    assert.equal(await page.evaluate(() => document.activeElement.dataset.overviewSessionReason), reason, 'Filtering must retain shortcut focus');
+    await page.locator('#view-inbox [data-filter-sheet-trigger]').click();
+    await page.selectOption('#session-origin-filter', 'all');
+    await page.selectOption('#session-reason-filter', reason);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.session-record').count(), count, reason + ' filters its actual review records');
     assert.equal(new URL(page.url()).searchParams.get('session'), reason);
-    assert.deepEqual(await readSessionOverview(), sessionOverview);
+    assert.deepEqual(await readSessionOverview(), sessionOverview, 'Dataset filters leave the shared KPI scope unchanged');
   }
 
   await page.goto(base + '/#drivers');
   assert.equal(await page.locator('.driver-distribution-card').getAttribute('open'), null);
   await page.locator('#view-drivers [data-filter-sheet-trigger]').click();
   await page.selectOption('#driver-group-filter', 'Long haul · North');
-  assert.ok(await page.locator('.directory-row:not(.directory-head)').count() < 14);
+  assert.ok(await page.locator('.directory-record:not(.directory-head)').count() < 14);
   await page.selectOption('#driver-sort', 'lowest');
   await page.locator('#driver-reset-filters').click();
   assert.equal(await page.inputValue('#driver-sort'), 'action');
-  assert.equal(await page.locator('.directory-row:not(.directory-head)').count(), 14);
+  assert.equal(await page.locator('.directory-record:not(.directory-head)').count(), 14);
   await page.locator('#driver-filters .filter-sheet-actions [data-filter-sheet-close]').click();
   assert.equal(await page.locator('#view-drivers [data-filter-sheet-trigger]').getAttribute('aria-expanded'), 'false');
 
-  const readDriverOverview = () => page.locator('#view-drivers .overview-band').evaluate(node => ({
+  const readDriverOverview = () => page.locator('#view-drivers').evaluate(node => {
+    const kpis = Object.fromEntries([...node.querySelectorAll('#drivers-kpis .kpi-tile')].map(tile => [tile.querySelector('.kpi-label').textContent, tile.querySelector('.kpi-value').textContent]));
+    return ({
     scope: node.querySelector('#driver-safety-scope').textContent,
     tiers: Array.from(node.querySelectorAll('#driver-tier-totals strong'), value => value.textContent),
-    progress: node.querySelector('#driver-coaching-progress-count').textContent,
-    automated: node.querySelector('#driver-coaching-automated').textContent,
-    manual: node.querySelector('#driver-coaching-manual').textContent,
-    completed: node.querySelector('#driver-coaching-completed').textContent,
+    automated: kpis['Automated in progress'],
+    manual: kpis['One-on-one in progress'],
+    completed: kpis.Completed,
     improvedDriver: node.querySelector('#driver-improvement .overview-driver-name strong').textContent,
     improvedScore: node.querySelector('#driver-improvement .overview-driver-name .overview-scope').textContent,
     improvement: node.querySelector('#driver-improvement .overview-driver-gain').textContent
-  }));
+  }); });
   const driverOverview = {
-    scope: 'All 1,024 drivers', tiers: ['93', '471', '395', '65'],
-    progress: '10', automated: '8', manual: '2', completed: '130',
+    scope: '1,024 fleet drivers · score 0–100 · higher is safer · snapshot date unavailable', tiers: ['93', '471', '395', '65'],
+    automated: '8', manual: '2', completed: '130',
     improvedDriver: 'Taylor Brooks', improvedScore: '71 → 78 safety score', improvement: '+7 pts'
   };
   assert.deepEqual(await readDriverOverview(), driverOverview);
   assert.match(await page.locator('#driver-improvement').getAttribute('aria-label'), /among 14 directory drivers/, 'Improvement must identify its available-directory scope');
   await page.goto(base + '/?q=no-match#drivers');
   assert.equal(await page.inputValue('#driver-search'), 'no-match', 'Driver links must restore the search field');
-  assert.equal(await page.locator('.directory-row').count(), 0, 'Driver links must apply restored search before rendering rows');
+  assert.equal(await page.locator('.directory-record').count(), 0, 'Driver links must apply restored search before rendering rows');
   await page.goto(base + '/?driverStatus=outcome&group=Regional%20%C2%B7%20East&program=Speeding&q=no-match#drivers');
   await page.fill('#driver-search', 'no matching driver');
-  assert.equal(await page.locator('.directory-row').count(), 0);
+  assert.equal(await page.locator('.directory-record').count(), 0);
   await page.locator('.driver-distribution-card summary').click();
   await page.locator('#driver-tier-totals [data-driver-score-filter="risk"]').click();
-  assert.equal(await page.locator('.directory-row').count(), 1, 'High risk must show the matching sample driver after clearing conflicting filters');
-  assert.ok(Number(await page.locator('.directory-row .driver-score strong').textContent()) < 60);
+  assert.equal(await page.locator('.directory-record').count(), 1, 'High risk must show the matching sample driver after clearing conflicting filters');
+  assert.ok(Number(await page.locator('.directory-record .driver-score strong').textContent()) < 60);
   assert.equal(await page.inputValue('#driver-search'), '');
   assert.equal(await page.inputValue('#driver-group-filter'), 'all');
   assert.equal(await page.inputValue('#driver-category-filter'), 'all');
@@ -212,46 +235,50 @@ try {
   assert.equal(await page.locator('.driver-distribution-card').evaluate(node => node.open), true);
   assert.deepEqual(await readDriverOverview(), driverOverview);
   await page.locator('#driver-distribution [data-driver-score-filter="80-89"]').click();
-  assert.equal(await page.locator('.directory-row').count(), 1);
-  assert.equal(await page.locator('.directory-row .driver-score strong').textContent(), '89');
+  assert.equal(await page.locator('.directory-record').count(), 1);
+  assert.equal(await page.locator('.directory-record .driver-score strong').textContent(), '89');
   assert.equal(await page.evaluate(() => document.activeElement.dataset.driverScoreFilter), '80-89');
   await page.fill('#driver-search', 'no matching driver');
   await page.locator('#driver-improvement').click();
   assert.equal(await page.inputValue('#driver-search'), 'Taylor Brooks');
   assert.equal(await page.inputValue('#driver-group-filter'), 'all');
   assert.equal(await page.inputValue('#driver-category-filter'), 'all');
-  assert.equal(await page.locator('.directory-row').count(), 1, 'Improved-driver shortcut must replace conflicting search and score filters');
-  assert.equal(await page.locator('.directory-row .directory-person strong').textContent(), 'Taylor Brooks');
+  assert.equal(await page.locator('.directory-record').count(), 1, 'Improved-driver shortcut must replace conflicting search and score filters');
+  assert.equal(await page.locator('.directory-record .directory-person strong').textContent(), 'Taylor Brooks');
   assert.equal(await page.locator('#view-drivers [data-driver-score-filter][aria-pressed="true"]').count(), 0);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'driver-improvement');
   assert.equal(await page.locator('.driver-distribution-card').evaluate(node => node.open), true);
   assert.deepEqual(await readDriverOverview(), driverOverview, 'Directory filters must never relabel sample counts as fleet totals');
 
   for (const [state, origin, count] of [['system_handling', 'automated', 8], ['system_handling', 'manual_override', 2], ['completed', 'all', 130]]) {
-    await page.locator('[data-overview-session-state="' + state + '"][data-overview-session-origin="' + origin + '"]').click();
+    const shortcut = state === 'completed' ? '#drivers-kpis [data-inbox-filter="completed"]' : '[data-overview-session-state="' + state + '"][data-overview-session-origin="' + origin + '"]';
+    await page.locator(shortcut).click();
     assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-inbox');
-    assert.equal(await page.locator('.session-row').count(), count, 'Coaching count must open its matching session list');
+    assert.equal(await page.locator('.session-record').count(), Math.min(count, 50), 'Coaching count opens its matching paginated session list');
+    assert.ok((await page.locator('.session-footer').textContent()).includes(count + ' records'));
     assert.equal(await page.inputValue('#session-origin-filter'), origin);
     assert.equal(await page.inputValue('#session-search'), '');
     assert.equal(new URL(page.url()).searchParams.get('session'), state);
     await page.goto(base + '/#drivers');
   }
   await page.locator('[data-overview-session-state="system_handling"][data-overview-session-origin="manual_override"]').click();
-  await page.locator('.session-row').first().click();
+  await page.locator('.session-record [data-open-session], .session-record[data-open-session]').first().click();
   await page.locator('#driver-drawer [data-complete-session]').click();
   await page.waitForFunction(() => document.querySelector('#driver-drawer').getAttribute('aria-hidden') === 'true');
-  await page.goto(base + '/#drivers');
-  assert.deepEqual(await readDriverOverview(), { ...driverOverview, progress: '9', manual: '1', completed: '131' }, 'Completing one-on-one coaching must update both lifecycle counts');
+  await page.evaluate(() => setView('drivers'));
+  assert.deepEqual(await readDriverOverview(), { ...driverOverview, manual: '1', completed: '131' }, 'Completing one-on-one coaching must update both lifecycle counts');
 
   await page.goto(base + '/#groups');
   assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-outcomes', 'Groups is an Analytics tab');
   assert.equal(await page.locator('[data-analytics-tab="groups"]').getAttribute('aria-selected'), 'true');
   assert.equal(await page.locator('#view-drivers').isVisible(), false);
-  assert.deepEqual(await page.locator('#group-coaching-workload strong').allTextContents(), ['39', '38', '38', '35'], 'Group workload sums to the 150 records started automatically');
-  assert.equal(await page.locator('#group-workload-scope').textContent(), 'Started automatically · week of Aug 31');
-  assert.deepEqual(await page.locator('#groups-overview .overview-value').allTextContents(), ['−4%', '+5%'], 'Group movement follows the shared one-week span');
-  assert.deepEqual(await page.locator('#groups-overview .overview-person').allTextContents(), ['Local delivery', 'Long haul · North']);
-  for (const [container, group] of [['#group-coaching-workload', 'Regional · East'], ['#view-groups .group-comparison-card', 'Regional · East'], ['#groups-overview >', 'Local delivery'], ['#view-groups .group-comparison-card', 'Local delivery']]) {
+  const groupAutomatedCounts = await page.evaluate(() => driverGroups.map(group => sessions.filter(session => sessionInPeriod(session) && session.origin === 'automated' && groupForPerson(session.person) === group).length).sort((a,b)=>b-a));
+  assert.equal(groupAutomatedCounts.reduce((sum,count)=>sum+count,0),147,'Group workload excludes the three pending flags');
+  assert.deepEqual((await page.locator('#group-coaching-workload strong').allTextContents()).map(Number),groupAutomatedCounts,'Group workload reconciles to actual automated sessions by group');
+  assert.match(await page.locator('#group-workload-scope').textContent(), /^Started automatically · Week of Aug 31/);
+  assert.deepEqual(await page.locator('#groups-overview .chart-footnote [class^="delta--"]').allTextContents(), ['↓ 4% fewer', '↑ 5% more'], 'Group movement follows the shared one-week span');
+  assert.deepEqual(await page.locator('#groups-overview .chart-card:not(.overview-workload-panel) .chart-context').evaluateAll(nodes => nodes.map(node => node.textContent.split(' · Aug')[0])), ['Local delivery', 'Long haul · North']);
+  for (const [container, group] of [['#group-coaching-workload', 'Regional · East'], ['#view-groups .group-comparison-card', 'Regional · East'], ['#groups-overview .chart-card >', 'Local delivery'], ['#view-groups .group-comparison-card', 'Local delivery']]) {
     const opener = container + ' [data-open-group="' + group + '"]';
     await page.locator(opener).click();
     assert.equal(await page.locator('#category-drawer').getAttribute('aria-hidden'), 'false');
@@ -272,15 +299,15 @@ try {
     assert.equal(await page.locator('[data-analytics-tab="outcomes"]').getAttribute('aria-selected'), 'true', 'Analytics opens on Outcomes');
     assert.equal(await page.locator('#view-outcomes [data-queue-lens], #view-outcomes .sla-health-card, #view-outcomes [data-outcome-tab="cohort"]').count(), 0, 'Analytics must not repeat Groups or the review reasons inside its own tabs');
     await page.locator('[data-analytics-tab="activity"]').click();
-    assert.ok(await page.locator('#coaching-queue .queue-row').count() > 0, 'Program performance is the shared programs table');
-    await page.locator('#coaching-queue .queue-row').first().click();
+    assert.ok(await page.locator('#coaching-queue .program-record').count() > 0, 'Program performance is the shared programs table');
+    await page.locator('#coaching-queue .program-record [data-open-category], #coaching-queue .program-record[data-open-category]').first().click();
     assert.equal(await page.locator('#category-drawer').getAttribute('aria-hidden'), 'false', 'Program rows open the program drawer from Analytics');
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => document.getElementById('category-drawer').getAttribute('aria-hidden') === 'true');
     await page.goto(base + '/?analytics=outcomes#analytics');
     for (const tab of ['category', 'driver']) {
-      await page.locator('[data-outcome-tab="' + tab + '"]').click();
-      assert.equal(await page.locator('#outcome-table tbody tr').count(), 3);
+      await page.locator('[data-outcome-tab="' + tab + '"]').locator('..').click();
+      assert.equal(await page.locator('#outcome-table tbody tr').count(), await page.evaluate(tab => outcomeDetailViews[tab].rows.length, tab), 'Outcome table includes every record for the selected lens');
     }
   }
   await page.goto(base + '/#sessions');
@@ -289,8 +316,9 @@ try {
   await page.waitForFunction(() => document.querySelector('#view-outcomes').classList.contains('is-active') && !document.querySelector('#view-drivers').hidden);
   assert.equal(await page.evaluate(() => document.body.classList.contains('has-filter-sheet')), false);
   assert.equal(await page.evaluate(() => document.querySelector('#view-drivers').inert), false);
+  await auditMetricReconciliation(page,base);
   assert.deepEqual(errors, []);
-  console.log('Passed: asset integration, analytics-hosted drivers and groups, collapsible navigation and saved preferences, mobile navigation, session lifecycle/search/filters, fleet overview scopes and shortcuts, disclosure and opener focus, tooltip dismissal, keyboard navigation, drawers, driver filters/reset, analytics tabs, all-page responsive layouts, and route recovery.');
+  console.log('Passed: asset integration, analytics-hosted drivers and groups, collapsible navigation and saved preferences, mobile navigation, session lifecycle/search/filters, fleet overview scopes and shortcuts, disclosure and opener focus, tooltip dismissal, keyboard navigation, drawers, driver filters/reset, analytics tabs, all-page responsive layouts, route recovery, and source metric reconciliation across periods, method totals, active subsets, pending flags, manual starts, weekly snapshots, and Settings previews.');
 } finally {
   await browser.close();
 }

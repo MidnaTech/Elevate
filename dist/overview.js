@@ -1,81 +1,30 @@
-/* Compact fleet summaries. Their data scope is independent of table filters. */
-function overviewSparkline(values, { label = 'Trend', tone = 'neutral', domain } = {}) {
+/* Compact fleet context. Quantities and data colours are independent of action colours. */
+function overviewSparkline(values, { label = 'Trend', domain } = {}) {
   const points = values.map(Number);
   if (!points.length || points.some(value => !Number.isFinite(value))) return '';
-  const width = 180;
-  const height = 52;
-  const padding = 5;
-  const observedMin = Math.min(...points);
-  const observedMax = Math.max(...points);
-  const spread = Math.max(observedMax - observedMin, Math.abs(observedMax) * .08, 1);
-  const low = domain ? domain[0] : observedMin - spread * .2;
-  const high = domain ? domain[1] : observedMax + spread * .2;
-  const coords = points.map((value, index) => ({
-    x: padding + index / Math.max(1, points.length - 1) * (width - padding * 2),
-    y: height - padding - (value - low) / Math.max(1, high - low) * (height - padding * 2)
-  }));
-  const path = coords.map((point, index) => (index ? 'L' : 'M') + point.x.toFixed(1) + ',' + point.y.toFixed(1)).join(' ');
-  const last = coords[coords.length - 1];
-  const first = coords[0];
-  const safeTone = ['positive', 'negative', 'neutral'].includes(tone) ? tone : 'neutral';
-  return '<svg class="overview-sparkline ' + safeTone + '" viewBox="0 0 180 52" role="img" aria-label="' + escapeHtml(label) + '">' +
-    '<path class="overview-spark-area" d="' + path + ' L' + last.x + ',52 L' + first.x + ',52 Z"/>' +
-    '<path class="overview-spark-path" d="' + path + '"/><circle cx="' + last.x.toFixed(1) + '" cy="' + last.y.toFixed(1) + '" r="3"/></svg>';
+  const low = domain ? domain[0] : 0;
+  const high = domain ? domain[1] : chartScaleCeiling(Math.max(1, ...points) * 1.05);
+  const coords = pointsPath(points, 180, 52, 5, 5, 5, 5, low, high);
+  const last = coords.at(-1);
+  return '<svg class="overview-sparkline" viewBox="0 0 180 52" role="img" aria-label="' + escapeHtml(label + ' Scale ' + low + ' to ' + high + '.') + '"><path class="chart-line" d="' + linePath(coords) + '"/><circle class="chart-line-marker" cx="' + last.x.toFixed(1) + '" cy="' + last.y.toFixed(1) + '" r="3"/></svg>';
 }
 
 function renderSessionOverview() {
-  const overview = document.getElementById('session-overview');
-  if (!overview) return;
-  const cycle = currentCycleCounts();
-  const weeklyRates = weeklyCoachingActivity.map(week => week.identified ? week.completed / week.identified * 100 : 0);
-  const rate = cycle.identified ? cycle.completionRate : null;
-  document.getElementById('session-overview-rate').textContent = rate === null ? '—' : rate + '%';
-  document.getElementById('session-overview-week').textContent = periodScopeLabel();
-  document.getElementById('session-overview-completed').textContent = cycle.completed + ' of ' + cycle.identified + ' identified';
-  document.getElementById('session-overview-trend').innerHTML = overviewSparkline(weeklyRates, {
-    label: 'Weekly completion of identified coaching records. ' + weeklyCoachingActivity.map((week, index) => week.label + ': ' + weeklyRates[index].toFixed(1) + '%').join('; '),
-    tone: 'positive', domain: [0, 100]
-  });
-  document.getElementById('session-overview-review-count').textContent = sessionFleetTotals.manager_attention;
-  const total = sessionFleetTotals.manager_attention;
-  overview.querySelectorAll('[data-overview-session-reason]').forEach(button => {
-    const reason = button.dataset.overviewSessionReason;
-    const count = sessionFleetTotals[reason];
-    button.querySelector('strong').textContent = count;
-    button.disabled = count === 0;
-    button.setAttribute('aria-label', attentionReasonMeta[reason].label + ': ' + count + ' sessions. Filter session list.');
-    button.setAttribute('aria-pressed', String(activeSessionFilter === reason && activeSessionSource === 'all' && !sessionSearch.trim()));
-    const segment = overview.querySelector('[data-overview-reason-segment="' + reason + '"]');
-    segment.style.flexGrow = count;
-    segment.hidden = count === 0;
-  });
-  document.getElementById('session-overview-reason-bar').hidden = !total;
-  document.getElementById('session-overview-all-clear').hidden = Boolean(total);
+  if (typeof renderDesignLibraryKpis === 'function') renderDesignLibraryKpis();
 }
 
 function renderDriverCoachingOverview() {
+  if (typeof renderDesignLibraryKpis === 'function') renderDesignLibraryKpis();
   const panel = document.querySelector('.overview-driver-coaching');
-  if (!panel) return;
-  document.getElementById('driver-coaching-progress-count').textContent = sessionFleetTotals.system_handling;
-  document.getElementById('driver-coaching-automated').textContent = sessionOriginTotals.automated.system_handling;
-  document.getElementById('driver-coaching-manual').textContent = sessionOriginTotals.manual_override.system_handling;
-  document.getElementById('driver-coaching-completed').textContent = sessionFleetTotals.completed;
-  const completedScope = document.getElementById('driver-completed-scope');
-  if (completedScope) completedScope.textContent = periodLabel();
-  panel.querySelectorAll('[data-overview-session-state]').forEach(button => {
-    const state = button.dataset.overviewSessionState;
-    const origin = button.dataset.overviewSessionOrigin;
-    const count = origin === 'all' ? sessionFleetTotals[state] : sessionOriginTotals[origin][state];
-    const description = state === 'completed' ? 'completed sessions, all recorded sessions' : (origin === 'automated' ? 'automated' : 'manager-started one-on-one') + ' sessions in progress';
-    button.setAttribute('aria-label', 'View ' + count + ' ' + description);
-  });
-
+  const winner = document.getElementById('driver-improvement');
+  if (!panel || !winner) return;
   const candidates = directory.filter(driver => Number.isFinite(driver.safetyScore) && Number.isFinite(driver.scoreChange));
   const best = candidates.filter(driver => driver.scoreChange > 0).sort((a, b) => b.scoreChange - a.scoreChange || a.name.localeCompare(b.name))[0];
-  const winner = document.getElementById('driver-improvement');
-  document.getElementById('driver-improvement-help').dataset.tooltip = 'Largest safety-score increase from the prior period among the ' + directory.length + ' drivers available in this directory. This is not a fleet-wide ranking. Higher is safer.';
+  const help = document.getElementById('driver-improvement-help');
+  if (help) help.dataset.tooltip = 'Largest recorded safety-score increase among the ' + directory.length + ' drivers in this directory. Comparison dates are unavailable; higher is safer.';
   winner.hidden = !best;
-  document.getElementById('driver-improvement-empty').hidden = Boolean(best);
+  const empty = document.getElementById('driver-improvement-empty');
+  if (empty) empty.hidden = Boolean(best);
   if (!best) return;
   const previous = best.safetyScore - best.scoreChange;
   winner.dataset.overviewDriver = best.name;
@@ -83,5 +32,51 @@ function renderDriverCoachingOverview() {
   winner.querySelector('.overview-driver-name strong').textContent = best.name;
   winner.querySelector('.overview-driver-name .overview-scope').textContent = previous + ' → ' + best.safetyScore + ' safety score';
   winner.querySelector('.overview-driver-gain').textContent = '+' + best.scoreChange + ' pts';
-  winner.setAttribute('aria-label', 'View ' + best.name + ', top score improvement among ' + directory.length + ' directory drivers: up ' + best.scoreChange + ' points, from ' + previous + ' to ' + best.safetyScore + '.');
+  winner.setAttribute('aria-label', 'View ' + best.name + ', largest recorded improvement among ' + directory.length + ' directory drivers: up ' + best.scoreChange + ' points, from ' + previous + ' to ' + best.safetyScore + '.');
+}
+
+function renderSafetyChartDetails() {
+  const mix = document.getElementById('driver-safety-mix');
+  const legend = document.getElementById('driver-tier-totals');
+  const scope = document.getElementById('driver-safety-scope');
+  if (!mix || !legend || !scope) return;
+  const card = mix.closest('.overview-panel');
+  card.classList.add('chart-card');
+  card.querySelector('h2')?.classList.add('chart-title');
+  scope.classList.add('chart-context');
+  scope.textContent = '1,024 fleet drivers · score 0–100 · higher is safer · snapshot date unavailable';
+  if (!mix.parentElement.classList.contains('chart-plot')) {
+    const plot = document.createElement('div'); plot.className = 'chart-plot'; mix.before(plot); plot.append(mix);
+  }
+  legend.classList.add('chart-legend');
+  if (legend.nextElementSibling !== mix.parentElement) mix.parentElement.before(legend);
+  const keys = ['risk', 'watch', 'safe', 'unscored'];
+  keys.forEach((key, index) => card.querySelectorAll('[data-driver-score-filter="' + key + '"]').forEach(button => { button.dataset.chartSeries = ['primary', 'secondary', 'tertiary', 'quaternary'][index]; }));
+  const tiers = keys.map(key => driverTierCounts.find(tier => tier.key === key));
+  const summary = tiers.map(tier => tier.label + ': ' + tier.count + ' drivers').join('; ') + '. Tier selection filters the representative 14-driver directory, not these fleet totals.';
+  chartMountSummary(card, summary, chartTableMarkup('Fleet safety-score distribution', ['Score band', 'Fleet drivers'], driverDistributionBins.map(bin => [bin.label, bin.count])), 'Source: 1,024-driver prototype fleet distribution, including 65 unscored drivers. Update time and score coverage dates are unavailable. Directory filtering does not recalculate fleet totals.');
+}
+
+function renderGroupChartOverview() {
+  if (typeof renderDesignLibraryKpis === 'function') renderDesignLibraryKpis();
+  const overview = document.getElementById('groups-overview');
+  if (!overview) return;
+  const groups = Object.entries(groupComparisonData);
+  if (!groups.length) { overview.innerHTML = '<p>No group observations recorded.</p>'; return; }
+  const started = Object.fromEntries(groups.map(([name]) => [name, coachingCounts(session => !session.candidate && session.origin === 'automated' && groupForPerson(session.person) === name).total]));
+  const ordered = groups.slice().sort((a, b) => started[b[0]] - started[a[0]] || a[0].localeCompare(b[0]));
+  const max = Math.max(1, ...Object.values(started));
+  const summary = ordered.map(([name]) => name + ': ' + started[name] + ' automated sessions').join('; ') + '. Counts describe sessions, not unique drivers.';
+  const workload = '<article class="chart-card overview-panel overview-workload-panel" aria-labelledby="group-workload-title"><h2 class="chart-title" id="group-workload-title">Coaching by group</h2><p class="chart-context" id="group-workload-scope">Started automatically · ' + escapeHtml(periodScopeLabel()) + ' · sessions</p><div class="chart-legend">' + chartLegendMarkup([{ tone: 'primary', label: 'Automated sessions' }]) + '</div><div class="chart-plot overview-workload" id="group-coaching-workload" role="group" aria-label="Automated sessions by group">' + ordered.slice(0, 4).map(([name]) => '<button class="overview-workload-row" type="button" data-open-group="' + escapeHtml(name) + '" aria-label="' + escapeHtml('Open ' + name + ': ' + started[name] + ' automated sessions') + '"><span>' + escapeHtml(name) + '</span><span class="overview-bar-track" aria-hidden="true"><i style="width:' + (started[name] / max * 100) + '%"></i></span><strong>' + started[name] + '</strong></button>').join('') + '</div><p class="chart-footnote">Source: prototype session ledger in the selected period. One-on-one sessions and pending flags excluded; update time unavailable.</p>' + chartSummaryMarkup(summary, chartTableMarkup('Automated coaching workload', ['Group', 'Sessions'], ordered.map(([name]) => [name, started[name]]))) + '</article>';
+  const best = groups.slice().sort((a, b) => a[1].change - b[1].change)[0];
+  const adverse = groups.filter(([, group]) => group.change > 0).sort((a, b) => b[1].change - a[1].change)[0];
+  const trend = ([name, group], label) => {
+    const rates = group.weeklyRates.slice(periodWindowStart());
+    const weeks = weeklyCoachingActivity.slice(periodWindowStart());
+    const windowLabel = weeks[0].label + '–' + weeks.at(-1).label;
+    const description = name + ', ' + windowLabel + ': ' + rates.join(', ') + ' events per 1,000 trips. Lower is safer.';
+    const tone = group.change > 0 ? 'adverse' : group.change < 0 ? 'favourable' : 'unchanged';
+    return '<article class="chart-card overview-panel"><h2 class="chart-title">' + escapeHtml(label) + '</h2><p class="chart-context">' + escapeHtml(name + ' · ' + windowLabel) + ' · events per 1,000 trips · lower is safer</p><div class="chart-legend">' + chartLegendMarkup([{ tone: 'primary', kind: 'line', label: 'Event rate' }]) + '</div><div class="chart-plot">' + overviewSparkline(rates, { label: description }) + '</div><p class="chart-footnote"><span class="delta--' + tone + '">' + escapeHtml((group.change > 0 ? '↑ ' : group.change < 0 ? '↓ ' : '= ') + Math.abs(group.change) + '% ' + (group.change > 0 ? 'more' : group.change < 0 ? 'fewer' : 'change')) + '</span> · Source: prototype weekly rates; trip exposure, update time, and exclusions unavailable.</p>' + chartSummaryMarkup(description, chartTableMarkup(name + ' weekly event rates', ['Week', 'Events per 1,000 trips'], rates.map((rate, index) => [weeks[index].label, chartRate(rate)]))) + '<button class="text-link" type="button" data-open-group="' + escapeHtml(name) + '">Open group</button></article>';
+  };
+  overview.innerHTML = workload + trend(best, 'Largest recorded reduction') + (adverse ? trend(adverse, 'Recorded increase') : '');
 }

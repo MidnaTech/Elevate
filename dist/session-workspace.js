@@ -136,7 +136,7 @@ function sessionWorkspaceHeader(session) {
 
 function renderSessionWorkspace(session) {
   const state = sessionWorkspaceState(session);
-  return '<div class="sw-shell" data-session-id="' + escapeHtml(session.id) + '"><header class="drawer-header sw-header">' + sessionWorkspaceHeader(session) + '</header><div class="sw-body"><section class="sw-evidence-pane" aria-label="Session evidence"><p class="sw-why"><strong>Why this session was created</strong> — ' + escapeHtml(session.summary) + '</p><div id="session-evidence"></div></section><section class="sw-conversation-pane" aria-label="Session conversation"><div class="sw-conversation-scroll"><div class="sw-conversation-heading"><h3>Conversation</h3><div id="sw-activity"></div></div><div id="sw-messages"></div></div><div id="sw-composer-region">' + workspaceComposer(session, state) + '</div></section></div></div>';
+  return '<div class="sw-shell" data-session-id="' + escapeHtml(session.id) + '"><header class="drawer-header sw-header">' + sessionWorkspaceHeader(session) + '</header><div id="sw-kpis"></div><div class="sw-body"><aside class="drawer drawer--persistent sw-evidence-pane" aria-label="Session evidence"><header class="drawer__header"><h3 class="drawer__title">Evidence</h3></header><div class="drawer__body"><p class="sw-why">' + escapeHtml(session.summary) + '</p><div id="session-evidence"></div></div></aside><section class="sw-conversation-pane" aria-label="Session conversation"><div class="sw-conversation-scroll"><div class="sw-conversation-heading"><h3>Conversation</h3><div id="sw-activity"></div></div><div id="sw-messages"></div></div><div id="sw-composer-region">' + workspaceComposer(session, state) + '</div></section></div></div>';
 }
 
 function workspaceComposer(session, state) {
@@ -253,6 +253,12 @@ function mountSessionWorkspace(session) {
   const same = driverDrawerContent.querySelector('.sw-shell')?.dataset.sessionId === session.id;
   if (!same) driverDrawerContent.innerHTML = renderSessionWorkspace(session);
   else driverDrawerContent.querySelector('.sw-header').innerHTML = sessionWorkspaceHeader(session);
+  const events = sessionEvidenceEvents(session);
+  document.getElementById('sw-kpis').innerHTML = uiKpiStrip('Session evidence and conversation', [
+    { label: 'Events', value: events.length, context: 'Linked to this session' },
+    { label: 'Videos', value: events.reduce((sum, event) => sum + eventClips(event).length, 0), context: 'Across linked events' },
+    { label: 'Messages', value: (session.messages || []).filter(message => message.author !== 'system' || message.text.startsWith('Private note · ')).length, context: 'Conversation and private notes' }
+  ]);
   updateWorkspaceEvidence(session);
   updateWorkspaceConversation(session);
   updateWorkspaceComposer(session, !same);

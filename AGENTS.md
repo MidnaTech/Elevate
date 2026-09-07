@@ -1,7 +1,7 @@
 # Repository instructions
 
-For any frontend or UI/UX work, read [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) first. It is the shared design contract for control placement, page hierarchy, tables, charts, status language, and accessibility.
+For every frontend or UI/UX task, read [Elevate-Autocoach-Design-Library.md](Elevate-Autocoach-Design-Library.md) first, then [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). The September 7, 2026 version 1.1 library is the governing visual and accessibility specification. The local design contract adds product behavior, data definitions, and the explicit shared drawer-width override. Its dated amendment governs brighter neutrals, the 85% text scale, petrol attention-category marks, and progressive disclosure of KPI/chart explanations. Current user instructions take precedence.
 
-Reuse the shared classes and tokens in `dist/design-system.css` and the icon/help behavior in `dist/design-system.js`. Keep search, tabs, filters, and actions in their specified slots. Update the design contract when intentionally changing a shared rule; avoid isolated page overrides for common patterns.
+Use the shared tokens and components in `dist/design-system.css` and the icon/help behavior in `dist/design-system.js`. Reuse the KPI, status, table, and native-control helpers in `dist/components.js`, and the chart primitives in `dist/charts.js`. Do not restore the retired blue palette, brand-colored data, decorative gradients, downloaded fonts, root token aliases, page-specific KPI/table variants, or custom non-native navigation and form semantics. Change a shared rule in the canonical implementation and document the decision together.
 
-This is a static prototype served from `dist/`. Preserve existing user changes. Validation commands and browser setup are documented in [README.md](README.md).
+This is a static prototype served from `dist/`. Preserve existing user edits and coordinate file ownership during overlapping work. Validation commands, browser setup, and release checks are in [README.md](README.md) and [docs/design-library-migration.md](docs/design-library-migration.md).

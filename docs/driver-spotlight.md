@@ -1,5 +1,7 @@
 # Driver spotlight
 
+Apply the governing [Design Library](../Elevate-Autocoach-Design-Library.md) to every shared KPI, chart, table, control, status, and drawer header. This document defines portfolio data and behavior; older screenshots do not override the library.
+
 Drivers opens a driver portfolio in a drawer. It shows the driver's score and driving activity, coaching, and source safety evidence. A full session opens only through an explicit session action.
 
 ## Layout and interaction
@@ -9,14 +11,16 @@ Use the [shared drawer width](../DESIGN_SYSTEM.md#record-drawers): 1060px maximu
 | Order | Area | Content |
 | --- | --- | --- |
 | 1 | Header | Driver name, avatar, group, and Close. Show identity once. |
-| 2 | This week | One bordered strip with the latest safety score (change and previous score inline, compact scale beneath), Miles, Trips, and Days driven, followed by daily-mile bars. Keep the observed period visible and explain the sample scope in chart help. |
+| 2 | This week | One bordered strip with the latest safety score (previous score and comparison details in accessible help, compact scale beneath), Miles, Trips, and Days driven, followed by daily-mile bars. Keep the observed period visible and explain the sample scope in chart help. |
 | 3 | Rule breakdown | Always visible. Scope line **Recorded evidence · current sessions**, the record count, and one row per rule grouping unique source safety-evidence records from non-archived sessions. |
 | 4 | Recent exceptions | Exactly two segments: Exceptions and Video, with a scope line naming the sources. Rows show title and time; expanding one reviews its video or pattern data, map, and linked session. |
 | 5 | Coaching | Exactly two segments: Current sessions and Past sessions. Rows show program, due or recorded time, one status, and a visible **Open session** action. |
 
 The weekly strip uses the full width instead of competing score and activity cards, with one compact daily-mile chart beneath. There is no coaching-cycle panel, coaching-impact strip, second history timeline, dropdown filter, or permanent metadata rail.
 
-In the Drivers directory the whole row opens the portfolio; the driver name and **View** remain its keyboard openers. The columns are Driver, Safety score, Top event, Last coached, Status, and View.
+The Drivers directory uses native table rows. The driver name opens the portfolio; the separate **Action** column offers **View session** or **Create session**. The columns are Driver, Safety score, Top event, Last coached, Status, and Action. Safety score has a numeric header aligned with the fixed score/change columns, including missing scores.
+
+**View session** opens an actual active session, preferring the displayed Top event when several are active. If there is no active session, a pending review offers **Create session** through its flagged flow. Otherwise, View session opens the newest existing historical session. A driver with no sessions offers Create session in the existing manual form, prefilled with that driver and program. Opening or cancelling either create form leaves the ledger and review flags unchanged.
 
 ### Coaching
 
@@ -70,7 +74,7 @@ Rates need their numerators, denominators, eligibility rules, and minimum exposu
 
 ## References and validation
 
-The drawer and disclosure direction was reviewed against [Midday on Mobbin](https://mobbin.com/screens/924969bd-edd1-476d-ad75-70e9a457d480) and [Lightfield on Mobbin](https://mobbin.com/screens/76496176-2e7f-4ccf-a3db-c01a422dcb59). Elevate's shared design contract remains the source for visual tokens and common controls.
+Earlier drawer and disclosure research considered [Midday on Mobbin](https://mobbin.com/screens/924969bd-edd1-476d-ad75-70e9a457d480) and [Lightfield on Mobbin](https://mobbin.com/screens/76496176-2e7f-4ccf-a3db-c01a422dcb59). The September 7 Design Library supersedes their visual treatments.
 
 With the local app running and Playwright and Chrome available, run:
 
@@ -82,4 +86,4 @@ npm run test:sessions
 npm run test:browser
 ```
 
-Check weekly fixture totals and missing-data states; the always-visible rule breakdown and unique evidence counts; Current/Past membership; always-visible session actions; pending-review cancellation; the Exceptions/Video subset and dismissed-history labels; whole-row opening and the Top event and Last coached columns; event and camera preview; full portfolio context restoration; session drafts; keyboard focus; and shared drawer sizing on desktop and mobile. See [README](../README.md) for browser setup.
+Check weekly fixture totals and missing-data states; the always-visible rule breakdown and unique evidence counts; Current/Past membership; always-visible session actions; pending-review cancellation; the Exceptions/Video subset and dismissed-history labels; separate portfolio/session/create actions, cancelled creation, numeric score alignment, and the Top event and Last coached columns; event and camera preview; full portfolio context restoration; session drafts; keyboard focus; and shared drawer sizing on desktop and mobile. See [README](../README.md) for browser setup.
