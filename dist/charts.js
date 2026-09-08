@@ -75,40 +75,59 @@ function chartBeforeAfterSvg(rows, availableWidth) {
     }).join('') + '</svg>';
 }
 
-function chartWeeklyActivitySvg(weeks, availableWidth, availableHeight) {
-  const width = Math.max(440, availableWidth || 760);
-  const height = Math.max(270, Math.min(420, availableHeight || 300));
-  const left = 38;
-  const right = 40;
-  const top = 36;
-  const bottom = 34;
+function chartWeeklyActivitySvg(weeks, availableWidth, availableHeight, options = {}) {
+  const textScale = typeof document !== 'undefined' && typeof getComputedStyle === 'function'
+    ? Math.max(1, (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16) : 1;
+  const width = Math.max(440 * textScale, availableWidth || 760 * textScale);
+  const height = Math.max(270 * textScale, Math.min(420 * textScale, (availableHeight || 300) * textScale));
+  const hasScore = weeks.some(week => Number.isFinite(week.score));
+  const scoreName = options.scoreName || 'Elevate score';
+  const titleId = (options.idPrefix || 'weekly-activity') + '-title';
+  const descriptionId = (options.idPrefix || 'weekly-activity') + '-desc';
+  const left = 38 * textScale;
+  const right = (hasScore ? 40 : 16) * textScale;
+  const top = 36 * textScale;
+  const bottom = 34 * textScale;
   const plotHeight = height - top - bottom;
   const plotWidth = width - left - right;
   const maximum = chartScaleCeiling(Math.max(1, ...weeks.flatMap(week => [week.automated, week.oneToOne])) * 1.15);
   const slot = plotWidth / Math.max(1, weeks.length);
-  const barWidth = Math.min(20, Math.max(7, (slot - 14) / 2));
+  const barWidth = Math.min(20 * textScale, Math.max(7 * textScale, (slot - 14 * textScale) / 2));
   const baseY = height - bottom;
   const y = value => baseY - value / maximum * plotHeight;
   const scoreY = value => baseY - value / 100 * plotHeight;
-  const points = weeks.map((week, index) => ({ x: left + (index + .5) * slot, y: scoreY(week.score), value: week.score }));
-  const scorePath = linePath(points);
+  const points = weeks.map((week, index) => Number.isFinite(week.score) ? { x: left + (index + .5) * slot, y: scoreY(week.score), value: week.score } : null);
+  let connected = false;
+  const scorePath = points.map(point => {
+    if (!point) { connected = false; return ''; }
+    const command = connected ? 'L' : 'M';
+    connected = true;
+    return command + point.x.toFixed(1) + ' ' + point.y.toFixed(1);
+  }).join(' ');
   const tickSteps = maximum % 4 === 0 ? 4 : 2;
   const tickValues = Array.from({ length: tickSteps + 1 }, (_, index) => maximum * index / tickSteps);
-  return '<svg class="weekly-activity-chart" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-labelledby="weekly-activity-title weekly-activity-desc"><title id="weekly-activity-title">Weekly coaching activity and Elevate score</title><desc id="weekly-activity-desc">In-progress sessions at each weekly snapshot. Bars use the left Sessions axis starting at zero. Score uses the right Elevate score axis fixed from zero to 100. ' + escapeHtml(weeks.map(week => week.label + ': ' + week.automated + ' automated sessions, ' + week.oneToOne + ' one-on-one sessions, Elevate score ' + week.score + ' out of 100').join('; ')) + '.</desc>' +
-    '<text class="chart-label activity-axis-title" x="0" y="12">Sessions</text><text class="chart-label activity-axis-title" x="' + width + '" y="12" text-anchor="end">Elevate score / 100</text>' +
-    tickValues.map(tick => '<line class="chart-grid" x1="' + left + '" x2="' + (width - right) + '" y1="' + y(tick) + '" y2="' + y(tick) + '"/><text class="chart-label" x="' + (left - 8) + '" y="' + (y(tick) + 4) + '" text-anchor="end">' + chartRate(tick) + '</text>').join('') +
-    '<path class="chart-axis" fill="none" d="M' + left + ' ' + top + 'V' + baseY + 'H' + (width - right) + 'V' + top + '"/>' +
-    [0, 25, 50, 75, 100].map(tick => '<text class="chart-label" x="' + (width - right + 8) + '" y="' + (scoreY(tick) + 4) + '">' + tick + '</text>').join('') +
+  const description = options.description || 'In-progress sessions at each weekly snapshot. Bars use the left Sessions axis starting at zero. ' +
+    (hasScore ? 'Score uses the right ' + scoreName + ' axis fixed from zero to 100. ' : 'No score observations are available. ') +
+    weeks.map(week => week.label + ': ' + week.automated + ' automated sessions, ' + week.oneToOne + ' one-on-one sessions, ' + scoreName + ' ' + (Number.isFinite(week.score) ? week.score + ' out of 100' : 'unavailable')).join('; ') + '.';
+  return '<svg class="weekly-activity-chart" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-labelledby="' + escapeHtml(titleId + ' ' + descriptionId) + '"><title id="' + escapeHtml(titleId) + '">' + escapeHtml(options.title || 'Weekly coaching activity and ' + scoreName) + '</title><desc id="' + escapeHtml(descriptionId) + '">' + escapeHtml(description) + '</desc>' +
+    '<text class="chart-label activity-axis-title" x="0" y="' + (12 * textScale) + '">Sessions</text>' + (hasScore ? '<text class="chart-label activity-axis-title" x="' + width + '" y="' + (12 * textScale) + '" text-anchor="end">' + escapeHtml(scoreName) + ' / 100</text>' : '') +
+    tickValues.map(tick => '<line class="chart-grid" x1="' + left + '" x2="' + (width - right) + '" y1="' + y(tick) + '" y2="' + y(tick) + '"/><text class="chart-label" x="' + (left - 8 * textScale) + '" y="' + (y(tick) + 4 * textScale) + '" text-anchor="end">' + chartRate(tick) + '</text>').join('') +
+    '<path class="chart-axis" fill="none" d="M' + left + ' ' + top + 'V' + baseY + 'H' + (width - right) + (hasScore ? 'V' + top : '') + '"/>' +
+    (hasScore ? [0, 25, 50, 75, 100].map(tick => '<text class="chart-label" x="' + (width - right + 8 * textScale) + '" y="' + (scoreY(tick) + 4 * textScale) + '">' + tick + '</text>').join('') : '') +
     '<g class="weekly-bars">' + weeks.map((week, index) => {
       const center = left + (index + .5) * slot;
-      const showLabel = width >= 600 || index % 2 === 0 || index === weeks.length - 1;
-      return [{ key: 'automated', label: 'Automated', tone: 'primary', x: center - barWidth - 2 }, { key: 'oneToOne', label: 'One-on-one', tone: 'secondary', x: center + 2 }].map(series => {
+      const showLabel = width >= 600 * textScale || index % 2 === 0 || index === weeks.length - 1;
+      return [{ key: 'automated', label: 'Automated', tone: 'primary', x: center - barWidth - 2 * textScale }, { key: 'oneToOne', label: 'One-on-one', tone: 'secondary', x: center + 2 * textScale }].map(series => {
         const value = week[series.key];
-        const tooltip = 'Week of ' + week.label + ': ' + series.label + ', ' + value + ' in-progress sessions. Left axis.';
-        return '<g tabindex="0" role="img" aria-label="' + escapeHtml(tooltip) + '" data-tooltip="' + escapeHtml(tooltip) + '"><rect class="activity-bar chart-bar--' + series.tone + '" x="' + series.x.toFixed(1) + '" y="' + y(value).toFixed(1) + '" width="' + barWidth.toFixed(1) + '" height="' + (baseY - y(value)).toFixed(1) + '"/><text class="chart-label activity-bar-value" x="' + (series.x + barWidth / 2).toFixed(1) + '" y="' + (y(value) - 6).toFixed(1) + '" text-anchor="middle">' + value + '</text></g>';
-      }).join('') + (showLabel ? '<text class="chart-label activity-week-label" x="' + center.toFixed(1) + '" y="' + (height - 8) + '" text-anchor="middle">' + escapeHtml(week.label) + '</text>' : '');
-    }).join('') + '</g><path class="chart-score-casing" d="' + scorePath + '"/><path class="chart-score-line" d="' + scorePath + '"/>' +
-    points.map((point, index) => { const tooltip = 'Week of ' + weeks[index].label + ': Elevate score ' + point.value + ' out of 100. Right axis.'; return '<circle class="chart-score-marker" cx="' + point.x.toFixed(1) + '" cy="' + point.y.toFixed(1) + '" r="3" tabindex="0" role="img" aria-label="' + escapeHtml(tooltip) + '" data-tooltip="' + escapeHtml(tooltip) + '"><title>' + escapeHtml(tooltip) + '</title></circle>'; }).join('') + '</svg>';
+        const tooltip = 'Week of ' + week.label + ': ' + series.label + ', ' + value + ' in-progress sessions. Left axis.' + (week.countSource ? ' ' + week.countSource + '.' : '');
+        return '<g tabindex="0" role="img" aria-label="' + escapeHtml(tooltip) + '" data-tooltip="' + escapeHtml(tooltip) + '"><rect class="activity-bar chart-bar--' + series.tone + '" x="' + series.x.toFixed(1) + '" y="' + y(value).toFixed(1) + '" width="' + barWidth.toFixed(1) + '" height="' + (baseY - y(value)).toFixed(1) + '"/><text class="chart-label activity-bar-value" x="' + (series.x + barWidth / 2).toFixed(1) + '" y="' + (y(value) - 6 * textScale).toFixed(1) + '" text-anchor="middle">' + value + '</text></g>';
+      }).join('') + (showLabel ? '<text class="chart-label activity-week-label" x="' + center.toFixed(1) + '" y="' + (height - 8 * textScale) + '" text-anchor="middle">' + escapeHtml(week.label) + '</text>' : '');
+    }).join('') + '</g>' + (hasScore ? '<path class="chart-score-casing" d="' + scorePath + '"/><path class="chart-score-line" d="' + scorePath + '"/>' : '') +
+    points.map((point, index) => {
+      if (!point) return '';
+      const tooltip = 'Week of ' + weeks[index].label + ': ' + scoreName + ' ' + point.value + ' out of 100. Right axis.' + (weeks[index].scoreSource ? ' ' + weeks[index].scoreSource + '.' : '');
+      return '<circle class="chart-score-marker" cx="' + point.x.toFixed(1) + '" cy="' + point.y.toFixed(1) + '" r="' + (3 * textScale) + '" tabindex="0" role="img" aria-label="' + escapeHtml(tooltip) + '" data-tooltip="' + escapeHtml(tooltip) + '"><title>' + escapeHtml(tooltip) + '</title></circle>';
+    }).join('') + '</svg>';
 }
 
 function chartMountSummary(card, summary, table, footnote) {

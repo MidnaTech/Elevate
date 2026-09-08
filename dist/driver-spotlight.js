@@ -1,7 +1,8 @@
 /* Driver identity is separate from an individual coaching session. */
 let activeDriverProfile = null;
-let driverProfileFilter = 'current';
-let driverProfileShowAll = false;
+let driverProfileFilter = 'all';
+let profileRulesExpanded = false;
+let profileExpandedProgrammes = new Set();
 let driverProfileReturnState = null;
 let profileEventView = 'exceptions';
 let profileExpandedEvent = null;
@@ -68,8 +69,8 @@ function profileRuleBreakdown(name) {
     rules.set(rule, (rules.get(rule) || 0) + 1);
   });
   const sorted = [...rules].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  return '<section class="profile-rules" id="profile-rule-breakdown" aria-labelledby="profile-rules-title"><div class="profile-section-head profile-rules-head"><div><h3 id="profile-rules-title">Rule breakdown</h3><p class="profile-meta">Recorded evidence · current sessions<button class="info-hint" type="button" aria-label="About rule breakdown" data-tooltip="Unique source evidence records grouped by their original rule, from this driver’s sessions that are not archived. A pattern spanning several trips counts as one record. Dismissed events and delivery failures are excluded. This is not a count of individual violations.">' + uiIcon('info') + '</button></p></div><span class="profile-meta profile-rule-count">' + records.length + (records.length === 1 ? ' record' : ' records') + '</span></div><div class="profile-rule-list">' +
-    (sorted.length ? sorted.map(([label, count]) => '<div class="profile-rule-row"><strong>' + escapeHtml(label) + '</strong><b>' + count + '</b></div>').join('') : '<p class="profile-empty-inline">No rule evidence recorded</p>') + '</div></section>';
+  return '<details class="profile-rules" id="profile-rule-breakdown"' + (profileRulesExpanded ? ' open' : '') + '><summary class="profile-rules-head"><span id="profile-rules-title">Rule breakdown</span><span class="profile-meta profile-rule-count">' + records.length + (records.length === 1 ? ' record' : ' records') + '</span></summary><p class="profile-meta">Unique source evidence in non-archived sessions; patterns count once. Dismissed events and delivery failures are excluded.</p><div class="profile-rule-list">' +
+    (sorted.length ? sorted.map(([label, count]) => '<div class="profile-rule-row"><strong>' + escapeHtml(label) + '</strong><b>' + count + '</b></div>').join('') : '<p class="profile-empty-inline">No rule evidence recorded</p>') + '</div></details>';
 }
 
 function profileEventPanel(entry) {
@@ -98,51 +99,89 @@ function renderProfileEvents() {
   const visible = events.filter(entry => profileEventView !== 'videos' || eventClips(entry.event).length > 0);
   if (profileExpandedEvent && !visible.some(entry => entry.event.id === profileExpandedEvent)) profileExpandedEvent = null;
   const sources = [...new Set(events.map(entry => entry.event.source).filter(Boolean))];
-  const tabs = [['exceptions', 'Exceptions'], ['videos', 'Video']];
+  const tabs = [['exceptions', 'Exceptions'], ['videos', 'Videos']];
   container.innerHTML = '<div class="profile-section-toolbar"><div class="profile-section-head"><div><h3 id="profile-events-title">Recent exceptions</h3><p class="profile-meta">Rule exceptions' + (sources.length ? ' · from ' + escapeHtml(sources.join(', ')) : '') + '<button class="info-hint" type="button" aria-label="About recent exceptions" data-tooltip="Recorded incidents and patterns linked to this driver, newest first across available dates. Video shows only events with clips. Each event appears once; dismissed history remains labeled and is excluded from the rule breakdown.">' + uiIcon('info') + '</button></p></div></div>' +
     '<div class="view-tabs profile-segments" role="tablist" aria-label="Recent exception scope">' + tabs.map(([key, label]) => '<button type="button" role="tab" id="profile-event-tab-' + key + '" data-profile-event-view="' + key + '" class="' + (profileEventView === key ? 'is-active' : '') + '" aria-selected="' + (profileEventView === key) + '" aria-controls="profile-event-list" tabindex="' + (profileEventView === key ? 0 : -1) + '">' + label + '</button>').join('') + '</div></div>' +
     (visible.length ? '<ul class="profile-event-list" id="profile-event-list" role="tabpanel" aria-labelledby="profile-event-tab-' + profileEventView + '" tabindex="0">' + visible.map(profileEventRow).join('') + '</ul>' : '<div class="profile-events-empty" id="profile-event-list" role="tabpanel" aria-labelledby="profile-event-tab-' + profileEventView + '" tabindex="0">' + uiIcon(profileEventView === 'videos' ? 'video' : 'chart') + '<p>' + (profileEventView === 'videos' ? 'No videos recorded' : 'No exceptions recorded') + '</p></div>');
   if (typeof mountWorkspaceMaps === 'function') mountWorkspaceMaps(container);
 }
 
-/* One coaching list with Current and Past scopes. The scope never changes the session ledger. */
+/* One programme portfolio. Filters change displayed history, never the source ledger. */
 function profileDueLabel(session) {
   const due = session.due || 'not set';
   if (/^Resolve\b/i.test(due)) return due;
   return 'Due ' + (/^(Within|Today|Tomorrow|Completed|Closed)\b/i.test(due) ? due.charAt(0).toLowerCase() + due.slice(1) : due);
 }
 
-function profileSessionRow(session) {
+function profileSessionRow(session, hasPrimaryAction = false) {
   const [icon, label] = compactSessionStatus(session);
   const archived = session.state === 'archived';
   const recordedTime = (session.latest || '').split(/\s*·\s*/).slice(-1)[0].replace(/^(?:Coaching\s+)?(?:completed|archived)\s*/i, '').trim();
-  return '<div class="profile-session-row" data-profile-session="' + escapeHtml(session.id) + '"><span class="profile-session-program"><strong>' + escapeHtml(session.category) + '</strong><small>' + escapeHtml(session.state === 'completed' || archived ? recordedTime : profileDueLabel(session)) + '</small></span><span class="profile-session-status ' + sessionStatusClass(session) + '">' + uiIcon(icon) + escapeHtml(label) + '</span><button class="secondary-button" type="button" data-open-session="' + escapeHtml(session.id) + '" aria-label="Open ' + escapeHtml(session.category) + ' session for ' + escapeHtml(session.person) + '">Open session' + uiIcon('chevron') + '</button></div>';
+  return '<div class="profile-session-row" data-profile-session="' + escapeHtml(session.id) + '"><span class="profile-session-program"><small>' + escapeHtml(session.state === 'completed' || archived ? recordedTime : profileDueLabel(session)) + '</small></span><span class="profile-session-status ' + sessionStatusClass(session) + '">' + uiIcon(icon) + escapeHtml(label) + '</span>' + (hasPrimaryAction ? '' : '<button class="secondary-button" type="button" id="profile-session-' + escapeHtml(session.id) + '" data-open-session="' + escapeHtml(session.id) + '" aria-label="Open ' + escapeHtml(session.category) + ' session for ' + escapeHtml(session.person) + '">Open session' + uiIcon('chevron') + '</button>') + '</div>';
 }
 
-function profilePendingReview(flag) {
-  return '<div class="profile-session-row" data-profile-review="' + escapeHtml(flag.id) + '"><span class="profile-session-program"><strong>' + escapeHtml(flag.category) + '</strong><small>' + escapeHtml(flag.trigger + ' · ' + flag.detail) + '</small></span><span class="profile-session-status repeat">' + uiIcon('alert') + 'Needs review</span><button class="secondary-button" type="button" data-profile-start-review="' + escapeHtml(flag.id) + '">Start session' + uiIcon('chevron') + '</button></div>';
+function profileMatchesCoachingFilter(session) {
+  if (driverProfileFilter === 'completed') return session.state === 'completed';
+  if (driverProfileFilter === 'archived') return session.state === 'archived';
+  if (driverProfileFilter === 'active') return !['completed', 'archived'].includes(session.state);
+  return true;
 }
 
 function renderDriverProfileSessions() {
   const panel = document.getElementById('profile-coaching-list');
-  if (!panel) return;
+  if (!panel || !activeDriverProfile) return;
   const priority = { manager_attention: 0, system_handling: 1, completed: 2, archived: 3 };
-  const isPast = session => ['completed', 'archived'].includes(session.state);
-  const records = driverProfileRecords(activeDriverProfile).filter(session => driverProfileFilter === 'past' ? isPast(session) : !isPast(session)).sort((a, b) => priority[a.state] - priority[b.state]);
-  const pending = driverProfileFilter === 'current' ? activeCandidates().filter(flag => flag.person === activeDriverProfile) : [];
-  const visible = driverProfileShowAll ? records : records.slice(0, 5);
-  document.querySelectorAll('[data-profile-coaching-view]').forEach(tab => { const active = tab.dataset.profileCoachingView === driverProfileFilter; tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', String(active)); tab.tabIndex = active ? 0 : -1; });
-  panel.innerHTML = pending.map(profilePendingReview).join('') + (visible.length ? visible.map(profileSessionRow).join('') : pending.length ? '' : '<p class="profile-empty-inline">' + (driverProfileFilter === 'past' ? 'No past coaching recorded' : 'No current coaching') + '</p>') +
-    (records.length > 5 ? '<button class="profile-show-all" type="button" data-profile-show-all>' + (driverProfileShowAll ? 'Show fewer' : 'Show all ' + records.length + ' sessions') + '</button>' : '');
+  const records = driverProfileRecords(activeDriverProfile).filter(profileMatchesCoachingFilter)
+    .sort((a, b) => (priority[a.state] ?? 1) - (priority[b.state] ?? 1));
+  const programmes = categories.filter(programme => driverProfileFilter === 'all' || records.some(session => session.categoryId === programme.id));
+  const rows = programmes.map(programme => {
+    const matching = records.filter(session => session.categoryId === programme.id);
+    const active = matching.find(session => !['completed', 'archived'].includes(session.state));
+    const focus = active || (['completed', 'archived'].includes(driverProfileFilter) ? matching[0] : null);
+    const action = focus
+      ? '<button class="text-link" type="button" id="profile-programme-session-' + escapeHtml(programme.id) + '" data-open-session="' + escapeHtml(focus.id) + '" aria-label="View ' + escapeHtml(programme.name) + ' session for ' + escapeHtml(activeDriverProfile) + '">View session</button>'
+      : '<button class="text-link" type="button" id="profile-create-' + escapeHtml(programme.id) + '" data-profile-create-session="' + escapeHtml(programme.id) + '" aria-label="Create ' + escapeHtml(programme.name) + ' session for ' + escapeHtml(activeDriverProfile) + '">Create session</button>';
+    const history = matching.length
+      ? '<details class="profile-programme-history" data-profile-programme-history="' + escapeHtml(programme.id) + '"' + (profileExpandedProgrammes.has(programme.id) ? ' open' : '') + '><summary aria-label="Show ' + matching.length + ' ' + escapeHtml(programme.name) + ' sessions">' + matching.length + (matching.length === 1 ? ' session' : ' sessions') + '</summary><div class="profile-programme-sessions">' + matching.map(session => profileSessionRow(session, session.id === focus?.id)).join('') + '</div></details>'
+      : '<span class="caption" aria-label="No sessions">—</span>';
+    // A fleet-wide programme score is not a driver-level programme score. No such source exists yet.
+    return '<tr data-profile-programme="' + escapeHtml(programme.id) + '"><th scope="row">' + escapeHtml(programme.name) + '</th><td class="num" data-profile-programme-score="' + escapeHtml(programme.id) + '"><span aria-label="Programme score unavailable">—</span></td><td data-sort-value="' + matching.length + '">' + history + '</td><td>' + action + '</td></tr>';
+  }).join('');
+  panel.innerHTML = rows ? uiTable(activeDriverProfile + ' programme coaching', ['Programme', { label: 'Programme score', numeric: true }, { label: 'Sessions', numeric: true }, 'Action'], rows) : '<p class="profile-empty-inline">No ' + escapeHtml(driverProfileFilter) + ' sessions recorded</p>';
+  const select = document.getElementById('profile-coaching-filter');
+  if (select) select.value = driverProfileFilter;
+  if (typeof applyDesignLibrary === 'function') applyDesignLibrary(panel);
+}
+
+function openProfileManualSession(categoryId = '') {
+  if (!activeDriverProfile) return;
+  saveProfileSessionDraft();
+  driverProfileReturnState = { scroll: document.querySelector('.profile-scroll')?.scrollTop || 0, openerId: document.activeElement?.id || null };
+  openManualSessionDialog({ person: activeDriverProfile, ...(categoryId ? { categoryId } : {}) });
+}
+
+function restoreProfileAfterManualSession(sessionId) {
+  const session = sessions.find(record => record.id === sessionId);
+  if (!session || !activeDriverProfile || session.person !== activeDriverProfile) return;
+  driverProfileFilter = 'active';
+  profileExpandedProgrammes.add(session.categoryId);
+  const scroll = driverProfileReturnState?.scroll || 0;
+  renderDriverProfile();
+  if (typeof applyDesignLibrary === 'function') applyDesignLibrary(driverDrawerContent);
+  const source = document.getElementById('profile-session-' + sessionId) || document.getElementById('profile-programme-session-' + session.categoryId);
+  source?.focus({ preventScroll: true });
+  const panel = document.querySelector('.profile-scroll');
+  if (panel) panel.scrollTop = scroll;
+  openProfileSession(sessionId);
 }
 
 function renderDriverProfile() {
   const driver = directory.find(item => item.name === activeDriverProfile);
   if (!driver) return;
-  const coachingTabs = [['current', 'Current sessions'], ['past', 'Past sessions']];
-  driverDrawerContent.innerHTML = '<div class="profile-shell"><header class="drawer-header profile-header"><div class="profile-identity"><span class="person-avatar" aria-hidden="true">' + driver.initials + '</span><div><h2 id="driver-drawer-title">' + escapeHtml(driver.name) + '</h2><p>' + escapeHtml(driver.group) + '</p></div></div><button class="icon-button" type="button" data-close-drawer aria-label="Close driver profile">' + uiIcon('close') + '</button></header><div class="profile-scroll">' + profileWeeklyOverview(driver) + profileRuleBreakdown(driver.name) +
-    '<section class="profile-events" id="profile-events" aria-labelledby="profile-events-title"></section>' +
-    '<section class="profile-coaching" aria-labelledby="profile-coaching-title"><div class="profile-section-toolbar"><div class="profile-section-head"><h3 id="profile-coaching-title">Coaching</h3></div><div class="view-tabs profile-segments" role="tablist" aria-label="Coaching scope">' + coachingTabs.map(([key, label]) => '<button type="button" role="tab" id="profile-coaching-tab-' + key + '" data-profile-coaching-view="' + key + '" aria-controls="profile-coaching-list">' + label + '</button>').join('') + '</div></div><div class="profile-coaching-list" id="profile-coaching-list" role="tabpanel"></div></section></div></div>';
+  const coachingOptions = [['all', 'All programmes'], ['active', 'Active'], ['completed', 'Completed'], ['archived', 'Archived']];
+  driverDrawerContent.innerHTML = '<div class="profile-shell"><header class="drawer-header profile-header"><div class="profile-identity"><span class="person-avatar" aria-hidden="true">' + driver.initials + '</span><div><h2 id="driver-drawer-title">' + escapeHtml(driver.name) + '</h2><p>' + escapeHtml(driver.group) + '</p></div></div><div class="profile-header-actions"><button class="secondary-button" id="profile-create-session" type="button" data-profile-create-session>Create session</button><button class="icon-button" type="button" data-close-drawer aria-label="Close driver profile">' + uiIcon('close') + '</button></div></header><div class="profile-scroll">' + profileWeeklyOverview(driver) + profileRuleBreakdown(driver.name) +
+    '<section class="profile-coaching" id="profile-coaching" aria-labelledby="profile-coaching-title"><div class="profile-section-toolbar"><div class="profile-section-head"><h3 id="profile-coaching-title">Coaching</h3><button class="info-hint" type="button" aria-label="About programme scores and coaching history" data-tooltip="Every configured programme is listed. Driver-level programme scores and evaluation periods are unavailable; the overall Elevate score is separate. Session history includes all recorded dates.">' + uiIcon('info') + '</button></div><label class="field"><span class="sr-only">Coaching filter</span><select class="filter-control" id="profile-coaching-filter">' + coachingOptions.map(([key, label]) => '<option value="' + key + '"' + (driverProfileFilter === key ? ' selected' : '') + '>' + label + '</option>').join('') + '</select></label></div><div class="profile-coaching-list" id="profile-coaching-list"></div></section>' +
+    '<section class="profile-events" id="profile-events" aria-labelledby="profile-events-title"></section></div></div>';
   renderDriverProfileSessions();
   renderProfileEvents();
 }
@@ -152,8 +191,9 @@ function openDriverProfile(name, options = {}) {
   const wasOpen = driverDrawer.classList.contains('is-open');
   if (!wasOpen) drawerOpener = options.opener || document.activeElement;
   if (!options.restore) {
-    driverProfileShowAll = false;
-    driverProfileFilter = 'current';
+    driverProfileFilter = 'all';
+    profileRulesExpanded = false;
+    profileExpandedProgrammes = new Set();
     driverProfileReturnState = null;
     profileEventView = 'exceptions';
     profileExpandedEvent = null;
@@ -176,8 +216,8 @@ function openDriverProfile(name, options = {}) {
   if (options.restore && driverProfileReturnState) {
     const saved = driverProfileReturnState;
     document.querySelector('.profile-scroll').scrollTop = saved.scroll;
-    const opener = saved.eventOpener ? document.querySelector('[data-profile-event-session="' + saved.eventOpener + '"]') : Array.from(document.querySelectorAll('.profile-coaching [data-open-session]')).find(button => button.dataset.openSession === saved.sessionId);
-    (opener || document.querySelector('[data-profile-coaching-view][aria-selected="true"]'))?.focus({ preventScroll: true });
+    const opener = saved.openerId && document.getElementById(saved.openerId) || (saved.eventOpener ? document.querySelector('[data-profile-event-session="' + saved.eventOpener + '"]') : Array.from(document.querySelectorAll('.profile-coaching [data-open-session]')).find(button => button.dataset.openSession === saved.sessionId));
+    (opener || document.getElementById('profile-coaching-filter'))?.focus({ preventScroll: true });
   } else driverDrawer.querySelector('[data-close-drawer]')?.focus({ preventScroll: true });
 }
 
@@ -186,7 +226,8 @@ function openProfileSession(sessionId) {
   if (!name || !driverProfileRecords(name).some(session => session.id === sessionId)) return;
   driverProfileReturnState = {
     sessionId, scroll: document.querySelector('.profile-scroll').scrollTop,
-    eventOpener: document.activeElement?.dataset.profileEventSession || null
+    eventOpener: document.activeElement?.dataset.profileEventSession || null,
+    openerId: document.activeElement?.id || null
   };
   openSessionDrawer(sessionId, { type: 'driver-profile', driverName: name });
 
@@ -201,21 +242,8 @@ document.addEventListener('click', event => {
     saveProfileSessionDraft();
     openDriverProfile(sessionDrawerOrigin.driverName, { restore: true });
   }
-  const pendingReview = event.target.closest('[data-profile-start-review]');
-  if (pendingReview) startSessionForCandidate(pendingReview.dataset.profileStartReview);
-  const showAll = event.target.closest('[data-profile-show-all]');
-  if (showAll) {
-    driverProfileShowAll = !driverProfileShowAll;
-    renderDriverProfileSessions();
-    document.querySelector('[data-profile-show-all]')?.focus();
-  }
-  const coachingView = event.target.closest('[data-profile-coaching-view]');
-  if (coachingView) {
-    driverProfileFilter = coachingView.dataset.profileCoachingView;
-    driverProfileShowAll = false;
-    renderDriverProfileSessions();
-    document.querySelector('[data-profile-coaching-view="' + driverProfileFilter + '"]')?.focus();
-  }
+  const create = event.target.closest('[data-profile-create-session]');
+  if (create) openProfileManualSession(create.dataset.profileCreateSession || '');
   const eventView = event.target.closest('[data-profile-event-view]');
   if (eventView) {
     profileEventView = eventView.dataset.profileEventView;
@@ -238,3 +266,17 @@ document.addEventListener('click', event => {
     document.querySelector('[data-sw-camera="' + profileEventClip + '"][data-camera-context="profile"]')?.focus({ preventScroll: true });
   }
 });
+
+document.addEventListener('change', event => {
+  if (event.target.id !== 'profile-coaching-filter') return;
+  driverProfileFilter = ['all', 'active', 'completed', 'archived'].includes(event.target.value) ? event.target.value : 'all';
+  renderDriverProfileSessions();
+  document.getElementById('profile-coaching-filter')?.focus({ preventScroll: true });
+});
+document.addEventListener('toggle', event => {
+  if (event.target.id === 'profile-rule-breakdown') profileRulesExpanded = event.target.open;
+  const programme = event.target.dataset?.profileProgrammeHistory;
+  if (!programme) return;
+  if (event.target.open) profileExpandedProgrammes.add(programme);
+  else profileExpandedProgrammes.delete(programme);
+}, true);

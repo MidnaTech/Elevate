@@ -27,12 +27,12 @@ function uiSessionState(session) {
   if (session.state === 'archived') return 'Archived';
   if (session.attentionReason === 'driver_reply') return 'Replied';
   if (session.candidate) return '—';
-  return 'Awaiting driver';
+  return 'In progress';
 }
 
 function uiSessionAttention(session) {
   if (['completed', 'archived'].includes(session.state)) return '—';
-  return ({ reminders_exhausted: 'Overdue', repeat_after_coaching: 'Repeated', driver_reply: 'Needs review' })[session.attentionReason] || (session.state === 'manager_attention' ? 'Needs review' : '—');
+  return ({ reminders_exhausted: 'Overdue', repeat_after_coaching: 'Repeated', driver_reply: 'Replied' })[session.attentionReason] || '—';
 }
 
 function uiKpi({ label, value, context = '', action = '', meter }) {
@@ -45,6 +45,11 @@ function uiKpi({ label, value, context = '', action = '', meter }) {
 
 function uiKpiStrip(label, items) {
   return '<section class="kpi-strip" tabindex="0" aria-label="' + escapeHtml(label) + '">' + items.map(uiKpi).join('') + '</section>';
+}
+
+// Counts beside a working area use one compact line, rather than dashboard-sized tiles.
+function uiCompactMetrics(label, items) {
+  return '<dl class="metric-summary" aria-label="' + escapeHtml(label) + '">' + items.map(item => '<div class="metric-summary-item"><dt>' + escapeHtml(item.label) + (item.context ? '<button class="info-hint" type="button" aria-label="About ' + escapeHtml(item.label) + '" data-tooltip="' + escapeHtml(item.context) + '">' + uiIcon('info') + '</button>' : '') + '</dt><dd>' + escapeHtml(String(item.value)) + '</dd></div>').join('') + '</dl>';
 }
 
 function uiTable(label, headings, rows) {
@@ -78,17 +83,10 @@ function renderDesignLibraryKpis() {
     { label: 'Improving groups', value: Object.values(groupComparisonData).filter(group => group.change < 0).length, context: 'Fewer events · ' + periodLabel() },
     { label: 'Needs review', value: sessionFleetTotals.manager_attention, context: 'Sessions · ' + periodLabel(), action: action('attention') }
   ]);
-  update('content-kpis', 'Content library summary', [
-    { label: 'Programs', value: categories.length, context: 'Coaching programs' },
-    { label: 'Lessons', value: lessons.length, context: 'Available coaching content' },
-    { label: 'Mapped programs', value: categories.filter(category => category.training).length, context: 'Programs with assigned content' }
-  ]);
-  update('settings-kpis', 'Automation configuration summary', [
-    { label: 'Mode', value: draftAutomationMode === 'fully' ? 'Fully automated' : draftAutomationMode === 'semi' ? 'Semi-automated' : 'Manual', context: 'Current configuration draft' },
-    { label: 'Cadence', value: draftCadenceWeeks === 1 ? 'Weekly' : '2 weeks', context: 'One coaching cycle per interval' },
-    { label: 'Programs', value: categories.length, context: 'Thresholds, rules and coach routing are configured per program in Programs' },
-    { label: 'Active rules', value: eventTypeRules.filter(rule => rule.enabled).length, context: 'Across all programs · edited in Programs › Configuration' }
-  ]);
+  if (currentView === 'library') renderLearningLibrary();
+  // A shared refresh must keep the visible dataset's programme scope.
+  if (currentView === 'drivers') renderDriverScopedKpis();
+  if (currentView === 'drivers' && driversTab === 'groups') renderGroupScopedKpis();
 }
 
 // Keep legacy renderers on the canonical component contract during incremental

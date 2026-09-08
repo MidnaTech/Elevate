@@ -16,23 +16,21 @@ function renderSessionOverview() {
 function renderDriverCoachingOverview() {
   if (typeof renderDesignLibraryKpis === 'function') renderDesignLibraryKpis();
   const panel = document.querySelector('.overview-driver-coaching');
-  const winner = document.getElementById('driver-improvement');
-  if (!panel || !winner) return;
+  const list = document.getElementById('driver-improvement-list');
+  if (!panel || !list) return;
   const candidates = directory.filter(driver => Number.isFinite(driver.safetyScore) && Number.isFinite(driver.scoreChange));
-  const best = candidates.filter(driver => driver.scoreChange > 0).sort((a, b) => b.scoreChange - a.scoreChange || a.name.localeCompare(b.name))[0];
+  const best = candidates.filter(driver => driver.scoreChange > 0).sort((a, b) => b.scoreChange - a.scoreChange || a.name.localeCompare(b.name)).slice(0, 5);
   const help = document.getElementById('driver-improvement-help');
-  if (help) help.dataset.tooltip = 'Largest recorded Elevate-score increase among the ' + directory.length + ' drivers in this directory. Comparison dates are unavailable; higher is safer.';
-  winner.hidden = !best;
+  if (help) help.dataset.tooltip = 'The five largest recorded Elevate-score increases among the ' + directory.length + ' drivers in this directory. Comparison dates are unavailable; higher is safer.';
   const empty = document.getElementById('driver-improvement-empty');
-  if (empty) empty.hidden = Boolean(best);
-  if (!best) return;
-  const previous = best.safetyScore - best.scoreChange;
-  winner.dataset.overviewDriver = best.name;
-  winner.querySelector('.person-avatar').textContent = best.initials;
-  winner.querySelector('.overview-driver-name strong').textContent = best.name;
-  winner.querySelector('.overview-driver-name .overview-scope').textContent = previous + ' → ' + best.safetyScore;
-  winner.querySelector('.overview-driver-gain').textContent = '+' + best.scoreChange + ' pts';
-  winner.setAttribute('aria-label', 'View ' + best.name + ', largest recorded improvement among ' + directory.length + ' directory drivers: up ' + best.scoreChange + ' points, from ' + previous + ' to ' + best.safetyScore + '.');
+  if (empty) empty.hidden = Boolean(best.length);
+  const maxGain = Math.max(1, ...best.map(driver => driver.scoreChange));
+  const ordinal = ['largest', 'second largest', 'third largest', 'fourth largest', 'fifth largest'];
+  list.innerHTML = best.map((driver, index) => {
+    const previous = driver.safetyScore - driver.scoreChange;
+    const label = 'View ' + driver.name + ', ' + ordinal[index] + ' recorded improvement among ' + directory.length + ' directory drivers: up ' + driver.scoreChange + ' points, from ' + previous + ' to ' + driver.safetyScore + '.';
+    return '<button class="overview-driver-winner"' + (index === 0 ? ' id="driver-improvement"' : '') + ' type="button" data-overview-driver="' + escapeHtml(driver.name) + '" aria-label="' + escapeHtml(label) + '" style="--share:' + (driver.scoreChange / maxGain) + '"><span class="person-avatar" aria-hidden="true">' + escapeHtml(driver.initials) + '</span><span class="overview-driver-name"><strong>' + escapeHtml(driver.name) + '</strong><span class="overview-scope">' + previous + ' → ' + driver.safetyScore + '</span></span><span class="overview-driver-bar" aria-hidden="true"><i></i></span><strong class="overview-driver-gain">+' + driver.scoreChange + ' pts</strong>' + uiIcon('chevron') + '</button>';
+  }).join('');
 }
 
 function renderSafetyChartDetails() {
@@ -63,11 +61,17 @@ function renderGroupChartOverview() {
   if (!overview) return;
   const groups = Object.entries(groupComparisonData);
   if (!groups.length) { overview.innerHTML = '<p>No group observations recorded.</p>'; return; }
-  const started = Object.fromEntries(groups.map(([name]) => [name, coachingCounts(session => !session.candidate && session.origin === 'automated' && groupForPerson(session.person) === name).total]));
+  const scopedProgram = typeof groupsProgramId !== 'undefined' && groupsProgramId !== 'all' ? categories.find(program => program.id === groupsProgramId) : null;
+  const filter = document.getElementById('groups-program-filter');
+  if (filter) {
+    if (filter.options.length !== categories.length + 1) filter.innerHTML = '<option value="all">All programs</option>' + categories.map(program => '<option value="' + escapeHtml(program.id) + '">' + escapeHtml(program.name) + '</option>').join('');
+    filter.value = scopedProgram ? scopedProgram.id : 'all';
+  }
+  const started = Object.fromEntries(groups.map(([name]) => [name, coachingCounts(session => !session.candidate && sessionDeliveryMode(session) === 'automated' && (!scopedProgram || session.categoryId === scopedProgram.id) && groupForPerson(session.person) === name).total]));
   const ordered = groups.slice().sort((a, b) => started[b[0]] - started[a[0]] || a[0].localeCompare(b[0]));
   const max = Math.max(1, ...Object.values(started));
-  const summary = ordered.map(([name]) => name + ': ' + started[name] + ' automated sessions').join('; ') + '. Counts describe sessions, not unique drivers.';
-  const workload = '<article class="chart-card overview-panel overview-workload-panel" aria-labelledby="group-workload-title"><h2 class="chart-title" id="group-workload-title">Coaching by group</h2><p class="chart-context" id="group-workload-scope">Sessions</p><div class="chart-legend">' + chartLegendMarkup([{ tone: 'primary', label: 'Automated' }]) + '</div><div class="chart-plot overview-workload" id="group-coaching-workload" role="group" aria-label="Automated sessions by group">' + ordered.slice(0, 4).map(([name]) => '<button class="overview-workload-row" type="button" data-open-group="' + escapeHtml(name) + '" aria-label="' + escapeHtml('Open ' + name + ': ' + started[name] + ' automated sessions') + '"><span>' + escapeHtml(name) + '</span><span class="overview-bar-track" aria-hidden="true"><i style="width:' + (started[name] / max * 100) + '%"></i></span><strong>' + started[name] + '</strong></button>').join('') + '</div><p class="chart-footnote">Source: prototype session ledger in the selected period. One-on-one sessions and pending flags excluded; update time unavailable.</p>' + chartSummaryMarkup(summary, chartTableMarkup('Automated coaching workload', ['Group', 'Sessions'], ordered.map(([name]) => [name, started[name]]))) + '</article>';
+  const summary = ordered.map(([name]) => name + ': ' + started[name] + ' automated sessions').join('; ') + (scopedProgram ? ' Scoped to ' + scopedProgram.name + '.' : '.') + ' Counts describe sessions, not unique drivers.';
+  const workload = '<article class="chart-card overview-panel overview-workload-panel" aria-labelledby="group-workload-title"><h2 class="chart-title" id="group-workload-title">Coaching by group</h2><p class="chart-context" id="group-workload-scope">Sessions' + (scopedProgram ? ' · ' + escapeHtml(scopedProgram.name) : '') + '</p><div class="chart-legend">' + chartLegendMarkup([{ tone: 'primary', label: 'Automated' }]) + '</div><div class="chart-plot overview-workload" id="group-coaching-workload" role="group" aria-label="Automated sessions by group">' + ordered.slice(0, 4).map(([name]) => '<button class="overview-workload-row" type="button" data-open-group="' + escapeHtml(name) + '" aria-label="' + escapeHtml('Open ' + name + ': ' + started[name] + ' automated sessions') + '"><span>' + escapeHtml(name) + '</span><span class="overview-bar-track" aria-hidden="true"><i style="width:' + (started[name] / max * 100) + '%"></i></span><strong>' + started[name] + '</strong></button>').join('') + '</div><p class="chart-footnote">Source: prototype session ledger in the selected period. One-on-one sessions and pending flags excluded; update time unavailable.</p>' + chartSummaryMarkup(summary, chartTableMarkup('Automated coaching workload', ['Group', 'Sessions'], ordered.map(([name]) => [name, started[name]]))) + '</article>';
   const best = groups.slice().sort((a, b) => a[1].change - b[1].change)[0];
   const adverse = groups.filter(([, group]) => group.change > 0).sort((a, b) => b[1].change - a[1].change)[0];
   const trend = ([name, group], label) => {

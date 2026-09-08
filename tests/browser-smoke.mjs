@@ -54,9 +54,9 @@ try {
   await page.keyboard.press('Escape');
   await page.locator('.primary-nav [data-view="programs"]').focus();
   assert.equal(await page.locator('#ui-tooltip').isVisible(), true, 'Collapsed navigation must explain its icons on keyboard focus');
-  assert.equal(await page.locator('#ui-tooltip').textContent(), 'Programs');
+  assert.equal(await page.locator('#ui-tooltip').textContent(), 'Programmes');
   await page.keyboard.press('Escape');
-  for (const view of ['coaching', 'inbox', 'outcomes', 'programs', 'library', 'settings']) {
+  for (const view of ['coaching', 'inbox', 'programs', 'drivers', 'library', 'driver']) {
     const destination = page.locator('.primary-nav [data-view="' + view + '"]');
     assert.ok(await destination.getAttribute('aria-label'), 'Every collapsed destination needs an accessible name');
     await destination.click();
@@ -85,12 +85,19 @@ try {
   await page.setViewportSize({ width: 390, height: 1000 });
   assert.equal(await sidebarToggle.isVisible(), false, 'Mobile uses the bottom navigation instead of the desktop toggle');
   assert.equal(await page.locator('.brand-lockup').isVisible(), false);
+  assert.deepEqual(await page.locator('.primary-nav [data-view]:visible').evaluateAll(nodes => nodes.map(node => node.dataset.view)), ['coaching', 'inbox', 'programs', 'drivers'], 'Mobile reserves its fifth slot for More');
+  assert.equal(await page.locator('#mobile-more-trigger').isVisible(), true, 'More keeps Learning and the required Driver app reachable');
   await page.locator('#mobile-more-trigger').click();
-  assert.equal(await page.locator('#mobile-more-dialog').isVisible(), true);
-  await page.locator('[data-mobile-view="library"]').click();
-  assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-library');
+  assert.deepEqual(await page.locator('#mobile-more-dialog [data-mobile-view]').evaluateAll(nodes => nodes.map(node => node.dataset.mobileView)), ['library', 'driver']);
+  await page.locator('#mobile-more-dialog [data-mobile-view="driver"]').click();
+  assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-driver');
   assert.equal(await page.locator('#mobile-more-dialog').isVisible(), false);
   assert.equal(await page.locator('#mobile-more-trigger').getAttribute('aria-expanded'), 'false');
+  assert.equal(await page.locator('#mobile-more-trigger').getAttribute('aria-current'), 'page');
+  await page.locator('#mobile-more-trigger').click();
+  await page.locator('#mobile-more-dialog [data-mobile-view="library"]').click();
+  assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-library');
+  assert.equal(await page.locator('#mobile-more-dialog').isVisible(), false);
   await page.setViewportSize({ width: 1024, height: 1000 });
   assert.equal(await sidebarState(), 'expanded', 'Returning from mobile must preserve the chosen desktop width');
   await expectSidebarWidth(224);
@@ -108,8 +115,9 @@ try {
     }));
     assert.deepEqual(layout, { searchInToolbar: true, searchInHeading: false, tabsInToolbar: true, filterAfterSearch: true }, view + ' must follow the design system');
   }
-  assert.equal(await page.locator('#view-outcomes .page-heading [role="tablist"]').count(), 0);
-  assert.equal(await page.locator('#view-outcomes .data-toolbar [role="tablist"]').count(), 1);
+  await page.evaluate(()=>renderProgramsPage());
+  assert.equal(await page.locator('#view-programs .page-heading [role="tablist"]').count(), 0);
+  assert.equal(await page.locator('#view-programs .data-toolbar [role="tablist"]').count(), 1);
   assert.equal(await page.locator('.session-record').count(), await page.evaluate(() => sessions.filter(record => record.state === 'manager_attention').length + activeCandidates().length));
   await page.locator('[data-session-filter="all"]').locator('..').click();
   const allRecordCount = await page.evaluate(() => sessions.filter(sessionInPeriod).length + activeCandidates().length);
@@ -123,9 +131,9 @@ try {
   await page.getByRole('button', {name:'Previous',exact:true}).click();
   await page.locator('#view-inbox [data-filter-sheet-trigger]').click();
   await page.selectOption('#session-origin-filter', 'manual_override');
-  assert.equal(await page.locator('.session-record').count(), await page.evaluate(() => sessions.filter(record => record.origin === 'manual_override' && sessionInPeriod(record)).length));
+  assert.equal(await page.locator('.session-record').count(), await page.evaluate(() => sessions.filter(record => sessionDeliveryMode(record) === 'one_on_one' && sessionInPeriod(record)).length));
   await page.selectOption('#session-reason-filter', 'driver_reply');
-  assert.equal(await page.locator('.session-record').count(), 0);
+  assert.equal(await page.locator('.session-record').count(), await page.evaluate(() => sessions.filter(record => sessionDeliveryMode(record) === 'one_on_one' && record.attentionReason === 'driver_reply' && sessionInPeriod(record)).length), 'Review delivery stays one-on-one even when creation origin was automated');
   await page.locator('#session-filters [data-clear-session-filters]').click();
   assert.equal(await page.locator('.session-record').count(), await page.evaluate(() => sessions.filter(record => record.state === 'manager_attention').length + activeCandidates().length));
   await page.keyboard.press('Escape');
@@ -171,7 +179,7 @@ try {
   await page.locator('#view-inbox [data-filter-sheet-trigger]').click();
   await page.selectOption('#session-origin-filter', 'manual_override');
   await page.keyboard.press('Escape');
-  assert.deepEqual(await readSessionOverview(), sessionOverview, 'Manual origin must not redefine the automated weekly summary');
+  assert.deepEqual(await readSessionOverview(), sessionOverview, 'One-on-one delivery filtering must not redefine the overall weekly summary');
   await page.fill('#session-search', 'no matching driver');
   assert.equal(await page.locator('.session-record').count(), 0);
   assert.deepEqual(await readSessionOverview(), sessionOverview, 'Search must leave fleet summary counts intact');
@@ -270,15 +278,19 @@ try {
   assert.deepEqual(await readDriverOverview(), { ...driverOverview, manual: '1', completed: '131' }, 'Completing one-on-one coaching must update both lifecycle counts');
 
   await page.goto(base + '/#groups');
-  assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-outcomes', 'Groups retains its existing report container');
-  assert.equal(await page.locator('[data-analytics-tab="groups"]').getAttribute('aria-selected'), 'true');
-  assert.equal(await page.locator('#view-drivers').isVisible(), false);
-  const groupAutomatedCounts = await page.evaluate(() => driverGroups.map(group => sessions.filter(session => sessionInPeriod(session) && session.origin === 'automated' && groupForPerson(session.person) === group).length).sort((a,b)=>b-a));
-  assert.equal(groupAutomatedCounts.reduce((sum,count)=>sum+count,0),147,'Group workload counts automated sessions only');
+  assert.equal(await page.locator('.app-view.is-active').getAttribute('id'), 'view-drivers', 'Groups belongs to the Drivers workspace');
+  assert.equal(await page.locator('[data-drivers-tab="groups"]').getAttribute('aria-selected'), 'true');
+  assert.equal(await page.locator('#drivers-panel-directory').isVisible(), false);
+  assert.equal(await page.locator('#drivers-panel-groups').isVisible(), true);
+  assert.equal(new URL(page.url()).searchParams.get('driversTab'), 'groups');
+  assert.equal(await page.locator('[data-program-tab="groups"]').count(), 0, 'Groups is not duplicated under Programmes');
+  const groupAutomatedCounts = await page.evaluate(() => driverGroups.map(group => sessions.filter(session => sessionInPeriod(session) && sessionDeliveryMode(session) === 'automated' && groupForPerson(session.person) === group).length).sort((a,b)=>b-a));
+  assert.equal(groupAutomatedCounts.reduce((sum,count)=>sum+count,0),await page.evaluate(() => sessions.filter(session => sessionInPeriod(session) && sessionDeliveryMode(session) === 'automated').length),'Group workload counts automated delivery only');
   assert.deepEqual((await page.locator('#group-coaching-workload strong').allTextContents()).map(Number),groupAutomatedCounts,'Group workload reconciles to actual automated sessions by group');
   assert.equal(await page.locator('#group-workload-scope').textContent(),'Sessions');
   assert.equal(await page.locator('.overview-workload-panel .chart-legend').textContent(),'Automated');
-  assert.match(await page.locator('#analytics-report-scope-detail').textContent(),/Week of Aug 31/,'The global reporting scope still dates the group workload');
+  assert.equal(await page.locator('#driver-group-controls [data-coaching-period]').inputValue(), '1', 'Groups retains the shared reporting period');
+  assert.equal(await page.locator('#driver-groups-scope').textContent(), await page.evaluate(() => periodScopeLabel()), 'Groups keeps its exact reporting dates visibly beside its filters');
   assert.deepEqual(await page.locator('#groups-overview .chart-footnote [class^="delta--"]').allTextContents(), ['↓ 4% fewer', '↑ 5% more'], 'Group movement follows the shared one-week span');
   assert.deepEqual(await page.locator('#groups-overview .chart-card:not(.overview-workload-panel) .chart-context').evaluateAll(nodes => nodes.map(node => node.textContent.split(' · Aug')[0])), ['Local delivery', 'Long haul · North']);
   for (const [container, group] of [['#group-coaching-workload', 'Regional · East'], ['#view-groups .group-comparison-card', 'Regional · East'], ['#groups-overview .chart-card >', 'Local delivery'], ['#view-groups .group-comparison-card', 'Local delivery']]) {
@@ -294,39 +306,42 @@ try {
 
   for (const width of [1440, 1024, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
-    for (const view of ['automation', 'sessions', 'programs', 'analytics', 'drivers', 'groups', 'content', 'settings']) {
+    assert.equal(await page.locator('#mobile-more-trigger').isVisible(), width <= 680, 'More is mobile-only while desktop exposes all six destinations at ' + width);
+    for (const view of ['automation', 'sessions', 'programs', 'analytics', 'drivers', 'groups', 'learning', 'content', 'settings']) {
       await page.goto(base + '/#' + view);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, view + ' overflows at ' + width);
     }
     await page.goto(base + '/#analytics');
-    assert.equal(await page.locator('[data-analytics-tab="outcomes"]').getAttribute('aria-selected'), 'true', 'Analytics opens on Outcomes');
-    assert.equal(await page.locator('#view-outcomes [data-queue-lens], #view-outcomes .sla-health-card, #view-outcomes [data-outcome-tab="cohort"]').count(), 0, 'Analytics must not repeat Groups or the review reasons inside its own tabs');
-    await page.locator('[data-analytics-tab="activity"]').click();
-    assert.ok(await page.locator('#coaching-queue .program-record').count() > 0, 'Program performance is the shared programs table');
-    await page.locator('#coaching-queue .program-record [data-open-category], #coaching-queue .program-record[data-open-category]').first().click();
-    assert.equal(await page.locator('#view-programs').isVisible(), true, 'Program links open the full Programs page');
-    assert.equal(await page.locator('dialog:modal').count(),0,'Program review does not open a duplicate program drawer');
-    assert.equal(await page.locator('#program-rate-content .category-weekly-chart').count(),1,'Program review retains its weekly graph inline');
+    assert.equal(await page.locator('[data-program-tab="activity"]').getAttribute('aria-selected'), 'true', 'Legacy Analytics opens Programme Activity');
+    assert.equal(await page.locator('[data-analytics-tab]:visible').count(), 0, 'Only the consolidated navigation is visible');
+    assert.equal(await page.locator('#program-comparison-table tbody tr').count(), await page.evaluate(()=>categories.length), 'The one comparison retains every programme');
+    await page.locator('#program-comparison-table [data-open-program-page]').first().click();
+    assert.equal(await page.locator('#view-programs').isVisible(), true, 'Programme comparison opens selected Activity');
+    assert.equal(await page.locator('dialog:modal').count(),0,'Programme review does not open a duplicate drawer');
+    assert.equal(await page.locator('#program-activity-plot .weekly-activity-chart').count(),1,'Programme Activity retains its weekly coaching graph');
+    assert.equal(await page.locator('#program-rate-chart').count(),0,'Selected programmes keep the single weekly coaching and score chart without a separate event-rate chart');
     assert.equal(await page.locator('#program-page-outcomes').evaluate(node=>node.open),false,'Recorded outcome detail starts collapsed');
     await page.locator('#program-page-outcomes > summary').click();
     assert.equal(await page.locator('#program-page-outcome-sample table').isVisible(),true,'The disclosure retains the outcome facts on the page');
     await page.locator('#view-programs [data-back-program-page]').click();
-    assert.equal(await page.locator('#analytics-activity').isVisible(),true,'Back restores the source report');
+    assert.equal(await page.locator('#program-comparison-table').isVisible(),true,'Back restores All programmes and its comparison');
     await page.goto(base + '/?analytics=outcomes#analytics');
-    for (const tab of ['category', 'driver']) {
-      await page.locator('[data-outcome-tab="' + tab + '"]').locator('..').click();
-      assert.equal(await page.locator('#outcome-table tbody tr').count(), await page.evaluate(tab => outcomeDetailViews[tab].rows.length, tab), 'Outcome table includes every record for the selected lens');
-    }
+    await page.locator('#program-page-outcomes > summary').click();
+    assert.equal(await page.locator('[data-program-outcome-sample]').count(),await page.evaluate(()=>categories.filter(program=>outcomeSamples[program.id]).length),'Recorded outcomes retains every programme sample');
+    assert.equal(await page.locator('[data-program-driver-outcome]').count(),await page.evaluate(()=>outcomeDetailViews.driver.rows.length),'Recorded outcomes retains every unique driver observation from the former Outcomes view');
+    await page.locator('[data-program-comparison-view="rates"]').locator('..').click();
+    assert.equal(await page.locator('#program-rate-content .chart-summary table tbody tr').count(),await page.evaluate(()=>categories.length),'Event-rate equivalent table retains every programme observation');
+
   }
   await page.goto(base + '/#sessions');
   await page.locator('#view-inbox [data-filter-sheet-trigger]').click();
   await page.evaluate(() => { location.hash = 'drivers'; });
-  await page.waitForFunction(() => document.querySelector('#view-outcomes').classList.contains('is-active') && !document.querySelector('#view-drivers').hidden);
+  await page.waitForFunction(() => document.querySelector('#view-drivers').classList.contains('is-active'));
   assert.equal(await page.evaluate(() => document.body.classList.contains('has-filter-sheet')), false);
   assert.equal(await page.evaluate(() => document.querySelector('#view-drivers').inert), false);
   await auditMetricReconciliation(page,base);
   assert.deepEqual(errors, []);
-  console.log('Passed: asset integration, analytics-hosted drivers and groups, collapsible navigation and saved preferences, mobile navigation, session lifecycle/search/filters, fleet overview scopes and shortcuts, disclosure and opener focus, tooltip dismissal, keyboard navigation, drawers, driver filters/reset, analytics tabs, all-page responsive layouts, route recovery, and source metric reconciliation across periods, method totals, active subsets, pending flags, manual starts, weekly snapshots, and Settings previews.');
+  console.log('Passed: asset integration, Drivers with its Groups tab, collapsible navigation and saved preferences, mobile navigation, session lifecycle/search/filters, fleet overview scopes and shortcuts, disclosure and opener focus, tooltip dismissal, keyboard navigation, drawers, driver filters/reset, consolidated Programme tabs, all-page responsive layouts, route recovery, and source metric reconciliation across periods, method totals, active subsets, review delivery, deliberate manual starts, weekly snapshots, and Settings previews.');
 } finally {
   await browser.close();
 }

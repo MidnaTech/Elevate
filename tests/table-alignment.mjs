@@ -3,13 +3,12 @@ import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 
 const scenes = [
-  ['Automation Centre','/#automation'], ['Sessions','/#sessions'], ['Programs','/#programs'], ['Program rates','/?program=all&programComparison=rates#programs'], ['Program detail','/?program=following#programs'],
-  ['Outcomes','/?analytics=outcomes#analytics'], ['Activity','/?analytics=activity#analytics'],
-  ['Drivers','/?analytics=drivers#analytics'], ['Groups','/?analytics=groups#analytics'],
-  ['Content','/#content'], ['Settings','/#settings'], ['Program configuration','/?program=following&programTab=configuration#programs']
+  ['Automation Centre','/#automation'], ['Sessions','/#sessions'], ['Programmes','/#programs'], ['Programme rates','/?program=all&programComparison=rates#programs'], ['Programme detail','/?program=following#programs'],
+  ['Drivers','/#drivers'], ['Groups','/?driversTab=groups#drivers'],
+  ['Learning','/#learning'], ['Automation','/?programTab=automation#programs'], ['Programme configuration','/?program=following&programTab=configuration#programs']
 ];
-const numericLabels = new Set(['drivers','records','sessions','identified','in progress','automated','one-on-one','automated in progress','one-on-one in progress','needs review','completed','safety score','elevate score','event change','event-rate change','events / 1000 trips','events per 1000 trips','change','before','after','before / 1000 trips','after / 1000 trips','completion','count','miles','trips','fleet drivers','automated sessions','one-on-one sessions','safety score / 100','elevate score / 100','identified records','completed sessions','eligible drivers','improved share','repeated']);
-const textLabels = new Set(['driver','program','group','state','attention','method','coach','due','updated','started','event type','severity','trigger','coaching path','action','remove','on','condition','result','week','day','record','score band','name','select']);
+const numericLabels = new Set(['drivers','records','sessions','identified','in progress','automated','one-on-one','automated in progress','one-on-one in progress','needs review','completed','safety score','elevate score','event change','event-rate change','events / 1000 trips','events per 1000 trips','change','before','after','before / 1000 trips','after / 1000 trips','completion','count','miles','trips','fleet drivers','automated sessions','one-on-one sessions','safety score / 100','elevate score / 100','identified records','completed sessions','eligible drivers','improved share','repeated','repeated drivers','recorded completion','programme score / 100','overall elevate score','score']);
+const textLabels = new Set(['driver','program','programme','group','state','attention','method','coach','due','updated','started','event type','severity','trigger','coaching path','action','remove','on','condition','result','week','week / source','day','record','score band','name','select']);
 
 async function auditScope(page, scope, label) {
   // Reveal existing data equivalents through their native disclosures. This only
@@ -39,7 +38,7 @@ async function auditScope(page, scope, label) {
       for(const section of [...node.tBodies,...(node.tFoot?[node.tFoot]:[])])for(const row of section.rows){
         let index=0;
         for(const cell of row.cells){
-          if(cell.colSpan===1&&headings[index]?.span===1)cells.push({column:index,numeric:cell.classList.contains('num'),alignment:alignment(cell),edge:edge(cell,headings[index].numeric),inputs:[...cell.querySelectorAll('input[type="number"]')].map(input=>({alignment:alignment(input),value:input.value}))});
+          if(cell.colSpan===1&&headings[index]?.span===1)cells.push({column:index,numeric:cell.classList.contains('num'),alignment:alignment(cell),links:[...cell.querySelectorAll('button.text-link')].map(link=>alignment(link)),edge:edge(cell,headings[index].numeric),inputs:[...cell.querySelectorAll('input[type="number"]')].map(input=>({alignment:alignment(input),value:input.value}))});
           index+=cell.colSpan;
         }
       }
@@ -65,6 +64,7 @@ async function auditScope(page, scope, label) {
       const header=audit.headings[cell.column],expected=header.numeric?'right':'left';
       assert.equal(cell.numeric,header.numeric,label+' '+audit.name+' '+header.text+' propagates the column definition into every body cell');
       assert.equal(cell.alignment,expected,label+' '+audit.name+' '+header.text+' header/body alignment matches');
+      for(const alignment of cell.links)assert.equal(alignment,expected,label+' '+audit.name+' '+header.text+' wrapped link text inherits column alignment');
       assert.ok(Math.abs(cell.edge-header.edge)<1,label+' '+audit.name+' '+header.text+' header/body content edges align');
       for(const input of cell.inputs){result.numberInputs++;assert.equal(input.alignment,'right',label+' '+audit.name+' number inputs align their entered quantities');}
     }
@@ -92,7 +92,7 @@ async function auditNumericSorting(page, base) {
   for (const direction of ['ascending','descending']) {
     await changeSort.focus();await page.keyboard.press('Enter');
     assert.equal(await changeSort.locator('..').getAttribute('aria-sort'),direction);
-    const rows = await comparison.locator('tbody tr').evaluateAll(nodes => nodes.map(row => ({id:row.dataset.programComparison,value:row.cells[row.cells.length-1].getAttribute('data-sort-value')})));
+    const rows = await comparison.locator('tbody tr').evaluateAll(nodes => nodes.map(row => ({id:row.dataset.programComparison,value:row.cells[6].getAttribute('data-sort-value')})));
     assert.equal(rows.length,Object.keys(changes).length,'Sorting retains every program, including those without coaching records');
     for (const row of rows) assert.equal(Number(row.value),changes[row.id],'The decorated Change cell retains the signed source value for '+row.id);
     const observed = rows.map(row => changes[row.id]);
@@ -145,36 +145,39 @@ export async function auditAllTableAlignment(page,base) {
     for(const [name,path] of scenes) {
       await page.goto(base+path);
       results.push(await auditScope(page,page.locator('.app-view.is-active'),name+' at '+width));
-      if(name==='Outcomes') {
-        await page.locator('[data-outcome-tab="driver"]').locator('..').click();
-        results.push(await auditScope(page,page.locator('.app-view.is-active'),'Outcomes by driver at '+width));
-      }
+
     }
     for(const program of ['all','following']) {
       await page.goto(base+'/?program='+program+'#programs');
-      for(const tab of ['overview','content','configuration']) {
+      for(const tab of ['activity','content','configuration','automation']) {
         await page.locator('#program-tab-'+tab).click();
         await page.waitForFunction(id=>document.activeElement?.id===id,'program-tab-'+tab);
         results.push(await auditScope(page,page.locator('#view-programs'),'Program '+program+' '+tab+' at '+width));
       }
     }
+    for(const program of ['all','following']) {
+      await page.goto(base+'/?driversTab=groups&program='+program+'#drivers');
+      results.push(await auditScope(page,page.locator('#drivers-panel-groups'),'Groups '+program+' at '+width));
+    }
     const drawer=page.locator('#category-drawer');
-    await page.goto(base+'/?analytics=activity#analytics');
-    await page.locator('#coaching-queue [data-open-category="following"]').click();
+    await page.goto(base+'/#programs');
+    await page.locator('#program-comparison-table [data-open-program-page="following"]').click();
     const programPage=page.locator('#view-programs');
     await programPage.waitFor({state:'visible'});
     assert.equal(await page.locator('dialog:modal').count(),0,'Program data is reviewed inline');
     assert.equal(await programPage.locator('#program-page-outcome-sample table').count(),1,'Retained sample outcomes remain available as a native page table');
     const programResult=await auditScope(page,programPage,'Program detail from report at '+width);
-    assert.ok(programResult.tables>=3,'The page includes coaching records, chart data and retained outcome sample data');
+    assert.ok(programResult.tables>=2,'The page includes chart data and retained outcome sample data');
     results.push(programResult);
-    await programPage.locator('[data-program-chart-view="comparison"]').locator('..').click();
-    results.push(await auditScope(page,programPage,'Program comparison and outcomes at '+width));
-    await page.goto(base+'/?analytics=groups#analytics');
+    assert.equal(await programPage.locator('[data-program-chart-view]').count(),0,'Selected programme rate controls are removed');
+    await page.selectOption('#program-page-select','all');
+    await programPage.locator('[data-program-comparison-view="rates"]').locator('..').click();
+    results.push(await auditScope(page,programPage,'All-programme rate comparison and outcomes at '+width));
+    await page.goto(base+'/?driversTab=groups#drivers');
     await page.locator('.group-comparison-card [data-open-group="Regional · East"]').click();
     await page.waitForFunction(()=>document.activeElement.matches('#category-drawer [data-close-category]'));
     results.push(await auditScope(page,drawer,'Group drawer at '+width));
-    await page.goto(base+'/?analytics=drivers&driver=Priya%20Singh#analytics');
+    await page.goto(base+'/?driver=Priya%20Singh#drivers');
     results.push(await auditScope(page,page.locator('#driver-drawer'),'Driver drawer at '+width));
     await page.goto(base+'/design-library.html');
     results.push(await auditScope(page,page.locator('#specimen'),'Component specimen at '+width));

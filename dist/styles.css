@@ -2714,10 +2714,6 @@ button.command-card:hover { border-color: var(--border);  }
   body { overflow-x: hidden; padding-bottom: 76px; }
   .sidebar { height: 72px; padding: 7px 8px; overflow: visible; }
   .primary-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .primary-nav > .nav-item[data-view="groups"],
-  .primary-nav > .nav-item[data-view="library"],
-  .primary-nav > .nav-item[data-view="settings"] { display: none; }
-  .primary-nav > .mobile-more-trigger { display: grid; }
   .nav-item {
     min-width: 0;
     min-height: 56px;
@@ -3939,3 +3935,8 @@ button.attention-next-copy:disabled, .attention-review-button:disabled { cursor:
 }
 
 }
+
+/* Driver app: the destination renders only the app, edge to edge inside the workspace. */
+#view-driver.is-active { display: grid; }
+.driver-app-frame { display: block; width: 100%; height: calc(100dvh - 3rem); min-height: 560px; border: 0; border-radius: var(--radius-card); background: var(--surface-strong); }
+@media (max-width: 680px) { .driver-app-frame { height: calc(100dvh - 7.5rem); border-radius: 0; min-height: 0; } }

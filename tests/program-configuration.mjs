@@ -15,22 +15,28 @@ try {
   // Overview: three human states, no featured driver, no pending-session concept.
   await page.goto(base+'/#automation');
   assert.equal(await page.locator('.attention-next, #ai-priority-name, #ai-priority-review').count(),0,'The overview does not single out one driver');
-  assert.deepEqual(await page.locator('.attention-row .attention-row-label').allTextContents(),['Overdue','Repeated','Replied'],'Needs you lists the states a person must act on');
+  assert.deepEqual(await page.locator('#view-coaching .attention-row .attention-row-label').allTextContents(),['Overdue','Repeated','Replied'],'Needs you lists the states a person must act on');
   assert.equal(await page.locator('.automation-row.is-pending, #automation-week-pending').count(),0,'Nothing awaits a session');
-  assert.deepEqual(await page.locator('.automation-row .automation-row-label').allTextContents(),['Started automatically','Started by a manager']);
+  assert.deepEqual(await page.locator('.automation-row .automation-row-label').allTextContents(),['Automated sessions','One-on-one sessions']);
   assert.doesNotMatch(await page.locator('#view-coaching').textContent(),/Session needed|Awaiting session/);
   assert.equal(await page.evaluate(()=>reviewCandidates.length),0);
 
-  // Settings keeps only automation mode and cadence.
+  // There is no Settings page: fleet-wide automation mode and cadence live on Programs › Automation.
+  assert.equal(await page.locator('.primary-nav [data-view="settings"], #view-settings').count(),0,'Settings is not a destination');
   await page.goto(base+'/#settings');
-  assert.equal(await page.locator('#view-settings input[type="number"], #view-settings [data-add-event-type], #view-settings [data-add-rule], #event-type-rows, #rule-rows').count(),0,'Rules and event types are not edited in Settings');
-  assert.ok(await page.locator('#view-settings [data-automation-mode]').count()>=3);
-  assert.ok(await page.locator('#view-settings [data-cadence]').count()>=2);
+  await page.waitForSelector('#program-automation');
+  assert.equal(await page.locator('#view-programs [role="tab"][aria-selected="true"]').textContent(),'Automation','Legacy Settings links resolve to Programs › Automation');
+  assert.equal(await page.locator('#program-automation [data-add-program-rule], #program-automation [data-program-rule]').count(),0,'Rules and thresholds are not edited on the fleet-wide tab');
+  assert.ok(await page.locator('#program-automation [data-automation-mode]').count()>=3);
+  assert.ok(await page.locator('#program-automation [data-cadence]').count()>=2);
+  assert.equal(await page.locator('#program-automation #session-due-days').count(),1,'One fleet-wide due period is configured in Automation');
+  assert.equal(await page.locator('#session-due-days').inputValue(),'7','New sessions retain the one-week default');
+  assert.equal(await page.locator('#settings-save').isDisabled(),true,'Nothing to save until the draft changes');
 
   // All programs: one configuration table with threshold, rule count and coach per program.
   await page.goto(base+'/?program=all&programTab=configuration#programs');
   const programCount=await page.evaluate(()=>categories.length);
-  assert.deepEqual(await config.locator('thead th').allTextContents(),['Program','Threshold','Rules','One-on-one coach','Lessons','Delete']);
+  assert.deepEqual(await config.locator('thead th').allTextContents(),['Program','Threshold','Rules','Evaluation period','One-on-one coach','Lessons','Delete']);
   assert.equal(await config.locator('tbody tr').count(),programCount);
   assert.equal(await config.locator('[data-delete-program]').count(),programCount,'Every program can be deleted');
   assert.equal(await page.locator('#program-proposal').count(),0,'The read-only proposal is replaced by real configuration');
@@ -46,32 +52,53 @@ try {
   assert.deepEqual(await stored('elevate-custom-programs'),[{id:'lane-discipline',name:'Lane discipline'}]);
   assert.match(await config.textContent(),/No rules yet/);
 
-  // Add, edit, toggle and delete a rule; each rule has a severity and a threshold.
+  // Add, edit, toggle and delete a rule; each rule has a source, severity, weight and threshold.
   await config.locator('[data-add-program-rule]').click();
+  await page.selectOption('#program-rule-form [name="source"]','Geotab|Harsh cornering');
+  assert.equal(await page.inputValue('#program-rule-form [name="name"]'),'Harsh cornering','Picking a Geotab rule names the rule');
   await page.fill('#program-rule-form [name="name"]','Lane departure');
   await page.selectOption('#program-rule-form [name="severity"]','High');
+  assert.equal(await page.inputValue('#program-rule-form [name="weight"]'),'5','Severity sets the default weight');
   await page.fill('#program-rule-form [name="threshold"]','3');
   await page.locator('#program-rule-form button[type="submit"]').click();
   await page.waitForSelector('#program-configuration [data-program-rule]');
   const rule=await page.evaluate(()=>eventTypeRules.find(item=>item.programId==='lane-discipline'));
-  assert.deepEqual({name:rule.name,severity:rule.severity,threshold:rule.threshold,enabled:rule.enabled},{name:'Lane departure',severity:'High',threshold:3,enabled:true});
+  assert.deepEqual({name:rule.name,severity:rule.severity,weight:rule.weight,threshold:rule.threshold,enabled:rule.enabled,source:rule.source,sourceRule:rule.sourceRule,direct:rule.direct},{name:'Lane departure',severity:'High',weight:5,threshold:3,enabled:true,source:'Geotab',sourceRule:'Harsh cornering',direct:false});
   await page.selectOption('#program-configuration [data-program-rule-field="severity"]','Low');
   await page.fill('#program-configuration [data-program-rule-field="threshold"]','8');
   await page.locator('#program-configuration [data-program-rule-field="threshold"]').press('Tab');
   await page.waitForFunction(()=>eventTypeRules.find(item=>item.programId==='lane-discipline')?.threshold===8);
   assert.equal(await page.evaluate(()=>eventTypeRules.find(item=>item.programId==='lane-discipline').severity),'Low');
+  assert.equal(await page.evaluate(()=>eventTypeRules.find(item=>item.programId==='lane-discipline').weight),1,'Changing severity resets the weight to its default');
+  await page.fill('#program-configuration [data-program-rule-field="weight"]','4');
+  await page.locator('#program-configuration [data-program-rule-field="weight"]').press('Tab');
+  await page.waitForFunction(()=>eventTypeRules.find(item=>item.programId==='lane-discipline')?.weight===4);
+  await config.locator('[data-program-rule-field="direct"]').check();
+  await page.waitForFunction(()=>eventTypeRules.find(item=>item.programId==='lane-discipline')?.direct===true);
+  assert.match(await page.locator('#program-flow-copy').getAttribute('data-tooltip'),/Direct one-on-one rules: Lane departure/);
   assert.equal((await stored('elevate-event-types')).find(item=>item.programId==='lane-discipline').threshold,8,'Rule edits persist immediately');
   await config.locator('[data-program-rule-field="enabled"]').uncheck();
   await page.waitForFunction(()=>eventTypeRules.find(item=>item.programId==='lane-discipline')?.enabled===false);
-  assert.match(await page.locator('#program-flow-copy').textContent(),/0 active rules/);
+  assert.match(await page.locator('#program-flow-copy').getAttribute('data-tooltip'),/0 enabled rules/);
+
+  // Per-program grace, reminder count and reset policy are locally configurable.
+  for (const [key, value] of [['graceDays', 7], ['reminderCount', 3], ['resetPeriods', 3]]) {
+    await page.fill('#program-configuration [data-program-policy="' + key + '"]', String(value));
+    await page.locator('#program-configuration [data-program-policy="' + key + '"]').press('Tab');
+    await page.waitForFunction(({ key, value }) => programPolicyFor('lane-discipline')[key] === value, { key, value });
+  }
+  const policy = (await stored('elevate-program-settings'))['lane-discipline'].policy;
+  assert.deepEqual({basis:policy.basis,window:policy.window,graceDays:policy.graceDays,reminderCount:policy.reminderCount,resetPeriods:policy.resetPeriods}, {basis:'calendar',window:2,graceDays:7,reminderCount:3,resetPeriods:3});
+  assert.match(await page.locator('#program-flow-copy').getAttribute('data-tooltip'), /not connected/);
 
   // Program threshold and coach routing, one coach or per group.
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   await page.fill('#program-configuration [data-program-threshold]','60');
   await page.locator('#program-configuration [data-program-threshold]').press('Tab');
-  await page.waitForFunction(()=>document.getElementById('program-flow-copy')?.textContent.includes('falls below 60'));
+  await page.waitForFunction(()=>document.getElementById('program-flow-copy')?.dataset.tooltip.includes('below 60'));
   assert.equal((await stored('elevate-program-settings'))['lane-discipline'].threshold,60);
   await page.selectOption('#program-configuration [data-program-coach]','Morgan Chen');
-  await page.waitForFunction(()=>document.getElementById('program-flow-copy')?.textContent.includes('one-on-one with Morgan Chen'));
+  await page.waitForFunction(()=>document.getElementById('program-flow-copy')?.dataset.tooltip.includes('Morgan Chen'));
   await page.locator('#program-coach-mode [data-program-coach-mode="group"]').locator('..').click();
   await page.waitForSelector('#program-configuration [data-program-group-coach]');
   const groups=await page.evaluate(()=>Object.keys(groupComparisonData));
@@ -81,7 +108,7 @@ try {
   const saved=await stored('elevate-program-settings');
   assert.equal(saved['lane-discipline'].coachMode,'group');
   assert.equal(saved['lane-discipline'].groupCoaches[groups[0]],'Alex Kim');
-  assert.match(await page.locator('#program-flow-copy').textContent(),/coach set for the driver’s group/);
+  assert.match(await page.locator('#program-flow-copy').getAttribute('data-tooltip'),/By group/);
 
   // Delete the rule, then reload: the program, rule set and settings survive.
   await config.locator('[data-remove-program-rule]').click();

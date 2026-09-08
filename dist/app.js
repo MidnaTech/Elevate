@@ -77,7 +77,7 @@ const driverGroups = ['Long haul · North', 'Regional · East', 'Local delivery'
 
 // Who coached: automation, or the manager who ran the one-on-one.
 function coachLabel(session) {
-  if (session.origin !== 'manual_override' && session.source === 'Automated') return 'Automated';
+  if (sessionDeliveryMode(session) === 'automated') return 'Automated';
   return session.owner && session.owner !== 'Unassigned' ? session.owner : 'Manager';
 }
 
@@ -102,6 +102,7 @@ function sessionDueLabel(session) {
 }
 
 function inProgressLabel(origin) {
+  if (origin && typeof origin === 'object') return sessionDeliveryMode(origin) === 'one_on_one' ? 'One-on-one' : 'Automated';
   return origin === 'manual_override' || origin === 'One-on-one' ? 'One-on-one' : 'Automated';
 }
 
@@ -936,6 +937,8 @@ const driverTierCounts = [
   { key: 'safe', label: 'Safe', count: 395, tone: 'safe' }
 ];
 
+sessions.forEach(session => { session.deliveryMode ||= sessionDeliveryMode(session); });
+
 const lessons = [
   { title: 'Following Distance Basics', category: 'Following distance', length: '2 min video', version: 'v3.2', completion: '76%' },
   { title: 'Managing Speed', category: 'Speeding', length: '3 min video', version: 'v2.6', completion: '83%' },
@@ -944,13 +947,16 @@ const lessons = [
   { title: 'Buckle Every Trip', category: 'Seat belt use', length: '90 sec video', version: 'v1.7', completion: '88%' },
   { title: 'Fatigue Awareness', category: 'Driver fatigue', length: '3 min video', version: 'v2.0', completion: '79%' }
 ];
+initializeLearningLibrary();
 
 let queueStatus = 'needs';
 let queueLens = 'program';
 let coachingPeriod = 1;
 let landingProgramId = 'all';
+let groupsProgramId = 'all';
+let driversTab = 'directory';
 let selectedProgramId = 'all';
-let programTab = 'overview';
+let programTab = 'activity';
 let programPageReturn = null;
 let activeSessionProgram = 'all';
 let activeCategory = null;
@@ -1013,11 +1019,22 @@ function saveSetting(key, value) {
 }
 
 const savedAutomationMode = readSavedSetting('elevate-automation-mode', 'fully');
-const savedCadenceWeeks = Number(readSavedSetting('elevate-cadence-weeks', '1'));
+const savedCadenceWeeks = Number(readSavedSetting('elevate-cadence-weeks', '2'));
 let automationMode = ['manual', 'semi', 'fully'].includes(savedAutomationMode) ? savedAutomationMode : 'fully';
-let cadenceWeeks = [1, 2].includes(savedCadenceWeeks) ? savedCadenceWeeks : 1;
+let cadenceWeeks = [1, 2].includes(savedCadenceWeeks) ? savedCadenceWeeks : 2;
 let draftAutomationMode = automationMode;
 let draftCadenceWeeks = cadenceWeeks;
+// Older saved settings have no due-period key: retain the existing one-week default.
+const SESSION_DUE_DEFAULT_DAYS = 7;
+function validSessionDueDays(value) { return Number.isInteger(value) && value >= 1 && value <= 365; }
+const savedSessionDueDays = Number(readSavedSetting('elevate-session-due-days', String(SESSION_DUE_DEFAULT_DAYS)));
+let sessionDueDays = validSessionDueDays(savedSessionDueDays) ? savedSessionDueDays : SESSION_DUE_DEFAULT_DAYS;
+let draftSessionDueDays = sessionDueDays;
+function globalSessionDueDays() { return sessionDueDays; }
+function sessionDuePeriodLabel(days) {
+  return 'Within ' + (days % 7 === 0 ? (days / 7) + (days === 7 ? ' week' : ' weeks') : days + (days === 1 ? ' day' : ' days'));
+}
+function globalSessionDueLabel() { return sessionDuePeriodLabel(sessionDueDays); }
 let settingsState = 'saved';
 let settingsPanelMode = null;
 
@@ -1033,7 +1050,10 @@ function defaultEventTypeRules() {
       programId: category.id,
       name: type.name,
       severity,
+      weight: { Low: 1, Medium: 3, High: 5 }[severity],
       threshold: directed || category.id === 'distraction' ? 1 : 5,
+      source: category.id === 'distraction' ? 'Lytx' : 'Geotab',
+      direct: directed && !/after|repeat/i.test(type.name),
       videoRequired: category.id === 'distraction' || /repeat|after/i.test(type.name),
       path: directed ? 'one_to_one' : 'lesson',
       enabled: true
@@ -1045,13 +1065,13 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 let eventTypeRules = readSavedJson('elevate-event-types', null);
-if (!Array.isArray(eventTypeRules) || !eventTypeRules.length) eventTypeRules = defaultEventTypeRules();
+if (!Array.isArray(eventTypeRules)) eventTypeRules = defaultEventTypeRules();
 applyStoredProgramChanges(); // programs.js: locally created and deleted programs
 eventTypeRules = eventTypeRules.filter((rule) => categories.some((program) => program.id === rule.programId));
 let settingsSavedAt = readSavedSetting('elevate-settings-saved-at', 'Sep 4 · 9:12 AM');
 let settingsAuditHistory = readSavedJson('elevate-settings-audit', [
-  { action: 'Configuration activated', detail: (automationMode === 'fully' ? 'Fully automated' : automationMode === 'semi' ? 'Semi-automated' : 'Manual') + ' · ' + (cadenceWeeks === 1 ? 'weekly' : 'every 2 weeks'), time: settingsSavedAt },
-  { action: 'Dry run completed', detail: '154 records evaluated · no changes applied', time: 'Sep 3 · 3:40 PM' }
+  { action: 'Configuration activated', detail: (automationMode === 'fully' ? 'Fully automated' : automationMode === 'semi' ? 'Semi-automated' : 'Manual') + ' · ' + (cadenceWeeks === 1 ? 'weekly' : 'every 2 weeks') + ' · new sessions due ' + sessionDueDays + ' days from creation', time: settingsSavedAt },
+  { action: 'Sample configuration preview', detail: 'Historical prototype entry · no rule evaluation recorded', time: 'Sep 3 · 3:40 PM' }
 ]);
 if (!Array.isArray(settingsAuditHistory)) settingsAuditHistory = [];
 
@@ -1141,7 +1161,7 @@ function sessionsInPeriod(predicate) {
 function sessionTab(session) {
   if (session.state === 'manager_attention') return 'needs';
   if (session.state === 'completed' || session.state === 'archived') return 'completed';
-  return session.origin === 'manual_override' ? 'one_to_one' : 'automated';
+  return sessionDeliveryMode(session) === 'one_on_one' ? 'one_to_one' : 'automated';
 }
 
 function periodLabel() {
@@ -1183,6 +1203,7 @@ function refreshPeriodData() {
   adjustSessionFleetTotals();
   syncGroupDisplay();
   if (currentView === 'inbox') renderInbox();
+  if (currentView === 'drivers') renderDriversWorkspace();
   if (currentView === 'outcomes') renderAnalytics();
   if (currentView === 'programs') renderProgramsPage();
 }
@@ -1195,14 +1216,14 @@ function coachingCounts(predicate, period = coachingPeriod) {
     if (session.candidate) counts.pendingSessionReviews += 1;
     else {
       counts.sessionTotal += 1;
-      if (session.origin === 'manual_override') counts.oneOnOneTotal += 1;
+      if (sessionDeliveryMode(session) === 'one_on_one') counts.oneOnOneTotal += 1;
       else counts.automatedTotal += 1;
       if (session.state === 'manager_attention') counts.sessionReviews += 1;
     }
     if (session.state === 'archived') { counts.completed += 1; return; }
     if (session.state === 'manager_attention') counts.needs_review += 1;
     else if (session.state === 'completed') counts.completed += 1;
-    else if (session.origin === 'manual_override') counts.one_to_one += 1;
+    else if (sessionDeliveryMode(session) === 'one_on_one') counts.one_to_one += 1;
     else counts.automated += 1;
   });
   counts.automatedInProgress = counts.automated;
@@ -1211,16 +1232,21 @@ function coachingCounts(predicate, period = coachingPeriod) {
 }
 
 function driverOrigin(name) {
-  return sessions.some((session) => session.person === name && session.state !== 'archived' && session.origin === 'manual_override') ? 'manual_override' : 'automated';
+  return sessionMethodFilter(driverPreferredRecord(directory.find(driver => driver.name === name) || { name }));
 }
 
 function driverMatchesStatus(item, filter) {
   if (filter === 'all') return true;
-  if (filter === 'automated') return item.state === 'coached' && driverOrigin(item.name) !== 'manual_override';
-  if (filter === 'one_to_one') return item.state === 'coached' && driverOrigin(item.name) === 'manual_override';
-  if (filter === 'completed' || filter === 'outcome') return item.state === 'outcome';
-  if (filter === 'coached') return item.state === 'coached';
-  return item.state === filter;
+  const record = driverPreferredRecord(item);
+  const attention = record?.state === 'manager_attention';
+  const completed = record && ['completed', 'archived'].includes(record.state);
+  const active = record && !record.candidate && !attention && !completed;
+  if (filter === 'attention') return attention;
+  if (filter === 'automated') return active && sessionDeliveryMode(record) === 'automated';
+  if (filter === 'one_to_one') return active && sessionDeliveryMode(record) === 'one_on_one';
+  if (filter === 'coached') return Boolean(active);
+  if (filter === 'completed' || filter === 'outcome') return Boolean(completed);
+  return filter === 'track' && !record;
 }
 
 function groupForPerson(name) {
@@ -1405,16 +1431,17 @@ const routeViewNames = {
   inbox: 'sessions',
   programs: 'programs',
   outcomes: 'analytics',
-  drivers: 'drivers', // legacy route: opens Analytics › Drivers
-  groups: 'groups', // legacy route: opens Analytics › Groups
-  library: 'content',
-  settings: 'settings'
+  drivers: 'drivers', // Independent driver directory
+  groups: 'groups', // Legacy route: opens Drivers › Groups
+  library: 'learning'
 };
 const internalViewNames = Object.fromEntries(Object.entries(routeViewNames).map(([internal, route]) => [route, internal]));
+internalViewNames.content = 'library'; // legacy route: Content is now Learning
+internalViewNames.settings = 'settings'; // legacy route: automation settings now live in Programs › Automation
 
 function updateUrlState(replace = false) {
   const url = new URL(window.location.href);
-  ['session', 'origin', 'analytics', 'outcome', 'queue', 'lens', 'period', 'driverStatus', 'group', 'program', 'programTab', 'programState', 'programCoach', 'programComparison', 'programPreview', 'programStage', 'groupPreview', 'score', 'sort', 'view', 'q', 'record', 'driver'].forEach((key) => url.searchParams.delete(key));
+  ['session', 'origin', 'analytics', 'outcome', 'queue', 'lens', 'period', 'driversTab', 'driverStatus', 'group', 'program', 'programTab', 'programState', 'programCoach', 'programComparison', 'programPreview', 'programStage', 'groupPreview', 'score', 'sort', 'view', 'q', 'record', 'driver'].forEach((key) => url.searchParams.delete(key));
   if (currentView === 'inbox') {
     url.searchParams.set('session', activeSessionFilter);
     url.searchParams.set('origin', activeSessionSource);
@@ -1427,14 +1454,15 @@ function updateUrlState(replace = false) {
   if (currentView === 'coaching' && landingProgramId !== 'all') url.searchParams.set('program', landingProgramId);
   if (currentView === 'programs') {
     url.searchParams.set('program', selectedProgramId);
-    if (programTab !== 'overview') url.searchParams.set('programTab', programTab);
-    if (selectedProgramId === 'all' && programTab === 'overview' && programComparisonView === 'rates') url.searchParams.set('programComparison', 'rates');
-    const scope = programPageRecordScope(selectedProgramId);
-    if (scope.view !== 'all') url.searchParams.set('programState', scope.view);
-    if (scope.method !== 'all') url.searchParams.set('programCoach', scope.method);
+    if (programTab !== 'activity') url.searchParams.set('programTab', programTab);
+    if (selectedProgramId === 'all' && programTab === 'activity' && programComparisonView === 'rates') url.searchParams.set('programComparison', 'rates');
   }
   if (coachingPeriod !== 1) url.searchParams.set('period', String(coachingPeriod));
-  if (currentView === 'outcomes' && analyticsTab === 'drivers') {
+  if (currentView === 'drivers' && driversTab === 'groups') {
+    url.searchParams.set('driversTab', 'groups');
+    if (groupsProgramId !== 'all') url.searchParams.set('program', groupsProgramId);
+  }
+  if (currentView === 'drivers' && driversTab === 'directory') {
     url.searchParams.set('driverStatus', activeDriverFilter);
     if (activeDriverGroup !== 'all') url.searchParams.set('group', activeDriverGroup);
     if (activeDriverCategory !== 'all') url.searchParams.set('program', activeDriverCategory);
@@ -1451,7 +1479,7 @@ function updateUrlState(replace = false) {
       if (programDrawerParent) url.searchParams.set('groupPreview', programDrawerParent.groupName);
     } else if (categoryDrawerReturnTarget?.type === 'group') url.searchParams.set('groupPreview', categoryDrawerReturnTarget.id);
   }
-  if (activeDriverProfile && ((currentView === 'outcomes' && analyticsTab === 'drivers') || currentView === 'programs')) url.searchParams.set('driver', activeDriverProfile);
+  if (activeDriverProfile && ((currentView === 'drivers') || currentView === 'programs')) url.searchParams.set('driver', activeDriverProfile);
   url.hash = routeViewNames[currentView];
   const next = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : '') + url.hash;
   const current = window.location.pathname + window.location.search + window.location.hash;
@@ -1473,6 +1501,8 @@ function applyUrlState(options = {}) {
   activeSessionSource = 'all';
   sessionSearch = '';
   analyticsTab = 'outcomes';
+  driversTab = 'directory';
+  groupsProgramId = 'all';
   outcomeTab = 'category';
   queueStatus = 'needs';
   queueLens = 'program';
@@ -1480,21 +1510,17 @@ function applyUrlState(options = {}) {
   landingProgramId = 'all';
   activeSessionProgram = 'all';
   selectedProgramId = 'all';
-  programTab = 'overview';
+  programTab = 'activity';
   programComparisonView = 'coaching';
   programPageReturn = window.history.state?.programPageReturn || null;
-  const requestedProgram = categories.find(program => program.id === params.get('program'));
+  const requestedProgram = categories.find(program => program.id === params.get('program') || program.name === params.get('program'));
   if (requestedProgram) {
     if (view === 'coaching') landingProgramId = requestedProgram.id;
     if (view === 'inbox') activeSessionProgram = requestedProgram.id;
-    if (view === 'programs') selectedProgramId = requestedProgram.id;
+    if (['programs', 'groups'].includes(view) || (view === 'outcomes' && params.get('analytics') !== 'drivers')) selectedProgramId = requestedProgram.id;
   }
-  if (['overview', 'content', 'configuration'].includes(params.get('programTab'))) programTab = params.get('programTab');
-  if (view === 'programs' && selectedProgramId === 'all' && programTab === 'overview' && params.get('programComparison') === 'rates') programComparisonView = 'rates';
-  if (view === 'programs') programRecordScopes.set(selectedProgramId, {
-    view: ['all', 'review', 'progress', 'completed'].includes(params.get('programState')) ? params.get('programState') : 'all',
-    method: ['all', 'automated', 'manual_override'].includes(params.get('programCoach')) ? params.get('programCoach') : 'all'
-  });
+  if (programPageTabs.some(([value]) => value === params.get('programTab'))) programTab = params.get('programTab');
+  if (view === 'programs' && selectedProgramId === 'all' && programTab === 'activity' && params.get('programComparison') === 'rates') programComparisonView = 'rates';
   activeDriverFilter = 'all';
   activeDriverGroup = 'all';
   activeDriverCategory = 'all';
@@ -1507,7 +1533,10 @@ function applyUrlState(options = {}) {
   if (['all', 'automated', 'manual_override'].includes(requestedOrigin)) activeSessionSource = requestedOrigin;
   if (analyticsTabs.includes(params.get('analytics'))) analyticsTab = params.get('analytics');
   if (view === 'drivers' || view === 'groups') analyticsTab = view;
-  const driversRoute = analyticsTab === 'drivers';
+  const groupsRoute = view === 'groups' || (view === 'drivers' && params.get('driversTab') === 'groups') || (view === 'outcomes' && analyticsTab === 'groups') || (view === 'programs' && params.get('programTab') === 'groups');
+  driversTab = groupsRoute ? 'groups' : 'directory';
+  if (groupsRoute) groupsProgramId = requestedProgram?.id || 'all';
+  const driversRoute = view === 'drivers' || groupsRoute || (view === 'outcomes' && analyticsTab === 'drivers');
   if (['category', 'driver'].includes(params.get('outcome'))) outcomeTab = params.get('outcome');
   if (['needs', 'all'].includes(params.get('queue'))) queueStatus = params.get('queue');
   if (['program', 'group'].includes(params.get('lens'))) queueLens = params.get('lens');
@@ -1515,7 +1544,7 @@ function applyUrlState(options = {}) {
   refreshPeriodData();
   if (['all', 'attention', 'automated', 'one_to_one', 'completed', 'coached', 'outcome', 'track'].includes(params.get('driverStatus'))) activeDriverFilter = params.get('driverStatus');
   if (params.get('group') && (params.get('group') === 'all' || driverGroups.includes(params.get('group')))) activeDriverGroup = params.get('group');
-  if (params.get('program') && (params.get('program') === 'all' || categories.some((program) => program.name === params.get('program')))) activeDriverCategory = params.get('program');
+  if (driversRoute && requestedProgram) activeDriverCategory = requestedProgram.id;
   if (params.get('score') && (params.get('score') === 'all' || driverDistributionBins.some((bin) => bin.key === params.get('score')) || ['risk', 'watch', 'safe'].includes(params.get('score')))) activeDriverScoreFilter = params.get('score');
   if (['action', 'lowest', 'decline'].includes(params.get('sort'))) driverSort = params.get('sort');
   if (view === 'inbox') sessionSearch = params.get('q') || '';
@@ -1529,7 +1558,7 @@ function applyUrlState(options = {}) {
   if (groupSelect) groupSelect.value = activeDriverGroup;
   if (programSelect) programSelect.value = activeDriverCategory;
   if (sortSelect) sortSelect.value = driverSort;
-  setView(view, { updateUrl: false, focusHeading: false });
+  setView(groupsRoute ? 'groups' : view, { updateUrl: false, focusHeading: false });
   if (groupComparisonData[params.get('groupPreview')]) openGroupDrawer(params.get('groupPreview'), { updateUrl: false, focus: options.focus !== false });
   const previewProgram = categories.find(program => program.id === params.get('programPreview'));
   if (previewProgram) openCategoryDrawer(previewProgram.id, { updateUrl: false, stage: params.get('programStage') });
@@ -1541,14 +1570,23 @@ function applyUrlState(options = {}) {
     const fromProgram = previewProgram && sessions.some(session => session.id === requestedRecord && session.categoryId === previewProgram.id);
     openSessionDrawer(requestedRecord, fromProfile ? { type: 'driver-profile', driverName: requestedDriver } : { type: fromProgram || currentView === 'programs' ? 'program-page' : 'deep-link' });
   }
-  if (previewProgram) updateUrlState(true);
+  if (previewProgram || ['outcomes', 'drivers', 'groups', 'settings'].includes(view) || params.get('programTab') === 'overview') updateUrlState(true);
 }
 
 function setView(view, options = {}) {
   view = internalViewNames[view] || view;
-  if (view === 'drivers' || view === 'groups') {
-    analyticsTab = view;
-    view = 'outcomes';
+  if (view === 'drivers') driversTab = 'directory';
+  if (view === 'groups') {
+    driversTab = 'groups';
+    view = 'drivers';
+  } else if (view === 'outcomes') {
+    if (['drivers', 'groups'].includes(analyticsTab)) { driversTab = analyticsTab === 'groups' ? 'groups' : 'directory'; view = 'drivers'; }
+    else { programTab = 'activity'; view = 'programs'; }
+  }
+  if (view === 'settings') {
+    selectedProgramId = 'all';
+    programTab = 'automation';
+    view = 'programs';
   }
   if (!routeViewNames[view]) view = 'coaching';
   document.querySelectorAll('[data-filter-sheet].is-open').forEach((sheet) => closeFilterSheet(sheet, false));
@@ -1566,17 +1604,17 @@ function setView(view, options = {}) {
   });
   const mobileMoreTrigger = document.getElementById('mobile-more-trigger');
   if (mobileMoreTrigger) {
-    const moreActive = ['library', 'settings'].includes(view);
+    const moreActive = ['library', 'driver'].includes(view);
     mobileMoreTrigger.classList.toggle('is-active', moreActive);
     if (moreActive) mobileMoreTrigger.setAttribute('aria-current', 'page');
     else mobileMoreTrigger.removeAttribute('aria-current');
   }
   if (view === 'inbox') renderInbox();
   if (view === 'coaching') renderHomeOverview();
+  if (view === 'drivers') renderDriversWorkspace();
   if (view === 'outcomes') renderAnalytics();
   if (view === 'programs') renderProgramsPage();
   if (view === 'library') renderLibrary();
-  if (view === 'settings') renderSettings();
   if (options.updateUrl !== false) updateUrlState(Boolean(options.replaceUrl));
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
@@ -1589,10 +1627,33 @@ function setView(view, options = {}) {
   }
 }
 
-function openProgramPage(categoryId, tab = 'overview') {
+function renderDriversWorkspace() {
+  const grouped = driversTab === 'groups';
+  document.getElementById('drivers-panel-directory').hidden = grouped;
+  document.getElementById('drivers-panel-groups').hidden = !grouped;
+  document.getElementById('driver-group-controls').hidden = !grouped;
+  document.querySelectorAll('[data-drivers-tab]').forEach(tab => {
+    const selected = tab.dataset.driversTab === driversTab;
+    tab.classList.toggle('is-active', selected);
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  });
+  if (grouped) syncGroupDisplay();
+  else renderDirectory();
+}
+
+document.addEventListener('click', event => {
+  const tab = event.target.closest('[data-drivers-tab]');
+  if (!tab) return;
+  driversTab = tab.dataset.driversTab;
+  renderDriversWorkspace();
+  updateUrlState();
+});
+
+function openProgramPage(categoryId, tab = 'activity') {
   if (categoryId !== 'all' && !categories.some(program => program.id === categoryId)) return;
   selectedProgramId = categoryId;
-  programTab = ['overview', 'content', 'configuration'].includes(tab) ? tab : 'overview';
+  programTab = programPageTabs.some(([value]) => value === tab) ? tab : 'activity';
   activeSessionId = null;
   setView('programs');
 }
@@ -1600,13 +1661,14 @@ function openProgramPage(categoryId, tab = 'overview') {
 // Compatibility entry point: program detail now belongs to the full Programs page.
 function openCategoryDrawer(categoryId, options = {}) {
   if (!categories.some(program => program.id === categoryId)) return;
-  if (currentView !== 'programs') {
+  if (currentView !== 'programs' || categoryDrawer.open || (selectedProgramId !== categoryId && ['activity', 'groups'].includes(programTab))) {
     const groupName = categoryDrawer.open && categoryDrawerReturnTarget?.type === 'group' ? categoryDrawerReturnTarget.id : null;
     const source = new URL(window.location.href);
     ['programPreview', 'programStage', 'record'].forEach(key => source.searchParams.delete(key));
     const opener = document.activeElement;
     programPageReturn = {
-      label: groupName || (currentView === 'outcomes' ? 'Analytics' : document.querySelector('.app-view.is-active h1')?.textContent || 'Previous page'),
+      label: groupName || (currentView === 'drivers' && driversTab === 'groups' ? 'Groups' : currentView === 'programs' ? (programTab === 'groups' ? 'Groups' : selectedProgramId === 'all' ? 'All programmes' : categoryNameFor(selectedProgramId)) : document.querySelector('.app-view.is-active h1')?.textContent || 'Previous page'),
+      programTab, selectedProgramId,
       url: source.pathname + source.search + source.hash,
       programId: categoryId,
       openerId: opener?.id || null,
@@ -1615,14 +1677,9 @@ function openCategoryDrawer(categoryId, options = {}) {
     };
   }
   const stage = options.stage || 'all';
-  programRecordScopes.set(categoryId, {
-    view: stage === 'needs' ? 'review' : stage === 'completed' ? 'completed' : ['automated', 'one_to_one'].includes(stage) ? 'progress' : 'all',
-    method: stage === 'automated' ? 'automated' : stage === 'one_to_one' ? 'manual_override' : 'all'
-  });
-  if (stage === 'outcomes') programChartViews.set(categoryId, 'comparison');
   if (options.updateUrl === false) {
     selectedProgramId = categoryId;
-    programTab = 'overview';
+    programTab = 'activity';
     setView('programs', { updateUrl: false, focusHeading: false });
   } else openProgramPage(categoryId);
   if (stage === 'outcomes') requestAnimationFrame(() => showProgramRecordedOutcomes());
@@ -1637,7 +1694,7 @@ function backToProgramSource() {
     window.scrollTo({ top: parent.scrollTop, behavior: 'instant' });
     const groupBody = categoryDrawer.open && categoryDrawer.querySelector('.category-panel-scroll');
     if (groupBody && parent.groupScrollTop !== null) groupBody.scrollTop = parent.groupScrollTop;
-    const target = (parent.openerId && document.getElementById(parent.openerId)) || Array.from(document.querySelectorAll('[data-open-category]')).find(node => node.dataset.openCategory === parent.programId && node.getClientRects().length);
+    const target = (parent.openerId && document.getElementById(parent.openerId)) || Array.from(document.querySelectorAll('[data-open-category], [data-open-program-page]')).find(node => (node.dataset.openCategory || node.dataset.openProgramPage) === parent.programId && node.getClientRects().length);
     target?.focus({ preventScroll: true });
   });
 }
@@ -1700,20 +1757,52 @@ function renderGroupOverview() {
   renderGroupChartOverview();
 }
 
+function groupScopeProgram() {
+  return groupsProgramId;
+}
+
+function groupScopedCounts(name) {
+  const programId = groupScopeProgram();
+  return coachingCounts(record => groupForPerson(record.person) === name && (programId === 'all' || record.categoryId === programId));
+}
+
+function renderProgramGroups() {
+  syncGroupDisplay();
+}
+
+function renderGroupScopedKpis() {
+  const programId = groupScopeProgram();
+  if (programId === 'all') return;
+  const scoped = allSessionRecords().filter(record => record.categoryId === programId && sessionWithinPeriod(record, coachingPeriod));
+  const counts = coachingCounts(record => record.categoryId === programId);
+  document.getElementById('groups-kpis').innerHTML = uiKpiStrip('Group coaching · ' + categoryNameFor(programId), [
+    { label: 'Groups with coaching', value: new Set(scoped.map(record => groupForPerson(record.person))).size, context: categoryNameFor(programId) + ' · ' + periodScopeLabel() },
+    { label: 'Coached drivers', value: new Set(scoped.map(record => record.person)).size, context: 'Distinct drivers with records for this programme and period.' },
+    { label: 'In progress', value: counts.automated + counts.one_to_one, context: 'Programme sessions currently in progress.', action: 'data-view-link="inbox" data-inbox-filter="system_handling" data-inbox-program="' + escapeHtml(programId) + '"' },
+    { label: 'Needs review', value: counts.needs_review, context: 'Programme sessions waiting on a person.', action: 'data-view-link="inbox" data-inbox-filter="attention" data-inbox-program="' + escapeHtml(programId) + '"' }
+  ]);
+}
+
 function groupComparisonRow(name, group) {
-  const counts = coachingCounts(session => groupForPerson(session.person) === name);
+  const counts = groupScopedCounts(name);
   return '<tr class="group-record"><td><button class="text-link" type="button" data-open-group="' + escapeHtml(name) + '" aria-haspopup="dialog">' + escapeHtml(name) + '</button></td><td class="num">' + group.drivers + '</td><td class="num">' + group.score + '</td><td class="num">' + counts.automated + '</td><td class="num">' + counts.one_to_one + '</td><td class="num">' + counts.needs_review + '</td><td class="num">' + counts.completed + '</td><td class="num ' + (group.change > 0 ? 'negative' : 'positive') + '">' + movementCopy(group.change) + '</td></tr>';
 }
 
 function syncGroupDisplay() {
+  const scope = document.getElementById('driver-groups-scope');
+  if (scope) scope.textContent = periodScopeLabel();
   renderGroupOverview();
   const rows = document.getElementById('group-rows');
-  if (rows) rows.innerHTML = uiTable('Group comparison', ['Group', { label: 'Drivers', numeric: true }, { label: 'Elevate score', numeric: true }, { label: 'Automated in progress', numeric: true }, { label: 'One-on-one in progress', numeric: true }, { label: 'Needs review', numeric: true }, { label: 'Completed', numeric: true }, { label: 'Event change', numeric: true }], Object.entries(groupComparisonData).map(([name, group]) => groupComparisonRow(name, group)).join(''));
+  if (rows) rows.innerHTML = uiTable('Group comparison — programme-scoped coaching; driver totals, scores and event trends describe the overall groups', ['Group', { label: 'Fleet drivers', numeric: true }, { label: 'Overall Elevate score', numeric: true }, { label: 'Automated in progress', numeric: true }, { label: 'One-on-one in progress', numeric: true }, { label: 'Needs review', numeric: true }, { label: 'Completed', numeric: true }, { label: 'Overall event change', numeric: true }], Object.entries(groupComparisonData).map(([name, group]) => groupComparisonRow(name, group)).join(''));
   const priority = Object.entries(groupComparisonData).sort((a, b) => b[1].attention - a[1].attention)[0];
   const priorityName = document.getElementById('groups-priority-name');
   const priorityCount = document.getElementById('groups-priority-count');
   if (priorityName) priorityName.textContent = priority[1].attention ? priority[0] : 'No groups need review';
   if (priorityCount) priorityCount.textContent = priority[1].attention;
+  const hint = document.querySelector('.group-comparison-card [aria-label="About group comparison"]');
+  if (hint) hint.dataset.tooltip = (groupScopeProgram() === 'all' ? 'All programmes' : categoryNameFor(groupScopeProgram())) + ' coaching · ' + periodScopeLabel() + '. Fleet driver totals, Elevate scores and event-rate changes describe each overall group; they are not programme-specific.';
+  renderGroupScopedKpis();
+  if (groupScopeProgram() !== 'all') document.querySelectorAll('#groups-overview > .chart-card:not(.overview-workload-panel) .chart-context').forEach(context => { context.textContent = 'Overall group · ' + context.textContent; });
 }
 
 function updateGroupAttention(insight, completed) {
@@ -1739,14 +1828,16 @@ function openGroupDrawer(groupName, options = {}) {
   sessionDraft = null;
   categoryDrawer.classList.remove('is-composer');
   const chartCategory = { id: 'group-' + groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name: groupName, weeklyRates: group.weeklyRates };
-  const groupCounts = coachingCounts((session) => groupForPerson(session.person) === groupName);
+  const scopedProgramId = groupScopeProgram();
+  const scopedProgramLabel = scopedProgramId === 'all' ? 'All programmes' : categoryNameFor(scopedProgramId);
+  const groupCounts = groupScopedCounts(groupName);
   categoryContent.innerHTML = [
     '<header class="category-panel-header"><div><p class="eyebrow">Group comparison</p><div class="panel-title-line"><h1 id="category-title">' + escapeHtml(groupName) + '</h1></div></div><button class="icon-button" type="button" data-close-category aria-label="Close group">×</button></header>',
     '<div class="category-panel-scroll group-detail-drawer">',
-      uiKpiStrip('Group coaching summary', [{ label: 'Elevate score', value: group.score, context: 'Recorded prototype score · scale 0–100. The weighted program roll-up is not configured yet.', meter: { value: group.score, max: 100 } }, { label: 'Automated', value: groupCounts.automated, context: 'In progress' }, { label: 'One-on-one', value: groupCounts.one_to_one, context: 'In progress' }, { label: 'Needs review', value: groupCounts.needs_review, context: periodLabel() }, { label: 'Completed', value: groupCounts.completed, context: periodLabel() }]),
-      '<section class="group-detail-summary"><div><span>Weekly result</span><h2>' + (group.change > 0 ? 'Coached events increased ' + group.change + '%' : 'Coached events decreased ' + Math.abs(group.change) + '%') + '</h2><p>' + (group.change > 0 ? 'This group is the first priority for program review.' : 'The group is moving in the intended direction.') + '</p></div><button class="secondary-button" type="button" data-view-link="drivers" data-driver-group-link="' + escapeHtml(groupName) + '">View ' + group.drivers + ' drivers</button></section>',
-      '<section class="signal-panel chart-card"><div class="signal-heading"><h2 class="chart-title">Weekly coached events</h2><div class="signal-value ' + (group.change > 0 ? 'is-negative' : '') + '"><strong>' + (group.change > 0 ? '+' : '') + group.change + '%</strong><span>since Jul 13</span></div></div><div class="category-progress-chart">' + categoryWeeklyChartSvg(chartCategory) + '</div></section>',
-      '<section class="group-programs"><header><h2>Programs in this group</h2><span>' + escapeHtml(periodLabel()) + '</span></header>' + uiTable('Programs in group', ['Program', { label: 'Automated in progress', numeric: true }, { label: 'One-on-one in progress', numeric: true }, { label: 'Needs review', numeric: true }, { label: 'Completed', numeric: true }, { label: 'Event change', numeric: true }], categories.map(program => ({ program, counts: coachingCounts(session => groupForPerson(session.person) === groupName && session.categoryId === program.id) })).filter(entry => entry.counts.total > 0).sort((a,b) => b.counts.needs_review - a.counts.needs_review || b.counts.total - a.counts.total).map(({ program, counts }) => '<tr><td><button class="text-link" type="button" data-open-category="' + program.id + '">' + escapeHtml(program.name) + '</button></td>' + coachingRowCells(counts, program.eventChange) + '</tr>').join('')) + '</section>',
+      uiKpiStrip('Group coaching summary', [{ label: 'Overall Elevate score', value: group.score, context: 'Recorded prototype score · scale 0–100. The weighted program roll-up is not configured yet.', meter: { value: group.score, max: 100 } }, { label: 'Automated', value: groupCounts.automated, context: 'In progress' }, { label: 'One-on-one', value: groupCounts.one_to_one, context: 'In progress' }, { label: 'Needs review', value: groupCounts.needs_review, context: periodLabel() }, { label: 'Completed', value: groupCounts.completed, context: periodLabel() }]),
+      '<section class="group-detail-summary"><div><span>Overall group · ' + escapeHtml(outcomeWindowLabel()) + '</span><h2>' + (group.change > 0 ? 'Coached events increased ' + group.change + '%' : 'Coached events decreased ' + Math.abs(group.change) + '%') + '</h2><p>' + (group.change > 0 ? 'This group is the first priority for program review.' : 'The group is moving in the intended direction.') + '</p></div><button class="secondary-button" type="button" data-view-link="drivers" data-driver-group-link="' + escapeHtml(groupName) + '" data-driver-program-link="' + escapeHtml(scopedProgramId) + '">View drivers</button></section>',
+      '<section class="signal-panel chart-card"><div class="signal-heading"><h2 class="chart-title">Overall group event rate</h2><div class="signal-value ' + (group.change > 0 ? 'is-negative' : '') + '"><strong>' + (group.change > 0 ? '+' : '') + group.change + '%</strong><span>' + escapeHtml(outcomeWindowLabel()) + '</span></div></div><div class="category-progress-chart">' + categoryWeeklyChartSvg(chartCategory) + '</div></section>',
+      '<section class="group-programs"><header><h2>Programmes in this group</h2><span>' + escapeHtml(scopedProgramLabel + ' · ' + periodLabel()) + '</span></header>' + uiTable('Programs in group', ['Program', { label: 'Automated in progress', numeric: true }, { label: 'One-on-one in progress', numeric: true }, { label: 'Needs review', numeric: true }, { label: 'Completed', numeric: true }, { label: 'Event change', numeric: true }], categories.filter(program => scopedProgramId === 'all' || program.id === scopedProgramId).map(program => ({ program, counts: coachingCounts(session => groupForPerson(session.person) === groupName && session.categoryId === program.id) })).filter(entry => entry.counts.total > 0).sort((a,b) => b.counts.needs_review - a.counts.needs_review || b.counts.total - a.counts.total).map(({ program, counts }) => '<tr><td><button class="text-link" type="button" data-open-category="' + program.id + '">' + escapeHtml(program.name) + '</button></td>' + coachingRowCells(counts, program.eventChange) + '</tr>').join('')) + '</section>',
     '</div>'
   ].join('');
   categoryBackdrop.hidden = false;
@@ -1916,63 +2007,10 @@ function renderCoachingActivityChart() {
   chartMountSummary(card, summary, chartWeeklyData(weeklyCoachingActivity), 'Source: prototype weekly snapshots; current cycle reconciles to the session ledger. Completed and review states are excluded from the bars and retained in the data table. Score sample size and update time are unavailable.');
 }
 function renderAnalytics() {
-  document.getElementById('outcomes-title').textContent = 'Analytics';
-  document.querySelector('.analytics-tabs').hidden = false;
-  document.querySelectorAll('[data-analytics-tab]').forEach((button) => {
-    const active = button.dataset.analyticsTab === analyticsTab;
-    button.classList.toggle('is-active', active);
-    button.setAttribute('aria-selected', String(active));
-    button.removeAttribute('aria-pressed');
-    button.tabIndex = active ? 0 : -1;
-  });
-  const activity = document.getElementById('analytics-activity');
-  const outcomes = document.getElementById('analytics-outcomes');
-  const drivers = document.getElementById('view-drivers');
-  const groups = document.getElementById('view-groups');
-  const scopes = { outcomes: 'All programs', activity: 'All programs', drivers: 'Fleet · 1,024 drivers · 14 directory records', groups: 'All groups' };
-  const reportScopeDetail = document.getElementById('analytics-report-scope-detail');
-  if (reportScopeDetail) reportScopeDetail.textContent = periodScopeLabel() + ' · ' + scopes[analyticsTab];
-  if (activity && !activity.dataset.chartsObserved && typeof ResizeObserver !== 'undefined') {
-    const chartObserver = new ResizeObserver((entries) => {
-      entries.forEach(({ target, contentRect }) => {
-        const width = Math.round(contentRect.width);
-        if (!width || target.dataset.chartWidth === String(width)) return;
-        target.dataset.chartWidth = String(width);
-        if (target.id === 'coaching-activity-chart') renderCoachingActivityChart();
-        else renderOutcomeProgressChart();
-      });
-    });
-    ['coaching-activity-chart', 'outcome-progress-chart'].forEach((id) => {
-      const chart = document.getElementById(id);
-      if (chart) chartObserver.observe(chart);
-    });
-    activity.dataset.chartsObserved = 'true';
-  }
-  if (activity) activity.hidden = analyticsTab !== 'activity';
-  if (outcomes) outcomes.hidden = analyticsTab !== 'outcomes';
-  if (drivers) drivers.hidden = analyticsTab !== 'drivers';
-  if (groups) groups.hidden = analyticsTab !== 'groups';
-  if (analyticsTab === 'activity') {
-    renderCoachingActivityChart();
-    syncQueueLensControl();
-    renderQueue();
-  } else if (analyticsTab === 'outcomes') {
-    renderOutcomeProgressChart();
-    renderOutcomeTable();
-  } else if (analyticsTab === 'drivers') {
-    document.querySelectorAll('[data-driver-filter]').forEach((node) => node.classList.toggle('is-active', node.dataset.driverFilter === activeDriverFilter));
-    renderDirectory();
-  } else if (analyticsTab === 'groups') {
-    syncGroupDisplay();
-  }
-  const eventRate = fleetEventRatePer100k();
-  const rateHeadline = document.getElementById('outcome-event-rate-change');
-  if (rateHeadline) rateHeadline.textContent = movementCopy(eventRate.change);
-  const improving = outcomePrograms().filter((category) => outcomeFor(category).change < 0).length;
-  const improvingNode = document.getElementById('outcome-programs-improving');
-  if (improvingNode) improvingNode.textContent = improving + ' of ' + outcomePrograms().length;
-  const windowFact = document.getElementById('outcome-window-fact');
-  if (windowFact) windowFact.innerHTML = '<strong>' + coachingPeriod + '</strong> ' + (coachingPeriod === 1 ? 'week' : 'weeks');
+  if (analyticsTab === 'drivers') { setView('drivers'); return; }
+  if (analyticsTab === 'groups') { setView('groups'); return; }
+  programTab = 'activity';
+  setView('programs');
 }
 
 function quickTrainingBlock(category) {
@@ -2291,21 +2329,7 @@ function closeDrawer(restoreFocus = true) {
 }
 
 function openManualSessionDialog(prefill = null) {
-  if (!prefill) pendingCandidateId = null;
-  const dialogEyebrow = trainingDialog.querySelector('.eyebrow');
-  const dialogTitle = document.getElementById('training-dialog-title');
-  if (dialogEyebrow) dialogEyebrow.textContent = 'Manager initiated';
-  if (dialogTitle) dialogTitle.textContent = 'Start one-on-one coaching';
-  trainingDialogContent.innerHTML = [
-    '<div class="assignment-dialog-body">',
-      '<div class="manual-override-note"><strong>Start one-on-one coaching</strong><span>Use this when a manager needs to intervene outside the weekly automation cycle. The resulting session is recorded with a One-on-one origin.</span></div>',
-      '<label class="dialog-field">Driver<select id="manual-driver-select">' + (prefill?.person && !directory.some((driver) => driver.name === prefill.person) ? '<option selected>' + escapeHtml(prefill.person) + '</option>' : '') + directory.map((driver) => '<option' + (prefill && driver.name === prefill.person ? ' selected' : '') + '>' + escapeHtml(driver.name) + '</option>').join('') + '</select></label>',
-      '<label class="dialog-field">Program<select id="manual-category-select">' + categories.map((category) => '<option value="' + category.id + '"' + (prefill && category.id === prefill.categoryId ? ' selected' : '') + '>' + escapeHtml(category.name) + '</option>').join('') + '</select></label>',
-      '<label class="dialog-field">Reason<textarea id="manual-session-reason">' + escapeHtml(prefill?.reason || 'Manager follow-up required outside the normal automated cycle.') + '</textarea></label>',
-    '</div>',
-    '<footer class="dialog-footer"><button class="secondary-button" value="cancel">Cancel</button><button class="primary-button" type="button" data-confirm-manual-session>Start one-on-one coaching</button></footer>'
-  ].join('');
-  trainingDialog.showModal();
+  return openManualCoaching(prefill);
 }
 
 function openTrainingDialog() {
@@ -2313,71 +2337,7 @@ function openTrainingDialog() {
 }
 
 function createManualSession() {
-  const createdFromProgram = categoryDrawer.open && Boolean(activeCategory);
-  const createdFromProgramPage = currentView === 'programs';
-  const person = document.getElementById('manual-driver-select')?.value;
-  const categoryId = document.getElementById('manual-category-select')?.value;
-  const reason = document.getElementById('manual-session-reason')?.value.trim();
-  const category = categories.find((item) => item.id === categoryId);
-  if (!person || !category) return;
-  sessions.unshift({
-    id: 'manual-' + Date.now(),
-    person,
-    initials: initials(person),
-    category: category.name,
-    categoryId: category.id,
-    eventType: category.name,
-    state: 'system_handling',
-    stateLabel: 'One-on-one',
-    attentionReason: null,
-    origin: 'manual_override',
-    latest: 'Manual session created · just now',
-    owner: 'Alex Kim',
-    due: 'Within 7 days',
-    sla: '7d left',
-    slaTone: 'on-track',
-    source: 'One-on-one',
-    automationRun: 'Outside weekly cycle',
-    summary: reason || 'Manager follow-up created outside the normal automated cycle.',
-    evidence: [],
-    messages: [{ author: 'manager', text: reason || 'Please review this follow-up and reply with context.', time: 'Just now' }],
-    history: [['Manual session created', 'Just now']]
-  });
-  const startedFlag = reviewCandidates.find((flag) => flag.id === pendingCandidateId && !flag.started);
-  if (startedFlag) {
-    startedFlag.started = true;
-    const created = sessions[0];
-    created.summary = startedFlag.trigger + ': ' + startedFlag.detail + '. ' + created.summary;
-    created.history.push(['Flagged for review', startedFlag.flagged]);
-    created.latest = 'Session started from flagged review · just now';
-  }
-  pendingCandidateId = null;
-  adjustSessionFleetTotals(null, 'system_handling', 'One-on-one');
-  syncDirectoryAttentionState(person, false);
-  renderQueue();
-  syncGroupDisplay();
-  trainingDialog.close();
-  if (createdFromProgramPage) {
-    programRecordScopes.set(category.id, { view: 'progress', method: 'manual_override' });
-    openProgramPage(category.id);
-    document.querySelector('#view-programs [data-open-session="' + sessions[0].id + '"]')?.focus();
-    openSessionDrawer(sessions[0].id, { type: 'program-page' });
-    showToast(startedFlag ? 'Session started for ' + person : 'Manual session created for ' + person);
-    return;
-  }
-  if (createdFromProgram) {
-    if (activeCategory.id !== category.id) openCategoryDrawer(category.id, { stage: 'one_to_one' });
-    else { workflowTab = 'one_to_one'; renderCategory(); }
-    Array.from(categoryDrawer.querySelectorAll('[data-open-session]')).findLast(node => node.dataset.openSession === sessions[0].id)?.focus();
-    openSessionDrawer(sessions[0].id, { type: 'program-drawer' });
-    showToast(startedFlag ? 'Session started for ' + person : 'Manual session created for ' + person);
-    return;
-  }
-  activeSessionFilter = 'system_handling';
-  activeSessionSource = 'manual_override';
-  renderInbox();
-  setView('inbox');
-  showToast(startedFlag ? 'Session started for ' + person : 'Manual session created for ' + person);
+  return createManualCoaching();
 }
 
 function sessionEvidenceOptions(item, category) {
@@ -2580,10 +2540,11 @@ function sendSessionDraft() {
     attentionReason: null,
     origin: 'manual_override',
     latest: 'Manual session created · just now',
-    owner: 'Alex Kim',
-    due: 'Within 3 days',
-    sla: '3h 45m left',
-    slaTone: 'on-track',
+    owner: currentManager.name,
+    due: globalSessionDueLabel(),
+    dueDays: globalSessionDueDays(),
+    sla: '',
+    slaTone: '',
     source: 'One-on-one',
     automationRun: 'Outside weekly cycle',
     summary: item.reason + '. Goal: ' + sessionDraft.goal + '.',
@@ -2651,8 +2612,7 @@ function calculateSessionTotals() {
   const fleet = emptySessionTotals();
   const byOrigin = { automated: emptySessionTotals(), manual_override: emptySessionTotals() };
   allSessionRecords().filter(sessionInPeriod).forEach((session) => {
-    const origin = session.origin === 'manual_override' || session.source !== 'Automated' ? 'manual_override' : 'automated';
-    session.origin = origin;
+    const origin = sessionMethodFilter(session);
     // A pending review has no coaching session origin until a session is created.
     const totals = session.candidate ? [fleet] : [fleet, byOrigin[origin]];
     const state = sessionEffectiveState(session);
@@ -2688,7 +2648,7 @@ function adjustSessionFleetTotals(previousState, nextState, source, previousReas
   syncFleetSessionCounts();
 }
 
-// One reporting-period summary. Identified includes pending flags; origin totals count actual sessions.
+// One reporting-period summary. Identified includes pending flags; delivery-method totals count actual sessions; origin remains immutable.
 function currentCycleCounts(period = coachingPeriod, programId = 'all') {
   const counts = coachingCounts(session => programId === 'all' || session.categoryId === programId, period);
   return {
@@ -2707,8 +2667,8 @@ function currentCycleCounts(period = coachingPeriod, programId = 'all') {
     coached: counts.total - counts.needs_review,
     needsReview: counts.needs_review,
     completed: counts.completed,
-    startedAutomatically: counts.automatedTotal,
-    startedByManager: counts.oneOnOneTotal,
+    startedAutomatically: sessions.filter(session => sessionWithinPeriod(session, period) && (programId === 'all' || session.categoryId === programId) && session.origin === 'automated').length,
+    startedByManager: sessions.filter(session => sessionWithinPeriod(session, period) && (programId === 'all' || session.categoryId === programId) && session.origin === 'manual_override').length,
     completionRate: counts.total ? Math.round(counts.completed / counts.total * 100) : 0
   };
 }
@@ -2795,6 +2755,13 @@ function syncFleetSessionCounts() {
 // automated-versus-one-on-one split for the current cycle. Every figure reads the session ledger
 // or the weekly fixture; nothing here has its own denominator.
 const fleetSafetyScore = { score: 74, change: 3, comparison: 'vs prior period' };
+// Recorded prototype program scores (0–100, higher is safer), the same footing as the fleet and
+// group scores above. They are not yet computed from rule weights; programs created locally have none.
+const programScores = { following: 68, speeding: 71, braking: 76, distraction: 66, seatbelt: 79, acceleration: 81, cornering: 83, traffic: 77, fatigue: 70, backing: null };
+function programScore(program) {
+  const value = program ? programScores[program.id] : undefined;
+  return Number.isFinite(value) ? value : null;
+}
 
 function fleetEventRatePer100k() {
   const rates = Object.values(weeklyCycleStats).map((stat) => stat.weeklyRates);
@@ -2853,11 +2820,12 @@ function renderHomeOverview() {
   kpiTrend('kpi-needs-review-trend', { delta: weekly && Number.isFinite(previousWeek?.escalated) ? cycle.needsReview - previousWeek.escalated : NaN, comparison: 'vs last week', lowerIsBetter: true, unavailableLabel: 'No prior window' });
   ['kpi-identified-trend', 'kpi-in-progress-trend', 'kpi-completed-trend', 'kpi-needs-review-trend'].forEach(id => { document.getElementById(id).hidden = Boolean(program); });
   const safety = document.getElementById('kpi-fleet-safety');
-  if (safety) safety.textContent = program ? '—' : fleetSafetyScore.score;
+  const scopedScore = program ? programScore(program) : null;
+  if (safety) safety.textContent = program ? (scopedScore === null ? '—' : scopedScore) : fleetSafetyScore.score;
   const scoreLabel = document.getElementById('landing-score-label');
-  if (scoreLabel) scoreLabel.textContent = program ? 'Program score' : 'Elevate score';
+  if (scoreLabel) scoreLabel.textContent = program ? program.name + ' score' : 'Elevate score';
   const scoreHint = document.getElementById('landing-score-hint');
-  if (scoreHint) { scoreHint.dataset.tooltip = program ? 'Not yet measured. Program scores require configured event weights and period evaluations.' : 'Recorded overall prototype score. The weighted roll-up of program scores is not configured yet.'; scoreHint.setAttribute('aria-label', scoreHint.dataset.tooltip); }
+  if (scoreHint) { scoreHint.dataset.tooltip = program ? (scopedScore === null ? 'No recorded score for this program yet. Program scores require configured event weights and period evaluations.' : 'Recorded prototype score for ' + program.name + ' from 0 to 100; higher is safer. Not yet computed from rule weights.') : 'Recorded overall prototype score. The weighted roll-up of program scores is not configured yet.'; scoreHint.setAttribute('aria-label', scoreHint.dataset.tooltip); }
   kpiTrend('kpi-safety-trend', { delta: fleetSafetyScore.change, comparison: fleetSafetyScore.comparison });
   document.getElementById('kpi-safety-trend').hidden = Boolean(program);
   const programRate = program ? rateChange(program.weeklyRates) : null;
@@ -2909,6 +2877,7 @@ function renderHomeOverview() {
   }
   const detailLink = document.getElementById('landing-program-link');
   if (detailLink) { detailLink.dataset.openCategory = program?.id || categories[0].id; detailLink.textContent = program ? 'Open program' : 'Explore programs'; }
+  if (typeof renderLandingPrograms === 'function') renderLandingPrograms();
 }
 
 function sessionMatchesFilter(session, filter) {
@@ -2921,7 +2890,7 @@ function sessionMatchesFilter(session, filter) {
 
 function sessionViewTabs() {
   const totals = { all: 0, manager_attention: 0, system_handling: 0, completed: 0, archived: 0 };
-  allSessionRecords().filter(session => sessionInPeriod(session) && (activeSessionProgram === 'all' || session.categoryId === activeSessionProgram) && (activeSessionSource === 'all' || (!session.candidate && session.origin === activeSessionSource))).forEach(session => {
+  allSessionRecords().filter(session => sessionInPeriod(session) && (activeSessionProgram === 'all' || session.categoryId === activeSessionProgram) && (activeSessionSource === 'all' || (!session.candidate && sessionMethodFilter(session) === activeSessionSource))).forEach(session => {
     totals.all += 1;
     totals[sessionEffectiveState(session)] += 1;
     if (session.state === 'archived') totals.archived += 1;
@@ -2942,7 +2911,7 @@ function sessionFilters() {
     '<button class="filter-sheet-backdrop" type="button" data-filter-sheet-close tabindex="-1" aria-label="Close session filters"></button>' +
     '<div class="filter-sheet-content" id="session-filters"><div class="filter-sheet-header"><strong>Session filters</strong><button class="icon-button" type="button" data-filter-sheet-close aria-label="Close session filters">' + uiIcon('close') + '</button></div>' +
     '<label class="refined-filter-field" for="session-program-filter">Program<select id="session-program-filter">' + option('all', 'All programs', activeSessionProgram) + categories.map(program => option(program.id, escapeHtml(program.name), activeSessionProgram)).join('') + '</select></label>' +
-    '<label class="refined-filter-field" for="session-origin-filter">Origin<select id="session-origin-filter">' + option('all', 'All origins', activeSessionSource) + option('automated', 'Automated', activeSessionSource) + option('manual_override', 'One-on-one', activeSessionSource) + '</select></label>' +
+    '<label class="refined-filter-field" for="session-origin-filter">Method<select id="session-origin-filter">' + option('all', 'All methods', activeSessionSource) + option('automated', 'Automated', activeSessionSource) + option('manual_override', 'One-on-one', activeSessionSource) + '</select></label>' +
     '<label class="refined-filter-field" for="session-reason-filter">Review reason<select id="session-reason-filter">' + option('all', 'All reasons', reason) + Object.entries(attentionReasonMeta).map(([key, value]) => option(key, value.label, reason)).join('') + '</select></label>' +
     '<div class="filter-sheet-actions"><button class="text-action" type="button" data-clear-session-filters' + (count ? '' : ' disabled') + '>Reset</button><button class="primary-button" type="button" data-filter-sheet-close>Done</button></div></div></div>';
 }
@@ -2977,7 +2946,7 @@ function renderSessionList() {
     .filter(sessionInPeriod)
     .filter(session => activeSessionProgram === 'all' || session.categoryId === activeSessionProgram)
     .filter(session => sessionMatchesFilter(session, activeSessionFilter))
-    .filter(session => activeSessionSource === 'all' || (!session.candidate && session.origin === activeSessionSource))
+    .filter(session => activeSessionSource === 'all' || (!session.candidate && sessionMethodFilter(session) === activeSessionSource))
     .filter(session => !term || [session.person, session.category, session.eventType, session.stateLabel, attentionReasonMeta[session.attentionReason]?.label, session.source, session.owner, session.latest, session.automationRun, session.due, session.sla].join(' ').toLowerCase().includes(term))
     .sort((a,b) => (lifecyclePriority[a.state] ?? 9) - (lifecyclePriority[b.state] ?? 9) || (reasonPriority[a.attentionReason] ?? 9) - (reasonPriority[b.attentionReason] ?? 9));
   const pageSize = 50;
@@ -3180,7 +3149,7 @@ function renderDriverFilterState() {
   const tokens = [];
   if (activeDriverScoreFilter !== 'all') tokens.push(['score', driverScoreFilterLabel(activeDriverScoreFilter)]);
   if (activeDriverGroup !== 'all') tokens.push(['group', activeDriverGroup]);
-  if (activeDriverCategory !== 'all') tokens.push(['program', activeDriverCategory]);
+  if (activeDriverCategory !== 'all') tokens.push(['program', categoryNameFor(activeDriverCategory)]);
   driverFilterState.innerHTML = tokens.length
     ? tokens.map((token) => '<button type="button" data-clear-driver-filter="' + token[0] + '" aria-label="Remove ' + escapeHtml(token[1]) + ' filter">' + escapeHtml(token[1]) + ' <b aria-hidden="true">×</b></button>').join('') + '<button class="clear-driver-filters" type="button" data-clear-driver-filter="all">Reset</button>'
     : '';
@@ -3198,42 +3167,65 @@ function renderDriverFilterState() {
   document.querySelectorAll('[data-driver-filter]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.driverFilter === activeDriverFilter)));
 }
 
+// Directory program scope follows recorded coaching relationships, not the driver's top event.
+function driverScopedRecords(name) {
+  return allSessionRecords().filter(record => record.person === name && sessionWithinPeriod(record, coachingPeriod) && (activeDriverCategory === 'all' || record.categoryId === activeDriverCategory));
+}
+
+function driverPreferredRecord(driver) {
+  const records = driverScopedRecords(driver.name).filter(record => !record.candidate);
+  const attention = records.filter(record => record.state === 'manager_attention');
+  const active = records.filter(record => !['completed', 'archived', 'manager_attention'].includes(record.state));
+  const completed = records.filter(record => ['completed', 'archived'].includes(record.state));
+  const preferred = attention.length ? attention : active.length ? active : completed;
+  return preferred.find(record => record.category === driver.focus) || preferred[0] || null;
+}
+
+function renderDriverScopedKpis() {
+  if (activeDriverCategory === 'all') return;
+  const counts = coachingCounts(record => record.categoryId === activeDriverCategory);
+  const records = allSessionRecords().filter(record => record.categoryId === activeDriverCategory && sessionWithinPeriod(record, coachingPeriod));
+  const driverCount = new Set(records.map(record => record.person)).size;
+  const scope = categoryNameFor(activeDriverCategory) + ' · ' + periodScopeLabel();
+  const action = (filter, origin = '') => 'data-view-link="inbox" data-inbox-program="' + escapeHtml(activeDriverCategory) + '" data-inbox-filter="' + filter + '"' + (origin ? ' data-inbox-origin="' + origin + '"' : '');
+  document.getElementById('drivers-kpis').innerHTML = uiKpiStrip('Drivers · ' + scope, [
+    { label: 'Coached drivers', value: driverCount, context: 'Distinct drivers with coaching records in ' + scope + '. The directory contains representative profiles.' },
+    { label: 'Automated in progress', value: counts.automated, context: scope + '. Active sessions only.', action: action('system_handling', 'automated') },
+    { label: 'One-on-one in progress', value: counts.one_to_one, context: scope + '. Active sessions only.', action: action('system_handling', 'manual_override') },
+    { label: 'Completed', value: counts.completed, context: scope, action: action('completed') }
+  ]);
+}
+
 function driverDirectoryStatus(item) {
-  const states = {
-    coached: driverOrigin(item.name) === 'manual_override'
-      ? { label: 'One-on-one', icon: 'user', tone: 'neutral', description: 'Manager-led coaching in progress.' }
-      : { label: 'Automated', icon: 'bolt', tone: 'neutral', description: 'Automated coaching in progress.' },
-    outcome: { label: 'Completed', icon: 'check', tone: 'neutral', description: 'Coaching completed; the outcome window is being measured.' },
-    track: { label: 'On track', icon: 'check', tone: 'good', description: 'No review needed.' }
-  };
-  if (item.state !== 'attention') return states[item.state] || states.track;
-  const session = allSessionRecords().find((record) => record.person === item.name && record.state === 'manager_attention');
-  const insight = attentionAiInsights.find((record) => record.name === item.name && !resolvedAttentionIds.has(record.id));
-  const reason = session?.attentionReason || insight?.reason;
-  return ({
-    driver_reply: { label: 'Replied', icon: 'message', tone: 'reply', description: 'A driver response needs your review.' },
-    reminders_exhausted: { label: 'Overdue', icon: 'clock', tone: 'issue', description: 'Automatic reminders are exhausted. Contact the driver.' },
-    repeat_after_coaching: { label: 'Repeated', icon: 'repeat', tone: 'warning', description: 'The behavior repeated after coaching. Review the latest event.' }
-  })[reason] || { label: 'Needs review', icon: 'alert', tone: 'issue', description: 'A coaching record needs review.' };
+  const record = driverPreferredRecord(item);
+  if (!record) return { label: 'On track' };
+  if (record.state === 'manager_attention') return { label: attentionReasonMeta[record.attentionReason]?.label || 'Overdue' };
+  return { label: ['completed', 'archived'].includes(record.state) ? 'Completed' : 'In progress' };
 }
 
 function driverDirectorySession(driver) {
-  const records = sessions.filter(session => session.person === driver.name);
-  const current = records.filter(session => !['completed', 'archived'].includes(session.state));
-  if (current.length) return current.find(session => session.category === driver.focus) || current[0];
-  return null;
+  const record = driverPreferredRecord(driver);
+  return record && !['completed', 'archived'].includes(record.state) ? record : null;
 }
 
 function renderDirectory() {
   renderDriverDistribution();
   renderDriverFilterState();
   renderDesignLibraryKpis();
+  const categorySelect = document.getElementById('driver-category-filter');
+  const catalogKey = categories.map(program => program.id).join('|');
+  if (categorySelect && categorySelect.dataset.catalogKey !== catalogKey) {
+    categorySelect.innerHTML = '<option value="all">All programmes</option>' + categories.map(program => '<option value="' + escapeHtml(program.id) + '">' + escapeHtml(program.name) + '</option>').join('');
+    categorySelect.dataset.catalogKey = catalogKey;
+  }
+  if (categorySelect) categorySelect.value = activeDriverCategory;
   const term = document.getElementById('driver-search').value.trim().toLowerCase();
-  const filtered = directory.filter(item => driverMatchesStatus(item, activeDriverFilter) && (activeDriverGroup === 'all' || item.group === activeDriverGroup) && (activeDriverCategory === 'all' || item.focus === activeDriverCategory) && driverMatchesScore(item, activeDriverScoreFilter) && item.name.toLowerCase().includes(term)).sort((a,b) => {
+  const scopedDirectory = activeDriverCategory === 'all' ? directory : directory.filter(item => driverScopedRecords(item.name).length);
+  const filtered = scopedDirectory.filter(item => driverMatchesStatus(item, activeDriverFilter) && (activeDriverGroup === 'all' || item.group === activeDriverGroup) && driverMatchesScore(item, activeDriverScoreFilter) && item.name.toLowerCase().includes(term)).sort((a,b) => {
     if (driverSort === 'lowest') return (Number.isFinite(a.safetyScore) ? a.safetyScore : 101) - (Number.isFinite(b.safetyScore) ? b.safetyScore : 101);
     if (driverSort === 'decline') return (Number.isFinite(a.scoreChange) ? a.scoreChange : 99) - (Number.isFinite(b.scoreChange) ? b.scoreChange : 99);
-    const priority = { attention: 0, coached: 1, outcome: 2, track: 3 };
-    return priority[a.state] - priority[b.state] || (a.safetyScore ?? 101) - (b.safetyScore ?? 101);
+    const priority = driver => { const record = driverPreferredRecord(driver); return !record ? 3 : record.state === 'manager_attention' ? 0 : ['completed', 'archived'].includes(record.state) ? 2 : 1; };
+    return priority(a) - priority(b) || (a.safetyScore ?? 101) - (b.safetyScore ?? 101);
   });
   const rows = filtered.map(item => {
     const scored = Number.isFinite(item.safetyScore);
@@ -3243,15 +3235,21 @@ function renderDirectory() {
     const action = record
       ? 'data-open-session="' + escapeHtml(record.id) + '" aria-controls="driver-drawer" aria-label="View session for ' + escapeHtml(item.name) + '"'
       : 'data-create-driver-session="' + escapeHtml(item.name) + '" aria-controls="training-dialog" aria-label="Create session for ' + escapeHtml(item.name) + '"';
-    const label = item.state === 'coached' ? 'Awaiting driver' : status.label;
+    const label = status.label;
     return '<tr class="directory-record"><td><button class="directory-person text-link" type="button" data-open-driver-profile="' + escapeHtml(item.name) + '" aria-haspopup="dialog" aria-expanded="' + (activeDriverProfile === item.name) + '" aria-controls="driver-drawer" aria-label="Open driver profile for ' + escapeHtml(item.name) + '"><span class="person-avatar" aria-hidden="true">' + item.initials + '</span><strong>' + escapeHtml(item.name) + '</strong></button></td>' +
       '<td class="num"><span class="driver-score"><strong>' + (scored ? item.safetyScore : '—') + '</strong><small class="' + (item.scoreChange >= 0 ? 'positive' : 'negative') + '">' + delta + '</small></span></td>' +
-      '<td>' + escapeHtml(item.focus) + '</td><td>' + escapeHtml(item.lastCoaching === '—' ? 'Not yet' : item.lastCoaching) + '</td>' +
+      '<td>' + escapeHtml(activeDriverCategory === 'all' ? item.focus : categoryNameFor(activeDriverCategory)) + '</td><td>' + escapeHtml(activeDriverCategory === 'all' ? (item.lastCoaching === '—' ? 'Not yet' : item.lastCoaching) : sessionCompletedLabel(driverScopedRecords(item.name).find(record => ['completed', 'archived'].includes(record.state)) || {})) + '</td>' +
       '<td>' + uiStatus(label) + '</td><td><button class="text-link" type="button" aria-haspopup="dialog" ' + action + '>' + (record ? 'View session' : 'Create session') + '</button></td></tr>';
   }).join('');
   document.getElementById('driver-directory').innerHTML = filtered.length
-    ? uiTable('Driver directory', ['Driver', { label: 'Elevate score', numeric: true }, 'Top event', 'Last coached', 'Status', 'Action'], rows) + '<div class="driver-directory-footer">Showing ' + filtered.length + ' of 1,024 drivers</div>'
+    ? uiTable('Driver directory', ['Driver', { label: 'Overall Elevate score', numeric: true }, activeDriverCategory === 'all' ? 'Top event' : 'Programme', 'Last coached', 'Status', 'Action'], rows) + '<div class="driver-directory-footer">' + (activeDriverCategory === 'all' ? 'Showing ' + filtered.length + ' of 1,024 drivers' : filtered.length + ' matching directory profiles · ' + escapeHtml(categoryNameFor(activeDriverCategory))) + '</div>'
     : '<div class="driver-directory-empty"><strong>No drivers match</strong><span>Change or clear the active filters.</span><button class="secondary-button" type="button" data-clear-driver-filter="all">Clear filters</button></div>';
+  document.querySelectorAll('[data-driver-filter]').forEach(button => {
+    const state = button.dataset.driverFilter;
+    const badge = button.querySelector('b');
+    if (badge) badge.textContent = activeDriverCategory === 'all' ? (state === 'all' ? '1,024' : currentCycleCounts().needsReview) : scopedDirectory.filter(item => driverMatchesStatus(item, state)).length;
+  });
+  renderDriverScopedKpis();
 }
 
 function syncDirectoryAttentionState(name, shouldRender = true) {
@@ -3261,7 +3259,7 @@ function syncDirectoryAttentionState(name, shouldRender = true) {
   const attentionSession = allSessionRecords().find((session) => session.person === name && isAttentionSessionState(session.state));
   if (unresolvedInsight || attentionSession) {
     driver.state = 'attention';
-    driver.stateLabel = 'Needs review';
+    driver.stateLabel = attentionReasonMeta[attentionSession?.attentionReason || unresolvedInsight?.reason]?.label || 'Overdue';
     driver.focus = unresolvedInsight?.categoryName || attentionSession.category;
   } else if (driver.state === 'attention') {
     driver.state = 'coached';
@@ -3317,20 +3315,11 @@ function openAttentionDriver(name, programId = null) {
 
 function renderLibrary() {
   renderDesignLibraryKpis();
-  const term = document.getElementById('content-search')?.value.trim().toLowerCase() || '';
-  const visible = lessons.filter(lesson => [lesson.title, lesson.category].join(' ').toLowerCase().includes(term));
-  document.getElementById('library-grid').innerHTML = visible.map((lesson) => [
-    '<article class="lesson-card">',
-      '<div class="lesson-card-top"><span class="lesson-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4"/></svg></span><button class="info-hint" type="button" data-tooltip="' + escapeHtml(lesson.version + ' · Requires video review, acknowledgement, and a two-question quiz.') + '" aria-label="' + escapeHtml('Requirements and version for ' + lesson.title) + '">' + uiIcon('info') + '</button></div>',
-      '<h2>' + escapeHtml(lesson.title) + '</h2>',
-      '<p>' + escapeHtml(lesson.category) + '</p>',
-      '<div class="lesson-meta"><span>' + escapeHtml(lesson.length) + '</span><span>' + escapeHtml(lesson.completion) + ' completion</span></div>',
-    '</article>'
-  ].join('')).join('') || '<p class="empty-state">No content matches your search.</p>';
+  renderLearningLibrary();
 }
 
 function settingsAreDirty() {
-  return draftAutomationMode !== automationMode || draftCadenceWeeks !== cadenceWeeks;
+  return draftAutomationMode !== automationMode || draftCadenceWeeks !== cadenceWeeks || draftSessionDueDays !== sessionDueDays;
 }
 
 function settingsDraftProgramsAffected() {
@@ -3338,78 +3327,102 @@ function settingsDraftProgramsAffected() {
 }
 
 function settingsDraftSummary() {
+  if (!validSessionDueDays(draftSessionDueDays)) return 'Enter a whole number from 1 to 365 days for the session due period.';
   const parts = [];
   if (draftAutomationMode !== automationMode || draftCadenceWeeks !== cadenceWeeks) parts.push(settingsModeLabel(draftAutomationMode) + ' with coaching ' + (draftCadenceWeeks === 1 ? 'every week' : 'every 2 weeks'));
+  if (draftSessionDueDays !== sessionDueDays) parts.push('New sessions due ' + sessionDuePeriodLabel(draftSessionDueDays).toLowerCase() + ' of creation');
   return parts.join(' · ') + ' will apply only after Save and activate.';
 }
+
+document.addEventListener('input', event => {
+  if (event.target.id !== 'session-due-days') return;
+  draftSessionDueDays = event.target.value === '' ? null : Number(event.target.value);
+  settingsState = settingsAreDirty() ? 'dirty' : 'saved';
+  settingsPanelMode = null;
+  const valid = validSessionDueDays(draftSessionDueDays);
+  event.target.setAttribute('aria-invalid', String(!valid));
+  const status = document.getElementById('settings-save-state');
+  if (status) {
+    status.textContent = valid ? settingsAreDirty() ? 'Unsaved changes' : 'Saved ' + settingsSavedAt : 'Invalid due period';
+    status.dataset.state = valid ? settingsState : 'error';
+    status.classList.toggle('is-error', !valid);
+    status.classList.toggle('is-dirty', valid && settingsAreDirty());
+  }
+  const impact = document.getElementById('settings-impact');
+  if (impact) impact.dataset.state = valid ? settingsState : 'error';
+  const summary = document.getElementById('settings-impact-summary');
+  if (summary) summary.textContent = settingsAreDirty() ? settingsDraftSummary() : 'Saved in this browser. Preview shows settings only; activation does not run scoring, dispatch or reminders.';
+  document.getElementById('settings-save').disabled = !settingsAreDirty() || !valid;
+  document.getElementById('settings-discard').disabled = !settingsAreDirty();
+  document.getElementById('settings-preview').disabled = !valid;
+  document.getElementById('settings-preview-panel')?.remove();
+  document.querySelector('.program-automation-history')?.remove();
+  document.getElementById('settings-audit-history')?.setAttribute('aria-expanded', 'false');
+});
 
 function settingsModeLabel(mode) {
   return mode === 'fully' ? 'Fully automated' : mode === 'semi' ? 'Semi-automated' : 'Manual';
 }
 
-function persistSettings(mode, weeks, savedAt) {
+function persistSettings(mode, weeks, savedAt, dueDays = globalSessionDueDays()) {
+  if (!validSessionDueDays(dueDays) || !['manual', 'semi', 'fully'].includes(mode) || ![1, 2].includes(weeks)) return false;
   try {
     if (!window.localStorage) return false;
-    const previous = {
-      mode: window.localStorage.getItem('elevate-automation-mode'),
-      cadence: window.localStorage.getItem('elevate-cadence-weeks'),
-      savedAt: window.localStorage.getItem('elevate-settings-saved-at')
-    };
+    const next = { 'elevate-automation-mode': mode, 'elevate-cadence-weeks': String(weeks), 'elevate-settings-saved-at': savedAt, 'elevate-session-due-days': String(dueDays) };
+    const previous = Object.fromEntries(Object.keys(next).map(key => [key, window.localStorage.getItem(key)]));
     try {
-      window.localStorage.setItem('elevate-automation-mode', mode);
-      window.localStorage.setItem('elevate-cadence-weeks', String(weeks));
-      window.localStorage.setItem('elevate-settings-saved-at', savedAt);
+      Object.entries(next).forEach(([key, value]) => window.localStorage.setItem(key, value));
       return true;
     } catch (error) {
       Object.entries(previous).forEach(([key, value]) => {
-        const storageKey = key === 'mode' ? 'elevate-automation-mode' : key === 'cadence' ? 'elevate-cadence-weeks' : 'elevate-settings-saved-at';
-        if (value === null) window.localStorage.removeItem(storageKey);
-        else window.localStorage.setItem(storageKey, value);
+        if (value === null) window.localStorage.removeItem(key);
+        else window.localStorage.setItem(key, value);
       });
       return false;
     }
-  } catch (error) {
-    return false;
-  }
+  } catch (error) { return false; }
 }
 
-function settingsPreviewCopy(mode, weeks) {
+function settingsPreviewCopy(mode, weeks, dueDays = globalSessionDueDays()) {
   const windowLabel = weeks === 1 ? '7-day' : '14-day';
+  const dueCopy = ' New sessions: due ' + sessionDuePeriodLabel(dueDays).toLowerCase() + ' of creation. Existing deadlines stay unchanged.';
   if (mode === 'manual') {
     return {
       drivers: 'Not estimated',
-      audit: 'Manual review only · ' + windowLabel + ' analysis window',
-      description: 'Matches from the ' + windowLabel + ' analysis window would wait for manager review. No assignments were sent. Next-cycle volume is not estimated.'
+      audit: 'Manual review only · ' + windowLabel + ' analysis window · due ' + dueDays + ' days from creation',
+      description: 'Matches from the ' + windowLabel + ' analysis window would wait for manager review. Configuration preview only; rule evaluation and next-cycle volume are not available.' + dueCopy
     };
   }
   if (mode === 'semi') {
     return {
       drivers: 'Not estimated',
-      audit: 'Manager approval required · ' + windowLabel + ' analysis window',
-      description: 'Eligible matches from the ' + windowLabel + ' analysis window would wait for manager approval before coaching begins. No assignments were sent. Next-cycle volume is not estimated.'
+      audit: 'Manager approval required · ' + windowLabel + ' analysis window · due ' + dueDays + ' days from creation',
+      description: 'Eligible matches from the ' + windowLabel + ' analysis window would wait for manager approval before coaching begins. Configuration preview only; rule evaluation and next-cycle volume are not available.' + dueCopy
     };
   }
   return {
     drivers: 'Not estimated',
-    audit: 'Configured automation rules · ' + windowLabel + ' analysis window',
-    description: 'Eligible matches from the ' + windowLabel + ' analysis window would follow the configured automated coaching rules. No assignments were sent. Next-cycle volume is not estimated.'
+    audit: 'Configured automation rules · ' + windowLabel + ' analysis window · due ' + dueDays + ' days from creation',
+    description: 'Eligible matches from the ' + windowLabel + ' analysis window would follow the configured automated coaching rules. Configuration preview only; rule evaluation and next-cycle volume are not available.' + dueCopy
   };
 }
 
 function previewSettingsDraft() {
+  if (!validSessionDueDays(draftSessionDueDays)) { document.getElementById('session-due-days')?.reportValidity(); return; }
   settingsPanelMode = 'preview';
   settingsState = settingsAreDirty() ? 'dirty' : 'saved';
   const now = new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date()).replace(',', ' ·');
-  const preview = settingsPreviewCopy(draftAutomationMode, draftCadenceWeeks);
-  settingsAuditHistory.unshift({ action: 'Dry run completed', detail: preview.audit, time: now });
+  const preview = settingsPreviewCopy(draftAutomationMode, draftCadenceWeeks, draftSessionDueDays);
+  settingsAuditHistory.unshift({ action: 'Configuration preview', detail: preview.audit, time: now });
   saveSetting('elevate-settings-audit', JSON.stringify(settingsAuditHistory.slice(0, 20)));
   renderSettings();
-  showToast('Dry run complete; no coaching was sent');
+  showToast('Configuration preview ready · rules have not been evaluated');
 }
 
 function discardSettingsDraft() {
   draftAutomationMode = automationMode;
   draftCadenceWeeks = cadenceWeeks;
+  draftSessionDueDays = sessionDueDays;
   settingsState = 'saved';
   settingsPanelMode = null;
   renderSettings();
@@ -3418,8 +3431,9 @@ function discardSettingsDraft() {
 
 function activateSettingsDraft() {
   if (!settingsAreDirty()) return;
+  if (!validSessionDueDays(draftSessionDueDays)) { document.getElementById('session-due-days')?.reportValidity(); return; }
   const now = new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date()).replace(',', ' ·');
-  if (!persistSettings(draftAutomationMode, draftCadenceWeeks, now)) {
+  if (!persistSettings(draftAutomationMode, draftCadenceWeeks, now, draftSessionDueDays)) {
     settingsState = 'error';
     settingsPanelMode = null;
     renderSettings();
@@ -3428,6 +3442,7 @@ function activateSettingsDraft() {
   }
   automationMode = draftAutomationMode;
   cadenceWeeks = draftCadenceWeeks;
+  sessionDueDays = draftSessionDueDays;
   settingsSavedAt = now;
   settingsState = 'saved';
   settingsPanelMode = null;
@@ -3436,7 +3451,7 @@ function activateSettingsDraft() {
   const schedule = scheduleForCadence(cadenceWeeks);
   automationRunSummary.analysisWindow = schedule.analysisWindow;
   automationRunSummary.nextRun = schedule.nextRun;
-  settingsAuditHistory.unshift({ action: 'Configuration activated', detail: settingsModeLabel(automationMode) + ' · ' + (cadenceWeeks === 1 ? 'weekly' : 'every 2 weeks'), time: settingsSavedAt });
+  settingsAuditHistory.unshift({ action: 'Configuration activated', detail: settingsModeLabel(automationMode) + ' · ' + (cadenceWeeks === 1 ? 'weekly' : 'every 2 weeks') + ' · new sessions due ' + sessionDueDays + ' days from creation', time: settingsSavedAt });
   saveSetting('elevate-settings-audit', JSON.stringify(settingsAuditHistory.slice(0, 20)));
   renderSettings();
   syncFleetSessionCounts();
@@ -3444,115 +3459,10 @@ function activateSettingsDraft() {
 }
 
 function renderSettings() {
-  renderDesignLibraryKpis();
-  const modeHelp = document.getElementById('automation-mode-help');
-  if (modeHelp) modeHelp.textContent = { manual: 'Managers review every match before coaching starts.', semi: 'The system prepares coaching for human approval.', fully: 'The system assigns, sends, reminds, and tracks completion.' }[draftAutomationMode];
-  const modes = {
-    manual: { label: 'Manual', next: 'Managers review every match before coaching starts' },
-    semi: { label: 'Semi-automated', next: 'Matches wait for manager approval' },
-    fully: { label: 'Fully automated', next: 'Next coaching cycle · Monday, 8:00 AM' }
-  };
-  const dirty = settingsAreDirty();
-  if (settingsState !== 'error') settingsState = dirty ? 'dirty' : 'saved';
-  document.querySelectorAll('[data-automation-mode]').forEach((button) => {
-    const active = button.dataset.automationMode === draftAutomationMode;
-    button.classList.toggle('is-active', active);
-    button.setAttribute('aria-checked', String(active));
-    button.removeAttribute('aria-pressed');
-    button.tabIndex = active ? 0 : -1;
-  });
-  document.querySelectorAll('[data-cadence]').forEach((button) => {
-    const active = Number(button.dataset.cadence) === draftCadenceWeeks;
-    button.classList.toggle('is-active', active);
-    button.setAttribute('aria-checked', String(active));
-    button.removeAttribute('aria-pressed');
-    button.tabIndex = active ? 0 : -1;
-  });
-  const statusTitle = document.querySelector('.settings-status-card strong');
-  const statusCopy = document.querySelector('.settings-status-card small');
-  const statusDot = document.querySelector('.settings-status-card .automation-live-dot');
-  if (statusTitle) statusTitle.textContent = modes[automationMode].label;
-  if (statusCopy) statusCopy.textContent = modes[automationMode].next;
-  if (statusDot) {
-    statusDot.classList.toggle('is-paused', automationMode === 'manual');
-    statusDot.classList.toggle('is-review', automationMode === 'semi');
-  }
-  const cadenceWindow = document.getElementById('cadence-window');
-  const cadenceDispatch = document.getElementById('cadence-dispatch');
-  if (cadenceWindow) cadenceWindow.textContent = draftCadenceWeeks === 1 ? 'Previous 7 days' : 'Previous 14 days';
-  if (cadenceDispatch) cadenceDispatch.textContent = draftCadenceWeeks === 1 ? 'Monday · 8:00 AM' : 'Every other Monday · 8:00 AM';
-  const impact = document.getElementById('settings-impact');
-  const impactState = settingsState === 'error' ? 'error' : settingsPanelMode === 'preview' ? 'preview' : dirty ? 'dirty' : 'saved';
-  if (impact) {
-    impact.dataset.state = impactState;
-    impact.classList.toggle('is-saved-quiet', !dirty && settingsState !== 'error' && !settingsPanelMode);
-    impact.classList.toggle('is-dirty', dirty);
-    impact.classList.toggle('is-error', settingsState === 'error');
-    impact.classList.toggle('is-preview', settingsPanelMode === 'preview');
-  }
-  const impactCopy = {
-    title: dirty ? 'Review unpublished changes' : 'No unpublished changes',
-    summary: dirty
-      ? settingsDraftSummary()
-      : 'The active setup remains scheduled for the next ' + (cadenceWeeks === 1 ? 'weekly' : 'two-week') + ' cycle.',
-    state: settingsState === 'error' ? 'Activation failed' : dirty ? 'Unsaved draft' : 'Active',
-    programs: String(dirty ? settingsDraftProgramsAffected() : categories.filter((category) => category.coached > 0).length),
-    drivers: 'Not estimated',
-    run: dirty
-      ? (draftCadenceWeeks === 1 ? 'Next Monday' : 'Moves to Sep 14')
-      : 'No change'
-  };
-  Object.entries({
-    'settings-impact-title': impactCopy.title,
-    'settings-impact-summary': impactCopy.summary,
-    'settings-impact-state': impactCopy.state,
-    'settings-impact-programs': impactCopy.programs,
-    'settings-impact-drivers': impactCopy.drivers,
-    'settings-impact-run': impactCopy.run
-  }).forEach(([id, value]) => {
-    const node = document.getElementById(id);
-    if (node) node.textContent = value;
-  });
-  const previewPanel = document.getElementById('settings-preview-panel');
-  if (previewPanel) {
-    previewPanel.hidden = !settingsPanelMode;
-    if (settingsPanelMode === 'preview') {
-      previewPanel.innerHTML = '<strong>Dry-run preview ready</strong><span>' + escapeHtml(settingsPreviewCopy(draftAutomationMode, draftCadenceWeeks).description) + '</span>';
-    } else if (settingsPanelMode === 'audit') {
-      previewPanel.innerHTML = '<strong>Recent run &amp; change history</strong><ol>' + settingsAuditHistory.slice(0, 4).map((item) => '<li><span>' + escapeHtml(item.action) + '</span><small>' + escapeHtml(item.detail + ' · ' + item.time) + '</small></li>').join('') + '</ol>';
-    }
-  }
-  const errorNode = document.getElementById('settings-save-error');
-  if (errorNode) errorNode.hidden = settingsState !== 'error';
-  const saveState = document.getElementById('settings-save-state');
-  if (saveState) {
-    saveState.dataset.state = settingsState;
-    saveState.classList.toggle('is-dirty', dirty);
-    saveState.classList.toggle('is-error', settingsState === 'error');
-    saveState.textContent = settingsState === 'error' ? 'Activation failed · draft retained' : dirty ? 'Unsaved changes' : 'Saved ' + settingsSavedAt;
-  }
-  const discard = document.getElementById('settings-discard');
-  const save = document.getElementById('settings-save');
-  const preview = document.getElementById('settings-preview');
-  if (discard) discard.disabled = !dirty;
-  if (save) save.disabled = !dirty;
-  if (preview) preview.textContent = settingsPanelMode === 'preview' ? 'Refresh preview' : 'Run preview';
-  const commandStatus = document.getElementById('automation-command-status');
-  if (commandStatus) {
-    const schedule = cadenceWeeks === 1 ? 'Runs Mondays' : 'Runs every other Monday';
-    const mode = automationMode === 'fully' ? 'fully automated' : automationMode === 'semi' ? 'human review' : 'manual review only';
-    commandStatus.innerHTML = schedule + ' · ' + mode + ' <b aria-hidden="true">›</b>';
-  }
-  const summaryValues = {
-    'automation-mode-summary': settingsModeLabel(automationMode),
-    'automation-cadence-summary': cadenceWeeks === 1 ? 'Every week' : 'Every 2 weeks',
-    'automation-last-run': automationRunSummary.lastRun,
-    'automation-next-run': automationRunSummary.nextRun
-  };
-  Object.entries(summaryValues).forEach(([id, value]) => {
-    const node = document.getElementById(id);
-    if (node) node.textContent = value;
-  });
+  if (settingsState !== 'error') settingsState = settingsAreDirty() ? 'dirty' : 'saved';
+  if (currentView === 'programs' && programTab === 'automation' && typeof renderProgramsPage === 'function') renderProgramsPage();
+  const status = document.getElementById('automation-command-status');
+  if (status) status.innerHTML = escapeHtml((cadenceWeeks === 1 ? 'Runs Mondays' : 'Runs every other Monday') + ' · ' + settingsModeLabel(automationMode).toLowerCase()) + ' <b aria-hidden="true">›</b>';
 }
 
 const outcomeDetailViews = {
@@ -3790,6 +3700,12 @@ function showToast(message) {
 }
 
 document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-program-attention]')) {
+    const heading = document.getElementById('program-activity-attention-title');
+    heading?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    heading?.focus({ preventScroll: true });
+    return;
+  }
   if (event.target.closest('#global-search-trigger')) {
     openGlobalSearch();
     return;
@@ -3845,11 +3761,11 @@ document.addEventListener('click', (event) => {
   if (createDriverSession) {
     const driver = directory.find(item => item.name === createDriverSession.dataset.createDriverSession);
     if (!driver) return;
-    const flag = candidateFor(driver.name);
+    const flag = activeDriverCategory === 'all' ? candidateFor(driver.name) : allSessionRecords().find(record => record.candidate && record.person === driver.name && record.categoryId === activeDriverCategory);
     if (flag) startSessionForCandidate(flag.id);
     else {
       pendingCandidateId = null;
-      openManualSessionDialog({ person: driver.name, categoryId: categories.find(category => category.name === driver.focus)?.id });
+      openManualSessionDialog({ person: driver.name, categoryId: activeDriverCategory !== 'all' ? activeDriverCategory : categories.find(category => category.name === driver.focus)?.id });
     }
     return;
   }
@@ -3899,7 +3815,7 @@ document.addEventListener('click', (event) => {
       openCategoryDrawer(viewLink.dataset.programLink, { stage: 'outcomes' });
       return;
     }
-    if (viewLink.dataset.analyticsLink && analyticsTabs.includes(viewLink.dataset.analyticsLink)) analyticsTab = viewLink.dataset.analyticsLink;
+    if (viewLink.dataset.analyticsLink && analyticsTabs.includes(viewLink.dataset.analyticsLink)) { analyticsTab = viewLink.dataset.analyticsLink; if (analyticsTab !== 'drivers') selectedProgramId = 'all'; }
     if (viewLink.dataset.inboxFilter) {
       activeSessionFilter = normalizeSessionFilter(viewLink.dataset.inboxFilter);
       activeSessionSource = ['automated', 'manual_override'].includes(viewLink.dataset.inboxOrigin) ? viewLink.dataset.inboxOrigin : 'all';
@@ -3909,15 +3825,16 @@ document.addEventListener('click', (event) => {
       if (sessionSearchInput) sessionSearchInput.value = '';
     }
     if (viewLink.dataset.driverFilterLink) activeDriverFilter = viewLink.dataset.driverFilterLink;
+    if (viewLink.dataset.driverProgramLink) activeDriverCategory = categories.some(program => program.id === viewLink.dataset.driverProgramLink) ? viewLink.dataset.driverProgramLink : 'all';
     if (viewLink.dataset.driverGroupLink) {
       activeDriverGroup = viewLink.dataset.driverGroupLink;
       activeDriverFilter = 'all';
       activeDriverScoreFilter = 'all';
-      activeDriverCategory = 'all';
+      activeDriverCategory = categories.some(program => program.id === viewLink.dataset.driverProgramLink) ? viewLink.dataset.driverProgramLink : 'all';
       const driverSearch = document.getElementById('driver-search');
       if (driverSearch) driverSearch.value = '';
       const categoryFilter = document.getElementById('driver-category-filter');
-      if (categoryFilter) categoryFilter.value = 'all';
+      if (categoryFilter) categoryFilter.value = activeDriverCategory;
       const groupFilter = document.getElementById('driver-group-filter');
       if (groupFilter) groupFilter.value = activeDriverGroup;
     }
@@ -3932,7 +3849,11 @@ document.addEventListener('click', (event) => {
   }
 
   const programPageButton = event.target.closest('[data-open-program-page]');
-  if (programPageButton) { openProgramPage(programPageButton.dataset.openProgramPage, programPageButton.dataset.programPageTab); return; }
+  if (programPageButton) {
+    if (programPageButton.closest('#program-comparison-table')) openCategoryDrawer(programPageButton.dataset.openProgramPage);
+    else openProgramPage(programPageButton.dataset.openProgramPage, programPageButton.dataset.programPageTab);
+    return;
+  }
   if (event.target.closest('[data-back-program-page]')) { backToProgramSource(); return; }
   if (event.target.closest('[data-back-program-group]')) { backToProgramGroup(); return; }
   if (event.target.closest('[data-back-program-drawer]')) { closeDrawer(); return; }
@@ -4148,7 +4069,7 @@ document.addEventListener('click', (event) => {
     document.querySelectorAll('[data-driver-filter]').forEach(button => button.classList.toggle('is-active', button.dataset.driverFilter === 'all'));
     renderDirectory();
     updateUrlState();
-    overviewDriver.focus({ preventScroll: true });
+    (document.querySelector('[data-overview-driver="' + overviewDriver.dataset.overviewDriver.replace(/"/g, '\\"') + '"]') || overviewDriver).focus({ preventScroll: true });
     return;
   }
 
@@ -4447,7 +4368,7 @@ document.addEventListener('change', (event) => {
 
 document.getElementById('driver-search')?.addEventListener('input', () => {
   renderDirectory();
-  if (currentView === 'outcomes' && analyticsTab === 'drivers') updateUrlState(true);
+  if (currentView === 'drivers') updateUrlState(true);
 });
 document.getElementById('session-search').addEventListener('input', (event) => {
   sessionSearch = event.target.value;
@@ -4485,11 +4406,6 @@ window.addEventListener('hashchange', () => {
 });
 document.addEventListener('keydown', (event) => {
   const editing = event.target.matches?.('input, textarea, select, [contenteditable="true"]');
-  if ((event.key === '/' && !editing && !event.metaKey && !event.ctrlKey && !event.altKey) || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k')) {
-    event.preventDefault();
-    openGlobalSearch();
-    return;
-  }
   const globalDialog = document.getElementById('global-search-dialog');
   if (globalDialog?.open) {
     const results = Array.from(globalDialog.querySelectorAll('.global-search-result'));
@@ -4594,7 +4510,6 @@ syncDirectoryAttentionStates();
 renderDirectory();
 renderLibrary();
 renderOutcomeTable();
-renderAnalytics();
 renderSettings();
 applyUrlState();
 syncRadioGroups();
@@ -4605,6 +4520,13 @@ document.addEventListener('change', (event) => {
     landingProgramId = event.target.value;
     renderHomeOverview();
     updateUrlState();
+    return;
+  }
+  if (event.target.id === 'groups-program-filter') {
+    groupsProgramId = categories.some(program => program.id === event.target.value) ? event.target.value : 'all';
+    syncGroupDisplay();
+    updateUrlState();
+    requestAnimationFrame(() => document.getElementById('groups-program-filter')?.focus({ preventScroll: true }));
     return;
   }
   const control = event.target.closest('[data-coaching-period]');

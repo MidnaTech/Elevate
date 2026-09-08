@@ -29,11 +29,6 @@
         <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true" aria-controls="primary-navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m7-11-3 3 3 3"/></svg></button>
         </div>
 
-        <button class="global-search-trigger" id="global-search-trigger" type="button" aria-label="Search drivers, sessions, and coaching programs" aria-haspopup="dialog" aria-controls="global-search-dialog" aria-keyshortcuts="Control+K Meta+K" title="Search" data-label="Search">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
-          <span>Search</span><kbd aria-hidden="true">⌘K</kbd>
-        </button>
-
         <nav class="primary-nav" id="primary-navigation" aria-label="Workspace">
           <a class="nav-item is-active" data-view="coaching" aria-label="Automation Centre" aria-current="page" title="Automation Centre" data-label="Automation" href="#automation">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h5"/></svg>
@@ -43,22 +38,24 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M4 14h4l2 2h4l2-2h4"/></svg>
             <span>Sessions</span><b class="attention" id="sidebar-session-count">14</b>
           </a>
-          <a class="nav-item" data-view="outcomes" aria-label="Analytics" title="Analytics" data-label="Analytics" href="#analytics">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="m4 7 6-3 5 3 5-4"/></svg>
-            <span>Analytics</span>
-          </a>
-          <a class="nav-item" data-view="programs" aria-label="Programs" title="Programs" data-label="Programs" href="#programs">
+          <a class="nav-item" data-view="programs" aria-label="Programmes" title="Programmes" data-label="Programmes" href="#programs">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v15H4zM4 10h16M9 10v10"/></svg>
-            <span>Programs</span>
+            <span>Programmes</span>
           </a>
-          <a class="nav-item nav-item-secondary" data-view="library" aria-label="Content" title="Content" data-label="Content" href="#content">
+          <a class="nav-item" data-view="drivers" aria-label="Drivers" title="Drivers" data-label="Drivers" href="#drivers"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m2-15a3 3 0 0 1 0 6m1 3a5 5 0 0 1 3 4v2"/></svg><span>Drivers</span></a>
+          <a class="nav-item nav-item-secondary" data-view="library" aria-label="Learning" title="Learning" data-label="Learning" href="#learning">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h13a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H19M8 8h7"/></svg>
-            <span>Content</span>
+            <span>Learning</span>
           </a>
-          <a class="nav-item nav-item-secondary" data-view="settings" aria-label="Settings" title="Settings" data-label="Settings" href="#settings">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6.2L14.7 4h-5.4L9 6.2a8 8 0 0 0-1.5.9l-2.4-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 1.5.9l.3 2.2h5.4l.3-2.2a8 8 0 0 0 1.5-.9l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z"/></svg>
-            <span>Settings</span>
+          <!-- KEEP: Driver app nav item — REQUIRED by the product owner (Calvin), Sep 7 2026. Do NOT remove or
+               hide this. It must stay a clickable sidebar destination, not route-only. Registered in
+               dist/driver-link.js (routeViewNames.driver) and rendered in #view-driver. If you think it should
+               move or go, ask Calvin first; see docs/driver-app.md "Navigation (do not remove)". -->
+          <a class="nav-item nav-item-secondary" data-view="driver" aria-label="Driver app" title="Driver app" data-label="Driver app" href="#driver-app">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>
+            <span>Driver app</span>
           </a>
+
           <button class="nav-item mobile-more-trigger" id="mobile-more-trigger" type="button" aria-label="More destinations" aria-haspopup="dialog" aria-controls="mobile-more-dialog" aria-expanded="false" title="More" data-label="More">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
             <span>More</span>
@@ -132,18 +129,25 @@
               </div>
               <div class="automation-split-bar" id="automation-split-bar" role="img" aria-label="147 sessions started automatically versus 4 started by a manager this cycle"><i class="is-automated"></i><i class="is-manual"></i></div>
               <div class="automation-rows">
-                <div class="automation-row is-automated"><span class="automation-row-label"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h7l-1 8 10-13h-7l0-7Z"/></svg>Started automatically</span><span class="automation-bar" aria-hidden="true"><i></i></span><strong id="automation-week-automated">147</strong></div>
-                <div class="automation-row is-manual"><span class="automation-row-label"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Started by a manager</span><span class="automation-bar" aria-hidden="true"><i></i></span><strong id="automation-week-manual">4</strong></div>
+                <div class="automation-row is-automated"><span class="automation-row-label"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h7l-1 8 10-13h-7l0-7Z"/></svg>Automated sessions</span><span class="automation-bar" aria-hidden="true"><i></i></span><strong id="automation-week-automated">147</strong></div>
+                <div class="automation-row is-manual"><span class="automation-row-label"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>One-on-one sessions</span><span class="automation-bar" aria-hidden="true"><i></i></span><strong id="automation-week-manual">4</strong></div>
               </div>
               <div class="automation-card-foot">
                 <button class="card-link" type="button" data-view-link="inbox" data-inbox-filter="all" data-inbox-origin="automated" id="automation-sessions-link">View automated sessions <b aria-hidden="true">→</b></button>
-                <button class="status-link" type="button" data-view-link="settings" aria-label="Open automation settings"><span id="automation-command-status">Runs Mondays · fully automated <b aria-hidden="true">›</b></span></button>
+                <button class="status-link" type="button" data-open-program-page="all" data-program-page-tab="automation" aria-label="Open automation settings in Programs"><span id="automation-command-status">Runs Mondays · fully automated <b aria-hidden="true">›</b></span></button>
               </div>
             </article>
           </section>
+          <section class="landing-programs" aria-labelledby="landing-programs-title">
+            <div class="program-section-heading"><div class="program-section-title"><h2 class="section-title" id="landing-programs-title">Programs</h2><button class="hint-trigger" type="button" aria-label="About the programs table" data-tooltip="Coaching by program in the selected period. Overdue, Repeated and Replied need a person. Select a program to open it."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><button class="card-link" type="button" data-open-program-page="all" data-program-page-tab="overview">All programs <b aria-hidden="true">→</b></button></div>
+            <div id="landing-programs-table"></div>
+          </section>
         </section>
 
-        <section class="app-view" id="view-programs" aria-labelledby="program-title"></section>
+        <section class="app-view" id="view-programs" aria-labelledby="program-title">
+
+
+</section>
 
         <section class="app-view" id="view-inbox" aria-labelledby="inbox-title">
           <header class="page-heading">
@@ -165,7 +169,61 @@
           <div id="inbox-content"></div>
         </section>
 
-        <section class="app-view" id="view-outcomes" aria-labelledby="outcomes-title">
+          <section class="app-view" id="view-drivers" aria-labelledby="drivers-title"><header class="page-heading"><h1 id="drivers-title">Drivers</h1></header>
+<div class="data-toolbar drivers-workspace-toolbar"><div class="view-tabs" role="tablist" aria-label="Driver sections"><button type="button" role="tab" id="drivers-tab-directory" data-drivers-tab="directory" aria-controls="drivers-panel-directory" aria-selected="true">Drivers</button><button type="button" role="tab" id="drivers-tab-groups" data-drivers-tab="groups" aria-controls="drivers-panel-groups" aria-selected="false" tabindex="-1">Groups</button></div><div class="toolbar-actions" id="driver-group-controls" hidden><label class="filter-button period-control"><span class="sr-only">Programme</span><select id="groups-program-filter" aria-label="Programme"></select></label><label class="filter-button period-control"><span class="sr-only">Period</span><select data-coaching-period aria-label="Period"><option value="1">This week</option><option value="4">Last 4 weeks</option><option value="8">Last 8 weeks</option></select></label><span class="caption" id="driver-groups-scope"></span></div></div><section id="drivers-panel-directory" role="tabpanel" aria-labelledby="drivers-tab-directory">
+          <div class="kpi-region" id="drivers-kpis"></div>
+          <section class="overview-band" aria-label="Fleet overview">
+            <article class="overview-panel" aria-labelledby="driver-safety-title">
+              <header class="overview-heading"><h2 id="driver-safety-title">Safety mix <button class="info-hint" type="button" aria-label="About fleet safety mix" data-tooltip="Fleet Elevate scores from 0 to 100; higher is safer. Counts cover the full fleet and stay fixed when the directory is filtered. Select a tier to filter the directory."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 11v5m0-9v1"/></svg></button></h2><span class="overview-scope" id="driver-safety-scope"></span></header>
+              <div class="overview-stacked-bar" id="driver-safety-mix" role="group" aria-label="Filter drivers by fleet safety mix"></div>
+              <div class="overview-key" id="driver-tier-totals" role="group" aria-label="Filter drivers by safety tier"></div>
+              <details class="driver-distribution-card overview-disclosure">
+                <summary><span id="driver-distribution-title">Score breakdown</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></summary>
+                <div class="driver-distribution-context"><span class="overview-scope">Elevate score · higher is safer</span></div>
+                <div class="driver-distribution" id="driver-distribution" role="group" aria-labelledby="driver-distribution-title"></div>
+              </details>
+            </article>
+            <article class="overview-panel overview-driver-coaching" aria-label="Driver improvement">
+              <div class="overview-driver-highlight">
+                <header class="overview-heading"><h3>Top score improvements <button class="info-hint" id="driver-improvement-help" type="button" aria-label="About the most improved drivers"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 11v5m0-9v1"/></svg></button></h3><span class="overview-scope">Directory · dates unavailable</span></header>
+                <div class="overview-driver-list" id="driver-improvement-list"></div>
+                <span class="overview-empty" id="driver-improvement-empty" hidden>No score increases yet</span>
+              </div>
+            </article>
+          </section>
+          <section class="directory-card">
+            <div class="data-toolbar driver-table-toolbar">
+              <div class="view-tabs directory-filters" aria-label="Driver status"><button class="is-active" type="button" data-driver-filter="all" aria-pressed="true">All <b>1,024</b></button><button type="button" data-driver-filter="automated" aria-pressed="false">Automated</button><button type="button" data-driver-filter="one_to_one" aria-pressed="false">One-on-one</button><button type="button" data-driver-filter="attention" aria-pressed="false">Needs review <b id="driver-attention-filter-count">14</b></button><button type="button" data-driver-filter="completed" aria-pressed="false">Completed</button><button type="button" data-driver-filter="track" aria-pressed="false">On track</button></div>
+              <div class="toolbar-actions driver-toolbar-actions"><label class="filter-button period-control"><span class="sr-only">Period</span><select data-coaching-period aria-label="Period"><option value="1">This week</option><option value="4">Last 4 weeks</option><option value="8">Last 8 weeks</option></select></label>
+                <label class="search-control" for="driver-search"><span class="sr-only">Search drivers by name</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="driver-search" type="search" placeholder="Search drivers" autocomplete="off"/></label>
+                <div class="filter-sheet driver-filter-sheet" data-filter-sheet="drivers">
+                  <button class="filter-sheet-trigger" type="button" data-filter-sheet-trigger aria-expanded="false" aria-controls="driver-filters"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4"/></svg><span>Filters</span><b id="driver-active-filter-count" hidden>0</b></button>
+                  <button class="filter-sheet-backdrop" type="button" data-filter-sheet-close tabindex="-1" aria-label="Close driver filters"></button>
+                  <div class="filter-sheet-content" id="driver-filters">
+                    <div class="filter-sheet-header"><strong>Driver filters</strong><button class="icon-button" type="button" data-filter-sheet-close aria-label="Close driver filters">×</button></div>
+                    <div class="driver-select-filters">
+                      <label for="driver-group-filter"><span>Group</span><select id="driver-group-filter"><option value="all">All groups</option><option>Long haul · North</option><option>Regional · East</option><option>Local delivery</option><option>Regional · West</option></select></label>
+                      <label for="driver-category-filter"><span>Program</span><select id="driver-category-filter"><option value="all">All programs</option><option>Following distance</option><option>Speeding</option><option>Harsh braking</option><option>Distracted driving</option></select></label>
+                      <label for="driver-sort"><span>Sort by</span><select id="driver-sort"><option value="action">Needs review first</option><option value="lowest">Lowest score</option><option value="decline">Largest decline</option></select></label>
+                    </div>
+                    <div class="filter-sheet-actions driver-filter-sheet-footer"><button class="text-button" id="driver-reset-filters" type="button" data-clear-driver-filter="all" disabled>Reset</button><button class="primary-button" type="button" data-filter-sheet-close>Show drivers</button></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="driver-filter-state" id="driver-filter-state"></div>
+            <div class="driver-directory" id="driver-directory"></div>
+          </section>
+          </section>
+<section id="drivers-panel-groups" role="tabpanel" aria-labelledby="drivers-tab-groups" hidden>          <section class="analytics-panel" id="view-groups">
+          <div class="kpi-region" id="groups-kpis"></div><section class="overview-band overview-band-three" id="groups-overview" aria-label="Group coaching and event trends"></section>
+          <section class="group-comparison-card">
+            <header><h2>Group comparison</h2><button class="info-hint" type="button" data-tooltip="Coaching activity for the week of Aug 31. Event change compares events per 1,000 trips over the last 8 weeks; lower is safer. Open a group for program details." aria-label="About group comparison"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg></button></header>
+            <div id="group-rows"></div>
+          </section>
+          </section></section>
+          </section>
+        <section class="app-view" id="view-outcomes" aria-labelledby="outcomes-title" hidden inert>
           <header class="page-heading">
             <div><h1 id="outcomes-title">Analytics</h1></div>
             <div class="heading-actions">
@@ -188,7 +246,7 @@
               <div><div class="analytics-metric-label"><span>Needs review</span><button class="info-hint" type="button" data-tooltip="Sessions waiting on a person: Overdue, Repeated, or Replied." aria-label="About needs review"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-escalated-count">14</strong></div>
               <div><div class="analytics-metric-label"><span>Completed</span><button class="info-hint" type="button" data-tooltip="Sessions completed in the selected period, including archived completions." aria-label="About completed"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-completed-count">130</strong></div>
               <div><div class="analytics-metric-label"><span>Automated sessions</span><button class="info-hint" type="button" data-tooltip="All sessions started automatically in the selected period: in progress, needing review, or completed. Excludes flags without a session." aria-label="About automated sessions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-coached-count">147</strong></div>
-              <div><div class="analytics-metric-label"><span>One-on-one sessions</span><button class="info-hint" type="button" data-tooltip="All manager-started sessions in the selected period: in progress, needing review, or completed. Excludes flags without a session." aria-label="About one-on-one sessions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-one-to-one-count">4</strong></div>
+              <div><div class="analytics-metric-label"><span>One-on-one sessions</span><button class="info-hint" type="button" data-tooltip="All sessions currently handled one-on-one, including escalations, in the selected period: in progress, needing review, or completed. Excludes flags without a session." aria-label="About one-on-one sessions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button></div><strong id="analytics-one-to-one-count">4</strong></div>
             </section>
               <section class="analytics-chart-card analytics-activity-chart chart-card" aria-labelledby="activity-chart-title">
                 <header><div><h2 class="chart-title" id="activity-chart-title">Weekly activity</h2><span class="chart-context">In-progress sessions · weekly snapshots Jul 13–Aug 31.</span></div></header>
@@ -234,151 +292,32 @@
             </section>
           </section>
 
-          <section class="analytics-panel" id="view-drivers" role="tabpanel" aria-labelledby="analytics-drivers-tab" tabindex="0" hidden>
-          <div class="kpi-region" id="drivers-kpis"></div>
-          <section class="overview-band" aria-label="Fleet overview">
-            <article class="overview-panel" aria-labelledby="driver-safety-title">
-              <header class="overview-heading"><h2 id="driver-safety-title">Safety mix <button class="info-hint" type="button" aria-label="About fleet safety mix" data-tooltip="Fleet Elevate scores from 0 to 100; higher is safer. Counts cover the full fleet and stay fixed when the directory is filtered. Select a tier to filter the directory."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 11v5m0-9v1"/></svg></button></h2><span class="overview-scope" id="driver-safety-scope"></span></header>
-              <div class="overview-stacked-bar" id="driver-safety-mix" role="group" aria-label="Filter drivers by fleet safety mix"></div>
-              <div class="overview-key" id="driver-tier-totals" role="group" aria-label="Filter drivers by safety tier"></div>
-              <details class="driver-distribution-card overview-disclosure">
-                <summary><span id="driver-distribution-title">Score breakdown</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></summary>
-                <div class="driver-distribution-context"><span class="overview-scope">Elevate score · higher is safer</span></div>
-                <div class="driver-distribution" id="driver-distribution" role="group" aria-labelledby="driver-distribution-title"></div>
-              </details>
-            </article>
-            <article class="overview-panel overview-driver-coaching" aria-label="Driver improvement">
-              <div class="overview-driver-highlight">
-                <header class="overview-heading"><h3>Top score improvement <button class="info-hint" id="driver-improvement-help" type="button" aria-label="About the most improved driver"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 11v5m0-9v1"/></svg></button></h3><span class="overview-scope">Directory · dates unavailable</span></header>
-                <button class="overview-driver-winner" id="driver-improvement" type="button" data-overview-driver=""><span class="person-avatar" aria-hidden="true"></span><span class="overview-driver-name"><strong></strong><span class="overview-scope"></span></span><strong class="overview-driver-gain"></strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
-                <span class="overview-empty" id="driver-improvement-empty" hidden>No score increases yet</span>
-              </div>
-            </article>
-          </section>
-          <section class="directory-card">
-            <div class="data-toolbar driver-table-toolbar">
-              <div class="view-tabs directory-filters" aria-label="Driver status"><button class="is-active" type="button" data-driver-filter="all" aria-pressed="true">All <b>1,024</b></button><button type="button" data-driver-filter="automated" aria-pressed="false">Automated</button><button type="button" data-driver-filter="one_to_one" aria-pressed="false">One-on-one</button><button type="button" data-driver-filter="attention" aria-pressed="false">Needs review <b id="driver-attention-filter-count">14</b></button><button type="button" data-driver-filter="completed" aria-pressed="false">Completed</button><button type="button" data-driver-filter="track" aria-pressed="false">On track</button></div>
-              <div class="toolbar-actions driver-toolbar-actions">
-                <label class="search-control" for="driver-search"><span class="sr-only">Search drivers by name</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="driver-search" type="search" placeholder="Search drivers" autocomplete="off"/></label>
-                <div class="filter-sheet driver-filter-sheet" data-filter-sheet="drivers">
-                  <button class="filter-sheet-trigger" type="button" data-filter-sheet-trigger aria-expanded="false" aria-controls="driver-filters"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4"/></svg><span>Filters</span><b id="driver-active-filter-count" hidden>0</b></button>
-                  <button class="filter-sheet-backdrop" type="button" data-filter-sheet-close tabindex="-1" aria-label="Close driver filters"></button>
-                  <div class="filter-sheet-content" id="driver-filters">
-                    <div class="filter-sheet-header"><strong>Driver filters</strong><button class="icon-button" type="button" data-filter-sheet-close aria-label="Close driver filters">×</button></div>
-                    <div class="driver-select-filters">
-                      <label for="driver-group-filter"><span>Group</span><select id="driver-group-filter"><option value="all">All groups</option><option>Long haul · North</option><option>Regional · East</option><option>Local delivery</option><option>Regional · West</option></select></label>
-                      <label for="driver-category-filter"><span>Program</span><select id="driver-category-filter"><option value="all">All programs</option><option>Following distance</option><option>Speeding</option><option>Harsh braking</option><option>Distracted driving</option></select></label>
-                      <label for="driver-sort"><span>Sort by</span><select id="driver-sort"><option value="action">Needs review first</option><option value="lowest">Lowest score</option><option value="decline">Largest decline</option></select></label>
-                    </div>
-                    <div class="filter-sheet-actions driver-filter-sheet-footer"><button class="text-button" id="driver-reset-filters" type="button" data-clear-driver-filter="all" disabled>Reset</button><button class="primary-button" type="button" data-filter-sheet-close>Show drivers</button></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="driver-filter-state" id="driver-filter-state"></div>
-            <div class="driver-directory" id="driver-directory"></div>
-          </section>
-          </section>
 
-          <section class="analytics-panel" id="view-groups" role="tabpanel" aria-labelledby="analytics-groups-tab" tabindex="0" hidden>
-          <div class="kpi-region" id="groups-kpis"></div><section class="overview-band overview-band-three" id="groups-overview" aria-label="Group coaching and event trends"></section>
-          <section class="group-comparison-card">
-            <header><h2>Group comparison</h2><button class="info-hint" type="button" data-tooltip="Coaching activity for the week of Aug 31. Event change compares events per 1,000 trips over the last 8 weeks; lower is safer. Open a group for program details." aria-label="About group comparison"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg></button></header>
-            <div id="group-rows"></div>
-          </section>
-          </section>
+        </section>
+
+        <section class="app-view" id="view-driver" aria-labelledby="driver-app-title">
+          <h1 class="sr-only" id="driver-app-title">Driver app</h1>
+          <div id="driver-app-content"></div>
         </section>
 
         <section class="app-view" id="view-library" aria-labelledby="library-title">
           <header class="page-heading">
-            <div><h1 id="library-title">Content</h1></div>
-            <button class="primary-button" type="button" data-toast="New lesson draft created">New lesson</button>
+            <div><h1 id="library-title">Learning</h1></div>
+            <button class="primary-button" type="button" data-new-lesson>New lesson</button>
           </header>
-          <div class="kpi-region" id="content-kpis"></div><div class="data-toolbar"><div class="toolbar-actions"><label class="search-control" for="content-search"><span class="sr-only">Search content</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="content-search" type="search" placeholder="Search lesson or program" autocomplete="off"></label></div></div>
+          <div class="kpi-region" id="content-kpis"></div><div class="data-toolbar"><div class="toolbar-actions"><label class="search-control" for="content-search"><span class="sr-only">Search lessons</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="content-search" type="search" placeholder="Search lesson or program" autocomplete="off"></label></div></div>
           <section class="library-grid" id="library-grid"></section>
-        </section>
-
-        <section class="app-view" id="view-settings" aria-labelledby="settings-title">
-          <header class="page-heading">
-            <div><h1 id="settings-title">Automation settings</h1></div>
-            <span class="settings-save-state" id="settings-save-state" role="status" aria-live="polite" data-state="saved">Saved Aug 31 at 8:04 AM</span>
-          </header>
-          <div class="kpi-region" id="settings-kpis"></div><section class="settings-status-card">
-            <div><span class="automation-live-dot"></span><strong>Fully automated</strong><small>Next coaching cycle · Monday, 8:00 AM</small></div>
-            <div class="settings-status-actions"><button class="secondary-button" id="settings-preview" type="button">Run preview</button><button class="secondary-button" id="settings-audit-history" type="button">History</button></div>
-          </section>
-          <section class="settings-impact" id="settings-impact" aria-labelledby="settings-impact-title" aria-live="polite" data-state="saved">
-            <header><div><p class="eyebrow">Draft impact</p><h2 id="settings-impact-title">No unpublished changes</h2><span id="settings-impact-summary">The active setup remains scheduled for the next weekly cycle.</span></div><span class="settings-impact-state" id="settings-impact-state">Active</span></header>
-            <dl class="settings-impact-grid">
-              <div><dt>Programs affected</dt><dd id="settings-impact-programs">8</dd></div>
-              <div><dt>Drivers in next cycle</dt><dd id="settings-impact-drivers">Not estimated</dd></div>
-              <div><dt>Next-run impact</dt><dd id="settings-impact-run">No change</dd></div>
-            </dl>
-            <div class="settings-preview-panel" id="settings-preview-panel" role="status" aria-live="polite" hidden>
-              <strong>Dry-run preview ready</strong><span>No assignments were sent. Review the projected program and driver impact before activation.</span>
-            </div>
-            <p class="settings-save-error" id="settings-save-error" role="alert" hidden>Changes could not be activated. Your draft is still available; retry when the connection is restored.</p>
-            <div class="settings-draft-actions">
-              <button class="secondary-button" id="settings-discard" type="button" disabled>Discard changes</button>
-              <button class="primary-button" id="settings-save" type="button" disabled>Save and activate</button>
-            </div>
-          </section>
-          <section class="settings-section" aria-labelledby="automation-mode-title">
-            <header><h2 id="automation-mode-title">Automation mode</h2></header>
-            <fieldset class="segmented automation-mode-grid" id="automation-mode-grid" aria-labelledby="automation-mode-title" aria-describedby="automation-mode-help">
-              <legend class="sr-only">Automation mode</legend>
-              <label><input type="radio" name="automation-mode" value="manual" data-automation-mode="manual" aria-checked="false"><span class="segmented__option">Manual</span></label>
-              <label><input type="radio" name="automation-mode" value="semi" data-automation-mode="semi" aria-checked="false"><span class="segmented__option">Semi-automated</span></label>
-              <label><input type="radio" name="automation-mode" value="fully" data-automation-mode="fully" aria-checked="true" checked><span class="segmented__option">Fully automated</span></label>
-            </fieldset>
-            <p class="field-help" id="automation-mode-help">The system assigns, sends, reminds, and tracks completion.</p>
-          </section>
-          <div class="settings-grid">
-            <section class="settings-section compact-settings" aria-labelledby="cadence-title">
-              <header><h2 id="cadence-title">Coaching cadence</h2><button class="info-hint" type="button" data-tooltip="Drivers receive at most one coaching cycle in this interval." aria-label="About coaching cadence"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg></button></header>
-              <div class="settings-choice-row" role="radiogroup" aria-labelledby="cadence-title"><button class="is-active" type="button" role="radio" aria-checked="true" data-cadence="1">Every week</button><button type="button" role="radio" aria-checked="false" data-cadence="2">Every 2 weeks</button></div>
-              <div class="settings-fact"><span>Analysis window</span><strong id="cadence-window">Previous 7 days</strong></div>
-              <div class="settings-fact"><span>Dispatch</span><strong id="cadence-dispatch">Monday · 8:00 AM</strong></div>
-            </section>
-            <section class="settings-section compact-settings" aria-labelledby="completion-title">
-              <header><h2 id="completion-title">Completion policy</h2><button class="info-hint" type="button" data-tooltip="These requirements apply to automated quick training." aria-label="About completion policy"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg></button></header>
-              <div class="settings-fact"><span>Lesson</span><strong>Required</strong></div>
-              <div class="settings-fact"><span>Acknowledgement</span><strong>Required</strong></div>
-              <div class="settings-fact"><span>Quiz</span><strong>2 questions · 80% pass</strong></div>
-              <div class="settings-fact"><span>Reminder</span><strong>Automatic after 48 hours</strong></div>
-            </section>
-          </div>
         </section>
       </main>
     </div>
-
-    <dialog class="global-search-dialog" id="global-search-dialog" aria-labelledby="global-search-title" aria-describedby="global-search-help">
-      <div class="global-search-shell">
-        <header class="global-search-header">
-          <div><p class="eyebrow">Search Elevate</p><h2 id="global-search-title">Find anything</h2></div>
-          <button class="icon-button" type="button" data-global-search-close aria-label="Close global search">×</button>
-        </header>
-        <label class="global-search-control" for="global-search-input">
-          <span class="sr-only">Search drivers, sessions, and coaching programs</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
-          <input id="global-search-input" type="search" role="combobox" placeholder="Search drivers, sessions, or programs" autocomplete="off" aria-autocomplete="list" aria-controls="global-search-results" aria-expanded="false" aria-describedby="global-search-help" />
-          <kbd aria-hidden="true">Esc</kbd>
-        </label>
-        <p class="global-search-help" id="global-search-help">Searches driver names, session records, and coaching programs. Select a result to open it in context.</p>
-        <div class="global-search-results" id="global-search-results" role="listbox" aria-label="Global search results" aria-live="polite">
-          <div class="global-search-empty"><strong>Start typing to search</strong><span>Try a driver name, session status, or program such as Following distance.</span></div>
-        </div>
-        <footer><span><kbd>↑</kbd><kbd>↓</kbd> Move</span><span><kbd>↵</kbd> Open</span><span><kbd>Esc</kbd> Close</span></footer>
-      </div>
-    </dialog>
 
     <dialog class="mobile-more-dialog" id="mobile-more-dialog" aria-labelledby="mobile-more-title">
       <div class="mobile-more-sheet">
         <header><div><p class="eyebrow">Navigation</p><h2 id="mobile-more-title">More</h2></div><button class="icon-button" type="button" data-mobile-more-close aria-label="Close navigation menu">×</button></header>
         <nav aria-label="More destinations">
-          <button class="mobile-more-link" type="button" data-open-global-search><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span><strong>Search</strong><small>Find drivers, sessions, and programs</small></span><b aria-hidden="true">›</b></button>
-          <button class="mobile-more-link" type="button" data-mobile-view="library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h13a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H19M8 8h7"/></svg><span><strong>Content</strong><small>Manage mapped lessons</small></span><b aria-hidden="true">›</b></button>
-          <button class="mobile-more-link" type="button" data-mobile-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6.2L14.7 4h-5.4L9 6.2a8 8 0 0 0-1.5.9l-2.4-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 1.5.9l.3 2.2h5.4l.3-2.2a8 8 0 0 0 1.5-.9l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z"/></svg><span><strong>Settings</strong><small>Automation mode and cadence</small></span><b aria-hidden="true">›</b></button>
+          <button class="mobile-more-link" type="button" data-mobile-view="library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h13a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H19M8 8h7"/></svg><span><strong>Learning</strong><small>Lessons mapped to programs</small></span><b aria-hidden="true">›</b></button>
+          <!-- KEEP: Driver app (mobile More) — pairs with the sidebar Driver app item. Required by Calvin; do not remove. -->
+          <button class="mobile-more-link" type="button" data-mobile-view="driver"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg><span><strong>Driver app</strong><small>The app your drivers see</small></span><b aria-hidden="true">›</b></button>
         </nav>
       </div>
     </dialog>
@@ -405,10 +344,17 @@
     <script src="./components.js?v=design-library-1"></script>
     <script src="./charts.js?v=design-library-1"></script>
     <script src="./overview.js?v=design-library-1"></script>
+    <script src="./session-mode.js"></script>
+    <script src="./manual-coaching.js"></script>
     <script src="./session-evidence.js?v=design-library-1"></script>
     <script src="./session-workspace.js?v=design-library-1"></script>
     <script src="./driver-spotlight.js?v=design-library-1"></script>
     <script src="./programs.js?v=program-review-1"></script>
+    <script src="./program-policy.js"></script>
+    <script src="./learning-library.js"></script>
+    <script src="./program-activity.js?v=program-review-1"></script>
+    <script>window.__elevateInitialHash = window.location.hash;</script>
     <script src="./app.js?v=design-library-1"></script>
+    <script src="./driver-link.js?v=driver-app-1"></script>
   </body>
 </html>

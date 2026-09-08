@@ -67,6 +67,10 @@ try {
   assert.equal(await drawer.locator('#session-evidence').count(), 1);
   assert.equal(await drawer.locator('.case-summary-card, .session-rail, .attachment-chip-remove, .footage-strip').count(), 0, 'Old duplicated summary, metadata rail and attachment strips must be removed');
   assert.equal(await drawer.locator('#session-activity').count(), 1, 'Keep a single system activity disclosure');
+  assert.equal(await drawer.locator('#sw-kpis .kpi-strip').count(), 0, 'Session evidence uses compact counts rather than dashboard tiles');
+  assert.deepEqual(await drawer.locator('#sw-kpis dt').allTextContents(), ['Events', 'Videos']);
+  assert.equal(await drawer.locator('#sw-group-title').innerText(), 'Distracted driving breakdown');
+  assert.equal(await drawer.locator('[data-toggle-breakdown]').innerText(), '', 'The breakdown heading is not repeated in its expand control');
   assert.equal(await drawer.locator('#session-activity').evaluate(node => node.open), false);
   assert.equal(await drawer.locator('#sw-messages .system-message').count(), 0, 'System events belong in Activity, not a second conversation timeline');
   const initial = await session();
@@ -226,6 +230,7 @@ try {
   await openSession('alex-following');
   const pattern = drawer.locator('[data-session-event]').filter({ hasText: 'Five-event pattern' });
   assert.equal(await pattern.count(), 1);
+  assert.equal(await pattern.locator('..').locator('..').getAttribute('aria-label'), 'Pattern events', 'Telematics patterns have their own Events list, not a Videos heading');
   await pattern.click();
   const patternCopy = await drawer.locator('#session-evidence').innerText();
   assert.match(patternCopy, /14 days|Aug 22/);
@@ -267,7 +272,99 @@ try {
   await sessionAction(retryingId).click();
   assert.equal(await drawer.locator('[data-relink-driver]').count(), 0, 'Delivery retries run automatically; there is no manual relink step');
   assert.match(await drawer.innerText(), /Automated|retr(y|ies|ying)/i);
-  assert.equal(await reply.count(), 1, 'A retrying automated session still accepts coach messages');
+  assert.equal(await reply.count(), 1, 'An automated session permits a private note');
+  assert.deepEqual(await drawer.locator('#session-composer-mode option').allTextContents(), ['Private note'], 'Automation does not expose conversational replies');
+  const beforeHandoff = await page.evaluate(id => ({ total: sessions.length, origin: sessions.find(item => item.id === id).origin }), retryingId);
+  await reply.fill('Check delivery on the next retry.');
+  await drawer.locator('[data-send-reply]').click();
+  assert.equal(await page.evaluate(id => sessionDeliveryMode(sessions.find(item => item.id === id)), retryingId), 'automated', 'A private note does not escalate automated coaching');
+  assert.equal((await session()).messages.at(-1).author, 'note');
+  await drawer.locator('[data-start-session-one-on-one]').click();
+  assert.equal(await page.evaluate(id => sessionDeliveryMode(sessions.find(item => item.id === id)), retryingId), 'one_on_one');
+  assert.equal(await page.evaluate(id => sessions.find(item => item.id === id).origin, retryingId), beforeHandoff.origin, 'Handoff preserves the original trigger origin');
+  assert.equal(await page.evaluate(() => sessions.length), beforeHandoff.total, 'Handoff does not create a duplicate case');
+  await reply.fill('Let us discuss this together.');
+  await drawer.locator('[data-send-reply]').click();
+  assert.equal(await page.evaluate(id => sessionDeliveryMode(sessions.find(item => item.id === id)), retryingId), 'one_on_one', 'A coach reply cannot silently return the case to automated delivery');
+
+  // Driver and programme selection reuses grouped evidence and commits only at Create.
+  await page.goto(base + '/#sessions');
+  const manualDialog = page.locator('#training-dialog');
+  const manualBaseline = await page.evaluate(() => ({ count: sessions.length, original: evidenceEvent('event:unassigned-1').original }));
+  const manualSource = page.url();
+  await page.locator('[data-manual-session]').click();
+  const draftBox = await manualDialog.boundingBox();
+  assert.equal(await manualDialog.evaluate(node => node.classList.contains('drawer')), true);
+  assert.ok(Math.abs(draftBox.x + draftBox.width - page.viewportSize().width) < 2, 'Create session opens against the same right edge as View session');
+  assert.ok(Math.abs(draftBox.height - page.viewportSize().height) < 2, 'Creation fills the shared drawer height');
+  assert.equal(page.url(), manualSource, 'Opening a draft preserves the source route');
+  assert.equal(await page.inputValue('#manual-category-select'), '', 'A programme is not silently selected');
+  assert.equal(await page.locator('#manual-driver-select').isEnabled(), true, 'Every field is available at once; nothing is gated behind the programme');
+  assert.equal(await page.locator('#manual-lesson-select, #manual-session-reason, #manual-coach-select, #manual-due-select').count(), 0, 'Creation has no lesson, reason, assignment or due controls');
+  assert.equal(await manualDialog.locator('select').count(), 2, 'Only driver and programme need choosing');
+  assert.equal(await page.locator('#manual-coach-value').textContent(), await page.evaluate(() => currentManager.name + ' (you)'));
+  assert.match(await page.locator('#manual-coaching-evidence').textContent(), /once a driver and programme are chosen/, 'Evidence explains what it is waiting for');
+  assert.equal(await manualDialog.locator('[data-confirm-manual-session]').isDisabled(), true);
+  await page.selectOption('#manual-category-select', 'distraction');
+  await page.selectOption('#manual-driver-select', 'Rowan Hall');
+  const preselected = await manualDialog.locator('[data-manual-event]:checked').count();
+  assert.equal(preselected, 2, 'The two dated events in this driver/programme period are selected automatically');
+  assert.equal(await manualDialog.locator('.manual-evidence-preview').isVisible(), true, 'Related video evidence opens automatically');
+  await page.selectOption('#manual-category-select', '');
+  assert.equal(await manualDialog.locator('[data-manual-event]').count(), 0, 'Clearing programme clears unrelated evidence');
+  await page.selectOption('#manual-category-select', 'distraction');
+  assert.equal(await manualDialog.locator('[data-manual-event]:checked').count(), 2, 'Restoring programme reloads matching videos automatically');
+  await manualDialog.locator('[data-manual-browse-events]').click();
+  await picker.locator('[data-event-scope="unassigned"]').click();
+  await picker.locator('[data-preview-event="event:unassigned-1"]').click();
+  assert.equal(await picker.locator('[data-sw-camera]').count(), 2, 'Both source cameras remain one event in the manual picker');
+  await picker.locator('[data-select-event="event:unassigned-1"]').check();
+  await applyPicker();
+  assert.equal(await page.evaluate(() => evidenceEvent('event:unassigned-1').person), null, 'Staging in a new session never assigns the event');
+  await manualDialog.locator('button[value="cancel"]').last().click();
+  assert.equal(await page.evaluate(() => sessions.length), manualBaseline.count, 'Cancelling manual creation leaves the ledger untouched');
+  assert.equal(await page.evaluate(() => evidenceEvent('event:unassigned-1').person), null);
+  assert.equal(page.url(), manualSource, 'Cancel returns to the unchanged source route');
+  assert.equal(await page.locator('[data-manual-session]').evaluate(node => node === document.activeElement), true, 'Cancel restores the creation invoker');
+  await page.locator('[data-manual-session]').click();
+  await page.selectOption('#manual-category-select', 'distraction');
+  await page.selectOption('#manual-driver-select', 'Rowan Hall');
+  await manualDialog.locator('[data-manual-browse-events]').click();
+  await picker.locator('[data-event-scope="unassigned"]').click();
+  await picker.locator('[data-select-event="event:unassigned-1"]').check();
+  await applyPicker();
+  await manualDialog.locator('[data-confirm-manual-session]').click();
+  assert.equal(await page.evaluate(() => currentView), 'inbox', 'Create opens the actual session over the same page');
+  const createdBox = await drawer.boundingBox();
+  assert.ok(Math.abs(createdBox.x - draftBox.x) < 2 && Math.abs(createdBox.width - draftBox.width) < 2, 'Draft and actual session use the same drawer edge and width');
+  const created = await page.evaluate(() => {
+    const record = sessions.find(item => item.id === activeSessionId);
+    return { person: record.person, program: record.categoryId, owner: record.owner, due: record.due, dueDays: record.dueDays, mode: sessionDeliveryMode(record), origin: record.origin, lesson: record.lesson, count: sessions.length, events: sessionEvidenceEvents(record).map(event => event.id), clips: record.messages.at(-1).clips, original: evidenceEvent('event:unassigned-1').original, assigned: evidenceEvent('event:unassigned-1').person };
+  });
+  assert.equal(created.count, manualBaseline.count + 1);
+  assert.equal(created.person, 'Rowan Hall');
+  assert.equal(created.program, 'distraction');
+  assert.equal(created.owner, await page.evaluate(() => currentManager.name), 'The person creating coaching is its coach');
+  assert.equal(created.due, await page.evaluate(() => globalSessionDueLabel()));
+  assert.equal(created.dueDays, await page.evaluate(() => globalSessionDueDays()), 'Creation inherits the saved global due setting');
+  assert.equal(created.mode, 'one_on_one');
+  assert.equal(created.origin, 'manual_override');
+  assert.equal(created.lesson, null);
+  assert.equal(created.events.length, 3);
+  assert.ok(created.clips.includes('unassigned-1') && created.clips.includes('unassigned-1-cab'), 'Create attaches every camera from each selected event');
+  assert.equal(created.assigned, 'Rowan Hall');
+  assert.deepEqual(created.original, manualBaseline.original, 'Manual creation preserves original source facts');
+
+  // Editing an existing record must not reassign its coach, lesson or existing deadline.
+  await page.evaluate(() => {
+    const record = sessions.find(item => item.id === activeSessionId);
+    record.owner = 'Morgan Chen'; record.due = 'Tomorrow'; record.lesson = 'Existing lesson'; record.lessonId = 'existing-lesson';
+    openManualCoaching({ editSessionId: record.id });
+  });
+  assert.equal(await page.locator('#manual-coach-value').textContent(), 'Morgan Chen');
+  await page.locator('#manual-session-reason').fill('Updated context');
+  await manualDialog.locator('[data-confirm-manual-session]').click();
+  assert.deepEqual(await page.evaluate(() => { const record = sessions.find(item => item.id === activeSessionId); return [record.owner, record.due, record.lesson, record.lessonId, record.reason]; }), ['Morgan Chen', 'Tomorrow', 'Existing lesson', 'existing-lesson', 'Updated context']);
 
   for (const width of [1440, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -282,9 +379,21 @@ try {
     assert.ok(rect.x >= -1 && rect.x + rect.width <= width + 1, 'Event browser must stay inside the viewport');
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.getElementById('session-event-browser').open);
+    const sourceUrl = page.url();
+    await page.evaluate(() => openManualCoaching({ person: 'Rowan Hall', categoryId: 'distraction' }));
+    const creationBox = await manualDialog.boundingBox();
+    assert.ok(Math.abs(creationBox.width - expectedWidth) < 2 && Math.abs(creationBox.x + creationBox.width - width) < 2, 'Creation follows the same shared drawer geometry at ' + width + 'px');
+    await manualDialog.locator('[data-manual-preview]').first().click();
+    await manualDialog.locator('#manual-coaching-evidence').evaluate(node => { const pane = node.closest('.manual-evidence-pane, .manual-coaching-body'); if (pane) pane.scrollTop = pane.scrollHeight; });
+    const actionBox = await manualDialog.locator('[data-confirm-manual-session]').boundingBox();
+    assert.ok(actionBox.y >= 0 && actionBox.y + actionBox.height <= 1001, 'Create and Cancel remain visible while evidence scrolls');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('training-dialog').open);
+    assert.equal(page.url(), sourceUrl, 'Escape preserves the underlying session route');
+    assert.equal(await drawer.isVisible(), true, 'Escape closes only the creation drawer');
   }
   assert.deepEqual(errors, [], 'Session interactions must not throw script or asset-loading errors');
-  console.log('Passed: linked-event defaults, grouped footage staging/cancel/share, source preservation, private-note isolation, attachment-only replies, persistent drafts/caret, source summary and viewer toggles, Activity, lifecycle actions, missing-media honesty, modal dismissal, and shared responsive drawer widths.');
+  console.log('Passed: programme-first manual creation, source-preserving event selection, automated private notes and explicit one-on-one handoff, linked-event defaults, grouped footage staging/cancel/share, persistent drafts/caret, lifecycle actions, missing-media honesty, and shared responsive drawer widths.');
 } catch (error) {
   if (errors.length) console.error('Browser errors:', errors);
   throw error;

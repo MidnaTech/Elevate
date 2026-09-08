@@ -100,6 +100,7 @@ function uiIcon(name) {
     if (target !== node) hide();
     target = node;
     tip.textContent = node.dataset.tooltip;
+    tip.classList.toggle('is-wide', node.dataset.tooltipWide === 'true');
     tip.hidden = false;
     const ids = new Set((node.getAttribute('aria-describedby') || '').split(' ').filter(Boolean));
     ids.add(tip.id);

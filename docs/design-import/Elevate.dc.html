@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap"><style>
+body{margin:0;background:#EDE9E1;font-family:"Instrument Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#C4501F;text-decoration:none}a:hover{color:#FF6B3D}
+@keyframes evSheet{from{transform:translateY(28px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes evFade{from{opacity:0}to{opacity:1}}
+@keyframes evPulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:0;transform:scale(2.2)}}
+</style></helmet>
+
+<div style="display:flex;align-items:flex-start;gap:52px;padding:52px 60px 72px;box-sizing:border-box">
+
+<div style="width:268px;flex:none;display:flex;flex-direction:column;gap:26px">
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div style="width:26px;height:26px;border-radius:8px;background:#14261F;display:flex;align-items:center;justify-content:center">
+        <div style="width:9px;height:9px;border-radius:2px;background:#FF6B3D;transform:rotate(45deg)"></div>
+      </div>
+      <div style="font:700 22px/1 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;color:#14261F">Elevate</div>
+    </div>
+    <div style="font:400 13px/1.55 'Instrument Sans',sans-serif;color:#6B7A73">Driver coaching app — iOS. Score, sessions, lessons and coach messages in one place.</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:7px">
+    <div style="font:600 10px/1 'Instrument Sans',sans-serif;letter-spacing:.15em;text-transform:uppercase;color:#9AA6A0;margin-bottom:3px;white-space:nowrap">Driver flows</div>
+    <sc-for list="{{ railDriver }}" as="r" hint-placeholder-count="8">
+      <button type="button" onClick="{{ r.go }}" style="appearance:none;text-align:left;border:1px solid {{ r.border }};background:{{ r.bg }};color:{{ r.fg }};border-radius:11px;padding:11px 13px;min-height:44px;font:500 13px/1.3 'Instrument Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px" style-hover="border-color:#14261F">
+        <span>{{ r.label }}</span>
+        <span style="font:500 10px/1 'Instrument Sans',sans-serif;color:#9AA6A0;letter-spacing:.04em;white-space:nowrap;flex:none">{{ r.hint }}</span>
+      </button>
+    </sc-for>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:7px">
+    <div style="font:600 10px/1 'Instrument Sans',sans-serif;letter-spacing:.15em;text-transform:uppercase;color:#9AA6A0;margin-bottom:3px;white-space:nowrap">Coach side</div>
+    <button type="button" onClick="{{ goCoachView }}" style="appearance:none;text-align:left;border:1px dashed #C7C0B4;background:transparent;color:#14261F;border-radius:11px;padding:11px 13px;min-height:44px;font:500 13px/1.3 'Instrument Sans',sans-serif;cursor:pointer" style-hover="border-color:#14261F">Coach roster (sketch)</button>
+  </div>
+
+  <div style="border-top:1px solid #DAD3C7;padding-top:18px;display:flex;flex-direction:column;gap:11px">
+    <div style="font:600 10px/1 'Instrument Sans',sans-serif;letter-spacing:.15em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">Design notes</div>
+    <div style="font:400 12px/1.6 'Instrument Sans',sans-serif;color:#6B7A73">Deliberately unlike FleetSense: no slate/blue SaaS chrome, no white dashboard. Ink green + a single warm accent, one display face, 20px radii, dark surfaces reserved for the score and for anything the driver sees while the vehicle is moving.</div>
+    <div style="font:400 12px/1.6 'Instrument Sans',sans-serif;color:#6B7A73">Coaching copy states the behaviour and the fix, never a verdict on the driver. Wins are given the same visual weight as gaps.</div>
+    <div style="font:400 12px/1.6 'Instrument Sans',sans-serif;color:#9AA6A0">Map, video and avatar art are placeholders.</div>
+  </div>
+</div>
+
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" width="{{ 402 }}" height="{{ 874 }}" dark="{{ frameDark }}" hint-size="402px,874px">
+<div style="height:100%;position:relative;display:flex;flex-direction:column;background:#F5F2EC;overflow:hidden;font-family:'Instrument Sans',system-ui,sans-serif;color:#14261F">
+
+<div style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch">
+
+<!-- ══ HOME ══ -->
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+<div style="padding:62px 20px 30px;display:flex;flex-direction:column;gap:16px">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 0">
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <div style="font:500 11px/1.2 'Instrument Sans',sans-serif;letter-spacing:.13em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">Tuesday, Sep 8</div>
+      <div style="font:700 25px/1.05 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em">Morning, Dana</div>
+    </div>
+    <div style="width:42px;height:42px;border-radius:50%;background:#E2DCD0;border:1px solid #D3CCBE;display:flex;align-items:center;justify-content:center;font:600 14px/1 'Instrument Sans',sans-serif;color:#6B7A73">DR</div>
+  </div>
+
+  <div style="background:#14261F;border-radius:24px;padding:22px 22px 20px;color:#F5F2EC;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font:500 11px/1 'Instrument Sans',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:rgba(245,242,236,.5)">Elevate score</div>
+        <div style="display:flex;align-items:flex-end;gap:9px">
+          <div style="font:800 62px/.86 'Bricolage Grotesque',sans-serif;letter-spacing:-.045em;font-variant-numeric:tabular-nums">{{ score }}</div>
+          <div style="font:500 13px/1 'Instrument Sans',sans-serif;color:rgba(245,242,236,.45);padding-bottom:7px">/ 100</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px">
+        <div style="background:rgba(47,143,107,.22);border:1px solid rgba(94,196,153,.35);color:#8FE0BE;border-radius:999px;padding:6px 11px;font:600 11px/1.2 'Instrument Sans',sans-serif;letter-spacing:.02em;white-space:nowrap;flex:none">Good standing</div>
+        <div style="font:500 12px/1.2 'Instrument Sans',sans-serif;color:#8FE0BE;white-space:nowrap">+4 this week</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:flex-end;gap:6px;height:56px">
+      <sc-for list="{{ spark }}" as="b" hint-placeholder-count="8">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px">
+          <div style="width:100%;height:{{ b.h }};border-radius:5px 5px 3px 3px;background:{{ b.fill }}"></div>
+          <div style="font:500 9px/1 'Instrument Sans',sans-serif;color:rgba(245,242,236,.4)">{{ b.label }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="border-top:1px solid rgba(245,242,236,.12);padding-top:15px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font:400 12.5px/1.4 'Instrument Sans',sans-serif;color:rgba(245,242,236,.62)">Top 22% of your group</div>
+      <button type="button" onClick="{{ goAnalytics }}" style="appearance:none;border:1px solid rgba(245,242,236,.22);background:transparent;color:#F5F2EC;border-radius:999px;padding:10px 15px;min-height:40px;font:500 12px/1.2 'Instrument Sans',sans-serif;cursor:pointer;white-space:nowrap;flex:none" style-hover="border-color:#FF6B3D;color:#FF6B3D">What's moving it</button>
+    </div>
+  </div>
+
+  <sc-if value="{{ showStreaks }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;gap:11px">
+    <div style="flex:1;background:#FFFFFF;border:1px solid #E6E0D5;border-radius:18px;padding:15px 16px;display:flex;flex-direction:column;gap:7px">
+      <div style="font:500 10.5px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">Streak</div>
+      <div style="font:700 26px/1 'Bricolage Grotesque',sans-serif;letter-spacing:-.03em">12 days</div>
+      <div style="font:400 11.5px/1.4 'Instrument Sans',sans-serif;color:#6B7A73">No harsh events</div>
+    </div>
+    <div style="flex:1;background:#FFFFFF;border:1px solid #E6E0D5;border-radius:18px;padding:15px 16px;display:flex;flex-direction:column;gap:7px">
+      <div style="font:500 10.5px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">Clean trips</div>
+      <div style="font:700 26px/1 'Bricolage Grotesque',sans-serif;letter-spacing:-.03em">31 <span style="font:500 14px/1 'Instrument Sans',sans-serif;color:#9AA6A0">of 38</span></div>
+      <div style="font:400 11.5px/1.4 'Instrument Sans',sans-serif;color:#6B7A73">Last 14 days</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <div style="background:#FFF3EE;border:1px solid #F6CDBB;border-radius:20px;padding:17px 17px 15px;display:flex;flex-direction:column;gap:13px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:7px;height:7px;border-radius:50%;background:#FF6B3D"></div>
+      <div style="font:600 11px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#C4501F;white-space:nowrap">1 session to action</div>
+    </div>
+    <div style="font:600 16.5px/1.35 'Instrument Sans',sans-serif;color:#14261F">Speed in a posted 40 zone — Elm St &amp; 3rd</div>
+    <div style="font:400 13px/1.5 'Instrument Sans',sans-serif;color:#6B7A73">Two minutes: read the moment, watch a 3-minute clip, tell your coach you've got it.</div>
+    <button type="button" onClick="{{ goDetail }}" style="appearance:none;border:none;background:#14261F;color:#F5F2EC;border-radius:13px;padding:14px 18px;min-height:48px;font:600 14px/1 'Instrument Sans',sans-serif;cursor:pointer;text-align:left;display:flex;align-items:center;justify-content:space-between" style-hover="background:#1E332A">
+      <span>Open session</span>
+      <span style="font:500 13px/1 'Instrument Sans',sans-serif;color:#FF6B3D">Due Thu</span>
+    </button>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:11px;padding-top:4px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between">
+      <div style="font:700 19px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em">Where you stand</div>
+      <button type="button" onClick="{{ goAnalytics }}" style="appearance:none;border:none;background:transparent;padding:6px 0;font:500 12.5px/1 'Instrument Sans',sans-serif;color:#C4501F;cursor:pointer">All behaviours</button>
+    </div>
+
+    <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:20px;overflow:hidden">
+      <div style="padding:13px 16px 11px;font:600 10.5px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9AA6A0;border-bottom:1px solid #F0EBE1;white-space:nowrap">Worth a look</div>
+      <sc-for list="{{ focusRows }}" as="f" hint-placeholder-count="2">
+        <div style="padding:14px 16px;display:flex;align-items:center;gap:13px;border-bottom:1px solid #F0EBE1">
+          <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+            <div style="font:600 14.5px/1.25 'Instrument Sans',sans-serif">{{ f.name }}</div>
+            <div style="font:400 12px/1.4 'Instrument Sans',sans-serif;color:#6B7A73">{{ f.note }}</div>
+          </div>
+          <div style="font:600 12.5px/1 'Instrument Sans',sans-serif;color:#C4501F;font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">{{ f.delta }}</div>
+        </div>
+      </sc-for>
+      <div style="padding:13px 16px 11px;font:600 10.5px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9AA6A0;border-bottom:1px solid #F0EBE1;background:#FBF9F5;white-space:nowrap">Improved</div>
+      <sc-for list="{{ winRows }}" as="w" hint-placeholder-count="2">
+        <div style="padding:14px 16px;display:flex;align-items:center;gap:13px;border-bottom:1px solid #F0EBE1;background:#FBF9F5">
+          <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+            <div style="font:600 14.5px/1.25 'Instrument Sans',sans-serif">{{ w.name }}</div>
+            <div style="font:400 12px/1.4 'Instrument Sans',sans-serif;color:#6B7A73">{{ w.note }}</div>
+          </div>
+          <div style="font:600 12.5px/1 'Instrument Sans',sans-serif;color:#2F8F6B;font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">{{ w.delta }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:20px;padding:17px;display:flex;gap:14px;align-items:center">
+    <div style="width:52px;height:52px;border-radius:14px;background:#E9E3D8;border:1px solid #DCD5C8;display:flex;align-items:center;justify-content:center;flex:none">
+      <div style="width:0;height:0;border-left:12px solid #14261F;border-top:8px solid transparent;border-bottom:8px solid transparent;margin-left:3px"></div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+      <div style="font:500 10.5px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">Lesson in progress</div>
+      <div style="font:600 14.5px/1.3 'Instrument Sans',sans-serif">Reading a school zone early</div>
+      <div style="font:400 12px/1 'Instrument Sans',sans-serif;color:#6B7A73">3 min left</div>
+    </div>
+    <button type="button" onClick="{{ goPlayer }}" style="appearance:none;border:1px solid #14261F;background:transparent;border-radius:11px;padding:11px 14px;min-height:44px;font:600 12.5px/1 'Instrument Sans',sans-serif;color:#14261F;cursor:pointer" style-hover="background:#14261F;color:#F5F2EC">Resume</button>
+  </div>
+
+</div>
+</sc-if>
+
+<!-- ══ SESSIONS ══ -->
+<sc-if value="{{ isSessions }}" hint-placeholder-val="{{ false }}">
+<div style="padding:62px 20px 30px;display:flex;flex-direction:column;gap:18px">
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font:700 29px/1.05 'Bricolage Grotesque',sans-serif;letter-spacing:-.025em">Coaching</div>
+    <div style="font:400 13px/1.5 'Instrument Sans',sans-serif;color:#6B7A73">Sessions are short. Action the open one, keep the rest for reference.</div>
+  </div>
+
+  <div style="display:flex;gap:8px">
+    <sc-for list="{{ sessionTabs }}" as="t" hint-placeholder-count="2">
+      <button type="button" onClick="{{ t.go }}" style="appearance:none;border:1px solid {{ t.border }};background:{{ t.bg }};color:{{ t.fg }};border-radius:999px;padding:10px 15px;min-height:40px;font:500 12.5px/1.2 'Instrument Sans',sans-serif;cursor:pointer;white-space:nowrap">{{ t.label }}</button>
+    </sc-for>
+  </div>
+
+  <sc-for list="{{ sessionList }}" as="s" hint-placeholder-count="4">
+    <button type="button" onClick="{{ s.go }}" style="appearance:none;text-align:left;background:{{ s.cardBg }};border:1px solid {{ s.cardBorder }};border-radius:20px;padding:17px;display:flex;flex-direction:column;gap:11px;cursor:pointer;width:100%;box-sizing:border-box" style-hover="border-color:#14261F">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="background:{{ s.chipBg }};color:{{ s.chipFg }};border-radius:999px;padding:5px 10px;font:600 10.5px/1.2 'Instrument Sans',sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;flex:none">{{ s.status }}</div>
+        <div style="font:400 11.5px/1.2 'Instrument Sans',sans-serif;color:#9AA6A0;white-space:nowrap;flex:none">{{ s.date }}</div>
+      </div>
+      <div style="font:600 16px/1.3 'Instrument Sans',sans-serif;color:#14261F">{{ s.title }}</div>
+      <div style="font:400 12.5px/1.5 'Instrument Sans',sans-serif;color:#6B7A73">{{ s.meta }}</div>
+    </button>
+  </sc-for>
+</div>
+</sc-if>
+
+<!-- ══ SESSION DETAIL ══ -->
+<sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+<div style="padding:56px 0 30px;display:flex;flex-direction:column">
+  <div style="padding:6px 16px 14px;display:flex;align-items:center;gap:6px">
+    <button type="button" onClick="{{ goSessions }}" style="appearance:none;border:none;background:transparent;min-height:44px;padding:0 8px;font:500 13.5px/1 'Instrument Sans',sans-serif;color:#C4501F;cursor:pointer;display:flex;align-items:center;gap:7px">
+      <span style="display:inline-block;width:8px;height:8px;border-left:1.8px solid #C4501F;border-bottom:1.8px solid #C4501F;transform:rotate(45deg)"></span>
+      <span>Coaching</span>
+    </button>
+  </div>
+
+  <div style="padding:0 20px;display:flex;flex-direction:column;gap:9px">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div style="background:#FFE7DE;color:#C4501F;border-radius:999px;padding:5px 10px;font:600 10.5px/1 'Instrument Sans',sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;flex:none">{{ detailStatus }}</div>
+      <div style="font:400 11.5px/1 'Instrument Sans',sans-serif;color:#9AA6A0;white-space:nowrap">Tue Sep 8 · 2:14 PM</div>
+    </div>
+    <div style="font:700 27px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.025em">Speed in a posted 40 zone</div>
+    <div style="font:400 13.5px/1.5 'Instrument Sans',sans-serif;color:#6B7A73">Elm St &amp; 3rd · Route 214 · 22 seconds</div>
+  </div>
+
+  <div style="margin:18px 20px 0;display:flex;flex-direction:column;gap:9px">
+    <div style="height:186px;border-radius:20px;background:#14261F;position:relative;overflow:hidden">
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,#1E332A 0%,#14261F 62%,#0E1B16 100%)"></div>
+      <div style="position:absolute;left:14px;top:13px;display:flex;align-items:center;gap:7px">
+        <div style="width:7px;height:7px;border-radius:50%;background:#FF6B3D"></div>
+        <div style="font:600 10px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:rgba(245,242,236,.72);white-space:nowrap">Event clip · 14 s</div>
+      </div>
+      <div style="position:absolute;right:14px;top:11px;background:rgba(245,242,236,.1);border:1px solid rgba(245,242,236,.16);border-radius:8px;padding:6px 9px;font:500 10px/1 'Instrument Sans',sans-serif;color:rgba(245,242,236,.7);white-space:nowrap">Forward camera</div>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+        <div style="width:60px;height:60px;border-radius:50%;background:#FF6B3D;display:flex;align-items:center;justify-content:center">
+          <div style="width:0;height:0;border-top:11px solid transparent;border-bottom:11px solid transparent;border-left:17px solid #14261F;margin-left:5px"></div>
+        </div>
+      </div>
+      <div style="position:absolute;left:14px;right:14px;bottom:13px;display:flex;flex-direction:column;gap:9px">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="flex:1;height:4px;border-radius:999px;background:rgba(245,242,236,.18);position:relative;overflow:hidden">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:38%;border-radius:999px;background:rgba(245,242,236,.55)"></div>
+            <div style="position:absolute;left:38%;top:0;bottom:0;width:26%;background:#FF6B3D"></div>
+          </div>
+          <div style="font:500 10.5px/1 'Instrument Sans',sans-serif;color:rgba(245,242,236,.6);white-space:nowrap;flex:none">0:05 / 0:14</div>
+        </div>
+        <div style="font:400 10.5px/1.3 'Instrument Sans',sans-serif;color:rgba(245,242,236,.5)">Orange marks the 22 s over the limit · video placeholder</div>
+      </div>
+    </div>
+    <div style="font:400 11.5px/1.5 'Instrument Sans',sans-serif;color:#9AA6A0">Clips cover 7 seconds either side of a flagged event. Nothing outside that window is kept.</div>
+  </div>
+
+  <div style="margin:14px 20px 0;height:172px;border-radius:20px;background:#E9E4D9;border:1px solid #DCD5C8;position:relative;overflow:hidden">
+    <div style="position:absolute;inset:0;background-image:linear-gradient(#DDD6C8 1px,transparent 1px),linear-gradient(90deg,#DDD6C8 1px,transparent 1px);background-size:26px 26px"></div>
+    <svg viewBox="0 0 340 172" style="position:absolute;inset:0;width:100%;height:100%">
+      <path d="M18 148 C 96 138, 108 92, 168 84 S 268 62, 324 26" fill="none" stroke="#14261F" stroke-width="4" stroke-linecap="round" opacity="0.28"></path>
+      <path d="M168 84 S 268 62, 324 26" fill="none" stroke="#FF6B3D" stroke-width="4" stroke-linecap="round"></path>
+      <circle cx="168" cy="84" r="6" fill="#FF6B3D"></circle>
+    </svg>
+    <div style="position:absolute;left:14px;bottom:12px;background:rgba(20,38,31,.86);color:#F5F2EC;border-radius:9px;padding:7px 10px;font:500 10.5px/1 'Instrument Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase">Map placeholder</div>
+  </div>
+
+  <div style="padding:22px 20px 0;display:flex;flex-direction:column;gap:14px">
+    <div style="font:700 19px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em">What happened</div>
+    <div style="font:400 14px/1.6 'Instrument Sans',sans-serif;color:#3D4F47">You held 48 km/h for 22 seconds through a posted 40 zone at the school entrance, then slowed on the approach to 3rd. Traffic ahead was light, so the speed most likely carried over from the 60 stretch just before the turn.</div>
+
+    <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:13px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between">
+        <div style="font:600 11px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">Speed vs limit</div>
+        <div style="font:600 13px/1.2 'Instrument Sans',sans-serif;color:#C4501F;white-space:nowrap;flex:none">Peak 48 km/h</div>
+      </div>
+      <div style="position:relative;height:74px">
+        <svg viewBox="0 0 300 74" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
+          <line x1="0" y1="34" x2="300" y2="34" stroke="#C7C0B4" stroke-width="1.5" stroke-dasharray="5 5"></line>
+          <path d="M0 58 L40 52 L80 40 L110 24 L170 22 L200 26 L240 46 L300 60" fill="none" stroke="#14261F" stroke-width="2.5" stroke-linejoin="round"></path>
+          <path d="M110 24 L170 22 L200 26 L200 34 L110 34 Z" fill="#FF6B3D" opacity="0.22"></path>
+        </svg>
+        <div style="position:absolute;right:0;top:20px;font:500 10px/1 'Instrument Sans',sans-serif;color:#9AA6A0">40 limit</div>
+      </div>
+    </div>
+
+    <div style="font:700 19px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;padding-top:4px">Two things that help</div>
+    <sc-for list="{{ tips }}" as="t" hint-placeholder-count="2">
+      <div style="display:flex;gap:13px;align-items:flex-start">
+        <div style="width:26px;height:26px;border-radius:9px;background:#14261F;color:#F5F2EC;display:flex;align-items:center;justify-content:center;font:600 12px/1 'Instrument Sans',sans-serif;flex:none">{{ t.n }}</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+          <div style="font:600 14.5px/1.3 'Instrument Sans',sans-serif">{{ t.title }}</div>
+          <div style="font:400 13px/1.55 'Instrument Sans',sans-serif;color:#6B7A73">{{ t.body }}</div>
+        </div>
+      </div>
+    </sc-for>
+
+    <button type="button" onClick="{{ goPlayer }}" style="appearance:none;text-align:left;margin-top:6px;background:#14261F;border:none;border-radius:20px;padding:17px;display:flex;align-items:center;gap:14px;cursor:pointer;width:100%;box-sizing:border-box" style-hover="background:#1E332A">
+      <div style="width:50px;height:50px;border-radius:14px;background:rgba(245,242,236,.12);display:flex;align-items:center;justify-content:center;flex:none">
+        <div style="width:0;height:0;border-left:12px solid #FF6B3D;border-top:8px solid transparent;border-bottom:8px solid transparent;margin-left:3px"></div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div style="font:500 10.5px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:rgba(245,242,236,.5);white-space:nowrap">Assigned clip · 3 min</div>
+        <div style="font:600 15px/1.3 'Instrument Sans',sans-serif;color:#F5F2EC">Reading a school zone early</div>
+      </div>
+    </button>
+
+    <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:20px;padding:16px;display:flex;align-items:center;gap:13px">
+      <div style="width:40px;height:40px;border-radius:50%;background:#E2DCD0;border:1px solid #D3CCBE;display:flex;align-items:center;justify-content:center;font:600 13px/1 'Instrument Sans',sans-serif;color:#6B7A73;flex:none">MK</div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+        <div style="font:600 13.5px/1.2 'Instrument Sans',sans-serif">{{ coachName }}</div>
+        <div style="font:400 12px/1.3 'Instrument Sans',sans-serif;color:#6B7A73">Assigned this session</div>
+      </div>
+      <button type="button" onClick="{{ openElmThread }}" style="appearance:none;border:1px solid #14261F;background:transparent;border-radius:11px;padding:11px 14px;min-height:44px;font:600 12.5px/1 'Instrument Sans',sans-serif;color:#14261F;cursor:pointer" style-hover="background:#14261F;color:#F5F2EC">Message</button>
+    </div>
+
+    <sc-if value="{{ notAcked }}" hint-placeholder-val="{{ true }}">
+      <button type="button" onClick="{{ ack }}" style="appearance:none;margin-top:6px;border:none;background:#FF6B3D;color:#14261F;border-radius:15px;padding:17px;min-height:52px;font:600 15px/1 'Instrument Sans',sans-serif;cursor:pointer" style-hover="background:#F55B2C">Got it — mark reviewed</button>
+    </sc-if>
+    <sc-if value="{{ acked }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top:6px;background:#DCEFE6;border:1px solid #A9D9C4;border-radius:15px;padding:16px;display:flex;flex-direction:column;gap:5px;animation:evFade .25s ease">
+        <div style="font:600 14px/1.2 'Instrument Sans',sans-serif;color:#1E6B4F">Reviewed · {{ coachName }} notified</div>
+        <div style="font:400 12.5px/1.45 'Instrument Sans',sans-serif;color:#2F8F6B">Session moves to your history. Finish the clip to close it out.</div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</sc-if>
+
+<!-- ══ ANALYTICS ══ -->
+<sc-if value="{{ isAnalytics }}" hint-placeholder-val="{{ false }}">
+<div style="padding:62px 20px 30px;display:flex;flex-direction:column;gap:17px">
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font:700 29px/1.05 'Bricolage Grotesque',sans-serif;letter-spacing:-.025em">Your score</div>
+    <div style="font:400 13px/1.5 'Instrument Sans',sans-serif;color:#6B7A73">Every point comes from somewhere. Here's the breakdown.</div>
+  </div>
+
+  <div style="display:flex;gap:8px">
+    <sc-for list="{{ ranges }}" as="r" hint-placeholder-count="3">
+      <button type="button" onClick="{{ r.go }}" style="appearance:none;flex:1;border:1px solid {{ r.border }};background:{{ r.bg }};color:{{ r.fg }};border-radius:11px;padding:11px;min-height:42px;font:500 12.5px/1.2 'Instrument Sans',sans-serif;cursor:pointer;white-space:nowrap">{{ r.label }}</button>
+    </sc-for>
+  </div>
+
+  <div style="background:#14261F;border-radius:22px;padding:20px;color:#F5F2EC;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font:500 11px/1 'Instrument Sans',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:rgba(245,242,236,.5);white-space:nowrap">{{ rangeLabel }}</div>
+        <div style="font:800 44px/.9 'Bricolage Grotesque',sans-serif;letter-spacing:-.04em;font-variant-numeric:tabular-nums">{{ rangeScore }}</div>
+      </div>
+      <div style="font:500 13px/1.2 'Instrument Sans',sans-serif;color:#8FE0BE;white-space:nowrap;flex:none">{{ rangeTrend }}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;height:12px;border-radius:999px;overflow:hidden;gap:2px">
+        <sc-for list="{{ composition }}" as="c" hint-placeholder-count="4">
+          <div style="width:{{ c.w }};background:{{ c.color }}"></div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px">
+        <sc-for list="{{ composition }}" as="c" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:8px;height:8px;border-radius:3px;background:{{ c.color }}"></div>
+            <div style="font:400 11.5px/1 'Instrument Sans',sans-serif;color:rgba(245,242,236,.7)">{{ c.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:20px;overflow:hidden">
+    <div style="padding:15px 16px 12px;border-bottom:1px solid #F0EBE1;display:flex;align-items:baseline;justify-content:space-between">
+      <div style="font:600 11px/1.2 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">Behaviour breakdown</div>
+      <div style="font:400 11px/1.2 'Instrument Sans',sans-serif;color:#9AA6A0;white-space:nowrap;flex:none">{{ rangeLabel }}</div>
+    </div>
+    <sc-for list="{{ behaviours }}" as="b" hint-placeholder-count="5">
+      <button type="button" onClick="{{ b.go }}" style="appearance:none;width:100%;box-sizing:border-box;text-align:left;background:transparent;border:none;border-bottom:1px solid #F0EBE1;padding:15px 16px;display:flex;flex-direction:column;gap:10px;cursor:pointer" style-hover="background:#FBF9F5">
+        <div style="display:flex;align-items:center;gap:10px;width:100%">
+          <div style="flex:1;font:600 14.5px/1.2 'Instrument Sans',sans-serif">{{ b.name }}</div>
+          <div style="font:400 12px/1.2 'Instrument Sans',sans-serif;color:#6B7A73;font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">{{ b.count }}</div>
+          <div style="font:700 15px/1 'Bricolage Grotesque',sans-serif;color:#14261F;font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;min-width:26px;text-align:right">{{ b.score }}</div>
+          <span style="display:inline-block;width:7px;height:7px;border-top:1.8px solid #9AA6A0;border-right:1.8px solid #9AA6A0;transform:rotate(45deg);flex:none"></span>
+        </div>
+        <div style="height:7px;border-radius:999px;background:#F0EBE1;overflow:hidden;width:100%">
+          <div style="height:100%;width:{{ b.w }};border-radius:999px;background:{{ b.color }}"></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+          <div style="font:400 11.5px/1.2 'Instrument Sans',sans-serif;color:#9AA6A0;white-space:nowrap">{{ b.verdict }}</div>
+          <div style="font:600 11.5px/1.2 'Instrument Sans',sans-serif;color:{{ b.trendColor }};font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">{{ b.trend }}</div>
+        </div>
+      </button>
+    </sc-for>
+    <div style="padding:15px 16px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font:400 12.5px/1.4 'Instrument Sans',sans-serif;color:#6B7A73">Group average</div>
+      <div style="font:600 13px/1.2 'Instrument Sans',sans-serif;white-space:nowrap">74 · you're 8 above</div>
+    </div>
+  </div>
+
+  <button type="button" onClick="{{ goScoring }}" style="appearance:none;width:100%;box-sizing:border-box;text-align:left;background:#FFFFFF;border:1px solid #E6E0D5;border-radius:20px;padding:17px;display:flex;align-items:center;gap:13px;cursor:pointer" style-hover="border-color:#14261F">
+    <div style="width:32px;height:32px;border-radius:10px;border:2px solid #14261F;display:flex;align-items:center;justify-content:center;flex:none;font:700 14px/1 'Bricolage Grotesque',sans-serif">?</div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+      <div style="font:600 14.5px/1.2 'Instrument Sans',sans-serif">How your score works</div>
+      <div style="font:400 12px/1.35 'Instrument Sans',sans-serif;color:#6B7A73">What's measured, what isn't, and who sees it</div>
+    </div>
+    <span style="display:inline-block;width:8px;height:8px;border-top:1.8px solid #9AA6A0;border-right:1.8px solid #9AA6A0;transform:rotate(45deg);flex:none"></span>
+  </button>
+
+  <div style="background:#DCEFE6;border:1px solid #A9D9C4;border-radius:20px;padding:17px;display:flex;flex-direction:column;gap:9px">
+    <div style="font:600 11px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#1E6B4F;white-space:nowrap">Biggest gain</div>
+    <div style="font:600 16px/1.3 'Instrument Sans',sans-serif;color:#14261F">Cornering events down 38% since August</div>
+    <div style="font:400 12.5px/1.5 'Instrument Sans',sans-serif;color:#2F8F6B">Worth 5 of the points you've added this month.</div>
+  </div>
+</div>
+</sc-if>
+
+<!-- ══ SESSION THREADS (INBOX) ══ -->
+<sc-if value="{{ isCoach }}" hint-placeholder-val="{{ false }}">
+<div style="padding:62px 20px 30px;display:flex;flex-direction:column;gap:18px">
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font:700 29px/1.05 'Bricolage Grotesque',sans-serif;letter-spacing:-.025em">Messages</div>
+    <div style="font:400 13px/1.5 'Instrument Sans',sans-serif;color:#6B7A73">Every session has its own thread. Replies stay with the event they belong to.</div>
+  </div>
+
+  <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:18px;padding:15px;display:flex;align-items:center;gap:12px">
+    <div style="width:38px;height:38px;border-radius:50%;background:#E2DCD0;border:1px solid #D3CCBE;display:flex;align-items:center;justify-content:center;font:600 12.5px/1 'Instrument Sans',sans-serif;color:#6B7A73;flex:none">MK</div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+      <div style="font:600 14px/1.2 'Instrument Sans',sans-serif">{{ coachName }}</div>
+      <div style="font:400 11.5px/1.3 'Instrument Sans',sans-serif;color:#2F8F6B">Your coach · usually replies within a day</div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:11px">
+    <sc-for list="{{ threadList }}" as="t" hint-placeholder-count="4">
+      <button type="button" onClick="{{ t.go }}" style="appearance:none;text-align:left;background:{{ t.cardBg }};border:1px solid {{ t.cardBorder }};border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:9px;cursor:pointer;width:100%;box-sizing:border-box" style-hover="border-color:#14261F">
+        <div style="display:flex;align-items:center;gap:9px;width:100%">
+          <div style="background:{{ t.chipBg }};color:{{ t.chipFg }};border-radius:999px;padding:5px 10px;font:600 10.5px/1.2 'Instrument Sans',sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;flex:none">{{ t.status }}</div>
+          <div style="flex:1"></div>
+          <sc-if value="{{ t.unread }}" hint-placeholder-val="{{ false }}">
+            <div style="background:#FF6B3D;color:#14261F;border-radius:999px;min-width:20px;height:20px;padding:0 6px;display:flex;align-items:center;justify-content:center;font:600 11px/1 'Instrument Sans',sans-serif;flex:none">{{ t.unreadCount }}</div>
+          </sc-if>
+          <div style="font:400 11px/1.2 'Instrument Sans',sans-serif;color:#9AA6A0;white-space:nowrap;flex:none">{{ t.stamp }}</div>
+        </div>
+        <div style="font:600 15.5px/1.3 'Instrument Sans',sans-serif;color:#14261F">{{ t.title }}</div>
+        <div style="font:400 12.5px/1.5 'Instrument Sans',sans-serif;color:{{ t.previewColor }}">{{ t.preview }}</div>
+        <div style="font:400 11px/1.2 'Instrument Sans',sans-serif;color:#9AA6A0">{{ t.sub }}</div>
+      </button>
+    </sc-for>
+  </div>
+</div>
+</sc-if>
+
+<!-- ══ SESSION THREAD CHAT ══ -->
+<sc-if value="{{ isThread }}" hint-placeholder-val="{{ false }}">
+<div style="height:100%;display:flex;flex-direction:column">
+  <div style="padding:52px 16px 13px;border-bottom:1px solid #E6E0D5;background:#F5F2EC;display:flex;flex-direction:column;gap:9px">
+    <button type="button" onClick="{{ goCoach }}" style="appearance:none;border:none;background:transparent;min-height:40px;padding:0;font:500 13.5px/1 'Instrument Sans',sans-serif;color:#C4501F;cursor:pointer;display:flex;align-items:center;gap:7px;align-self:flex-start">
+      <span style="display:inline-block;width:8px;height:8px;border-left:1.8px solid #C4501F;border-bottom:1.8px solid #C4501F;transform:rotate(45deg)"></span>
+      <span>All messages</span>
+    </button>
+    <div style="display:flex;align-items:center;gap:11px">
+      <div style="width:36px;height:36px;border-radius:50%;background:#E2DCD0;border:1px solid #D3CCBE;display:flex;align-items:center;justify-content:center;font:600 12px/1 'Instrument Sans',sans-serif;color:#6B7A73;flex:none">MK</div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
+        <div style="font:600 14.5px/1.25 'Instrument Sans',sans-serif;color:#14261F">{{ threadTitle }}</div>
+        <div style="font:400 11.5px/1.2 'Instrument Sans',sans-serif;color:#6B7A73;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ threadSub }} · {{ coachName }}</div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:999px;padding:6px 11px;font:500 11px/1.2 'Instrument Sans',sans-serif;color:#6B7A73;white-space:nowrap;flex:none">{{ threadStatus }}</div>
+    </div>
+  </div>
+
+  <div style="flex:1;overflow:auto;padding:18px 16px;display:flex;flex-direction:column;gap:12px">
+    <sc-if value="{{ threadEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="margin:auto;text-align:center;max-width:230px;font:400 13px/1.6 'Instrument Sans',sans-serif;color:#9AA6A0">No messages on this session yet. Anything you send here stays attached to it.</div>
+    </sc-if>
+    <sc-for list="{{ msgs }}" as="m" hint-placeholder-count="4">
+      <div style="display:flex;flex-direction:column;gap:5px;align-items:{{ m.align }}">
+        <div style="max-width:78%;background:{{ m.bg }};color:{{ m.fg }};border:1px solid {{ m.border }};border-radius:{{ m.radius }};padding:12px 14px;font:400 13.5px/1.5 'Instrument Sans',sans-serif">{{ m.text }}</div>
+        <div style="font:400 10.5px/1 'Instrument Sans',sans-serif;color:#9AA6A0;padding:0 4px">{{ m.meta }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="border-top:1px solid #E6E0D5;background:#F5F2EC;padding:12px 16px 18px;display:flex;flex-direction:column;gap:11px">
+    <div style="display:flex;align-items:center;gap:7px">
+      <div style="width:16px;height:16px;border-radius:5px;background:#14261F;display:flex;align-items:center;justify-content:center;flex:none">
+        <div style="width:5px;height:5px;border-radius:50%;background:#FF6B3D"></div>
+      </div>
+      <div style="font:600 10.5px/1 'Instrument Sans',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">Ask the assistant</div>
+    </div>
+    <div style="display:flex;gap:8px;overflow:auto;padding-bottom:2px">
+      <sc-for list="{{ quickAsks }}" as="q" hint-placeholder-count="3">
+        <button type="button" onClick="{{ q.go }}" style="appearance:none;flex:none;border:1px solid #D8D1C4;background:#FFFFFF;color:#14261F;border-radius:999px;padding:10px 13px;min-height:40px;font:500 12px/1 'Instrument Sans',sans-serif;cursor:pointer;white-space:nowrap" style-hover="border-color:#14261F">{{ q.label }}</button>
+      </sc-for>
+    </div>
+    <div style="display:flex;gap:9px;align-items:center">
+      <input type="text" value="{{ draft }}" onChange="{{ onDraft }}" placeholder="Reply about this session" style="flex:1;min-height:48px;border:1px solid #D8D1C4;background:#FFFFFF;border-radius:14px;padding:0 15px;font:400 14px/1 'Instrument Sans',sans-serif;color:#14261F;outline:none;box-sizing:border-box" style-focus="border-color:#14261F"></input>
+      <button type="button" onClick="{{ send }}" style="appearance:none;width:48px;height:48px;flex:none;border:none;border-radius:14px;background:#14261F;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#1E332A">
+        <span style="display:inline-block;width:9px;height:9px;border-top:2px solid #FF6B3D;border-right:2px solid #FF6B3D;transform:rotate(45deg);margin-left:-2px"></span>
+      </button>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<!-- ══ COACH ROSTER SKETCH ══ -->
+<sc-if value="{{ isCoachView }}" hint-placeholder-val="{{ false }}">
+<div style="padding:62px 20px 30px;display:flex;flex-direction:column;gap:16px">
+  <div style="border:1px dashed #C7C0B4;border-radius:14px;padding:11px 13px;font:500 11.5px/1.4 'Instrument Sans',sans-serif;color:#6B7A73">Coach side — sketch only, not built out</div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font:700 29px/1.05 'Bricolage Grotesque',sans-serif;letter-spacing:-.025em">My drivers</div>
+    <div style="font:400 13px/1.5 'Instrument Sans',sans-serif;color:#6B7A73">4 sessions waiting on a driver, 2 waiting on you.</div>
+  </div>
+  <sc-for list="{{ roster }}" as="d" hint-placeholder-count="5">
+    <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:18px;padding:15px 16px;display:flex;align-items:center;gap:13px">
+      <div style="width:40px;height:40px;border-radius:50%;background:#E2DCD0;border:1px solid #D3CCBE;display:flex;align-items:center;justify-content:center;font:600 12.5px/1 'Instrument Sans',sans-serif;color:#6B7A73;flex:none">{{ d.initials }}</div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div style="font:600 14.5px/1.2 'Instrument Sans',sans-serif">{{ d.name }}</div>
+        <div style="font:400 12px/1.3 'Instrument Sans',sans-serif;color:#6B7A73">{{ d.note }}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div style="font:700 19px/1 'Bricolage Grotesque',sans-serif;font-variant-numeric:tabular-nums">{{ d.score }}</div>
+        <div style="font:500 11px/1.2 'Instrument Sans',sans-serif;color:{{ d.trendColor }};white-space:nowrap">{{ d.trend }}</div>
+      </div>
+    </div>
+  </sc-for>
+</div>
+</sc-if>
+
+</div>
+
+<!-- ══ BEHAVIOUR DRILL-DOWN ══ -->
+<sc-if value="{{ isBehaviour }}" hint-placeholder-val="{{ false }}">
+<div style="padding:56px 0 30px;display:flex;flex-direction:column">
+  <div style="padding:6px 16px 14px">
+    <button type="button" onClick="{{ goAnalytics }}" style="appearance:none;border:none;background:transparent;min-height:44px;padding:0 8px;font:500 13.5px/1 'Instrument Sans',sans-serif;color:#C4501F;cursor:pointer;display:flex;align-items:center;gap:7px">
+      <span style="display:inline-block;width:8px;height:8px;border-left:1.8px solid #C4501F;border-bottom:1.8px solid #C4501F;transform:rotate(45deg)"></span>
+      <span style="white-space:nowrap">Your score</span>
+    </button>
+  </div>
+
+  <div style="padding:0 20px;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:500 11px/1.2 'Instrument Sans',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">{{ bhRange }}</div>
+      <div style="font:700 27px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.025em">{{ bhName }}</div>
+    </div>
+
+    <div style="background:{{ bhCardBg }};border:1px solid {{ bhCardBorder }};border-radius:22px;padding:20px;display:flex;flex-direction:column;gap:15px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="font:600 13px/1.2 'Instrument Sans',sans-serif;color:{{ bhAccent }};white-space:nowrap">{{ bhVerdict }}</div>
+          <div style="display:flex;align-items:flex-end;gap:7px">
+            <div style="font:800 50px/.88 'Bricolage Grotesque',sans-serif;letter-spacing:-.045em;font-variant-numeric:tabular-nums">{{ bhScore }}</div>
+            <div style="font:500 12px/1 'Instrument Sans',sans-serif;color:#9AA6A0;padding-bottom:6px;white-space:nowrap">/ 100</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none">
+          <div style="font:600 13px/1.2 'Instrument Sans',sans-serif;color:{{ bhTrendColor }};white-space:nowrap">{{ bhTrend }}</div>
+          <div style="font:400 11.5px/1.2 'Instrument Sans',sans-serif;color:#6B7A73;white-space:nowrap">{{ bhCount }}</div>
+        </div>
+      </div>
+      <div style="height:9px;border-radius:999px;background:rgba(20,38,31,.09);overflow:hidden">
+        <div style="height:100%;width:{{ bhScoreW }};border-radius:999px;background:{{ bhAccent }}"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font:400 11px/1.2 'Instrument Sans',sans-serif;color:#9AA6A0">
+        <span style="white-space:nowrap">Group average {{ bhAvg }}</span>
+        <span style="white-space:nowrap">Fleet target 85</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="font:700 19px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em">Why it's measured</div>
+      <div style="font:400 14px/1.6 'Instrument Sans',sans-serif;color:#3D4F47">{{ bhWhy }}</div>
+    </div>
+
+    <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:20px;overflow:hidden">
+      <div style="padding:14px 16px 12px;border-bottom:1px solid #F0EBE1;font:600 11px/1.2 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">Reminders</div>
+      <sc-for list="{{ bhReminders }}" as="r" hint-placeholder-count="3">
+        <div style="padding:14px 16px;border-bottom:1px solid #F0EBE1;display:flex;gap:12px;align-items:flex-start">
+          <div style="width:6px;height:6px;border-radius:50%;background:#FF6B3D;margin-top:7px;flex:none"></div>
+          <div style="flex:1;font:400 13.5px/1.55 'Instrument Sans',sans-serif;color:#3D4F47">{{ r.text }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="font:700 19px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em">Recent moments</div>
+      <sc-for list="{{ bhEvents }}" as="e" hint-placeholder-count="2">
+        <button type="button" onClick="{{ e.go }}" style="appearance:none;width:100%;box-sizing:border-box;text-align:left;background:#FFFFFF;border:1px solid #E6E0D5;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer" style-hover="border-color:#14261F">
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <div style="font:600 14px/1.25 'Instrument Sans',sans-serif">{{ e.title }}</div>
+            <div style="font:400 11.5px/1.35 'Instrument Sans',sans-serif;color:#6B7A73">{{ e.meta }}</div>
+          </div>
+          <div style="font:600 12.5px/1.2 'Instrument Sans',sans-serif;color:#C4501F;white-space:nowrap;flex:none">{{ e.tag }}</div>
+        </button>
+      </sc-for>
+    </div>
+
+    <button type="button" onClick="{{ goCoach }}" style="appearance:none;border:1px solid #14261F;background:transparent;color:#14261F;border-radius:15px;padding:16px;min-height:50px;font:600 14.5px/1 'Instrument Sans',sans-serif;cursor:pointer" style-hover="background:#14261F;color:#F5F2EC">Ask {{ coachName }} about this</button>
+  </div>
+</div>
+</sc-if>
+
+<!-- ══ HOW SCORING WORKS ══ -->
+<sc-if value="{{ isScoring }}" hint-placeholder-val="{{ false }}">
+<div style="padding:56px 0 30px;display:flex;flex-direction:column">
+  <div style="padding:6px 16px 14px">
+    <button type="button" onClick="{{ goAnalytics }}" style="appearance:none;border:none;background:transparent;min-height:44px;padding:0 8px;font:500 13.5px/1 'Instrument Sans',sans-serif;color:#C4501F;cursor:pointer;display:flex;align-items:center;gap:7px">
+      <span style="display:inline-block;width:8px;height:8px;border-left:1.8px solid #C4501F;border-bottom:1.8px solid #C4501F;transform:rotate(45deg)"></span>
+      <span style="white-space:nowrap">Your score</span>
+    </button>
+  </div>
+
+  <div style="padding:0 20px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:700 27px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.025em">How your score works</div>
+      <div style="font:400 13.5px/1.55 'Instrument Sans',sans-serif;color:#6B7A73">Your score covers a rolling 14 days across five behaviours your fleet has enabled. It reflects how you drove — not which vehicle you were in.</div>
+    </div>
+
+    <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:20px;overflow:hidden">
+      <div style="padding:14px 16px 12px;border-bottom:1px solid #F0EBE1;font:600 11px/1.2 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">What's measured</div>
+      <sc-for list="{{ measured }}" as="m" hint-placeholder-count="5">
+        <div style="padding:14px 16px;border-bottom:1px solid #F0EBE1;display:flex;align-items:center;gap:12px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+            <div style="font:600 14px/1.25 'Instrument Sans',sans-serif">{{ m.name }}</div>
+            <div style="font:400 11.5px/1.4 'Instrument Sans',sans-serif;color:#6B7A73">{{ m.rule }}</div>
+          </div>
+          <div style="font:600 12px/1.2 'Instrument Sans',sans-serif;color:#6B7A73;white-space:nowrap;flex:none">{{ m.weight }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="background:#DCEFE6;border:1px solid #A9D9C4;border-radius:20px;overflow:hidden">
+      <div style="padding:14px 16px 12px;border-bottom:1px solid #A9D9C4;font:600 11px/1.2 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#1E6B4F;white-space:nowrap">What never affects it</div>
+      <sc-for list="{{ notMeasured }}" as="n" hint-placeholder-count="4">
+        <div style="padding:13px 16px;border-bottom:1px solid rgba(169,217,196,.6);font:400 13.5px/1.5 'Instrument Sans',sans-serif;color:#14261F">{{ n.text }}</div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="font:700 19px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em">Who sees it</div>
+      <div style="font:400 14px/1.6 'Instrument Sans',sans-serif;color:#3D4F47">You and {{ coachName }}. Your operations manager sees group-level numbers and open sessions, not individual event locations. Scores aren't used for pay or discipline on their own.</div>
+    </div>
+
+    <div style="border:1px dashed #C7C0B4;border-radius:16px;padding:15px;font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:#6B7A73">Think a flag is wrong? Open the session and choose Dispute — it goes to your coach with the raw trip data attached.</div>
+  </div>
+</div>
+</sc-if>
+
+<!-- ══ TAB BAR ══ -->
+<sc-if value="{{ showTabs }}" hint-placeholder-val="{{ true }}">
+<div style="flex:none;border-top:1px solid #E6E0D5;background:#F5F2EC;padding:9px 12px 30px;display:flex;gap:4px">
+  <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+    <button type="button" onClick="{{ t.go }}" style="appearance:none;flex:1;border:none;background:transparent;padding:8px 4px;min-height:52px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;border-radius:12px" style-hover="background:#EBE6DB">
+      <div style="width:22px;height:22px;border-radius:7px;border:2px solid {{ t.color }};background:{{ t.fill }};display:flex;align-items:center;justify-content:center">
+        <div style="width:6px;height:6px;border-radius:2px;background:{{ t.dot }}"></div>
+      </div>
+      <div style="font:{{ t.font }};color:{{ t.color }};white-space:nowrap">{{ t.label }}</div>
+    </button>
+  </sc-for>
+</div>
+</sc-if>
+
+<!-- ══ IN-TRIP NUDGE ══ -->
+<sc-if value="{{ isNudge }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:#0B1613;display:flex;flex-direction:column;justify-content:space-between;padding:70px 20px 40px;animation:evFade .2s ease">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:40px">
+    <div style="font:500 11px/1 'Instrument Sans',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:rgba(245,242,236,.4);white-space:nowrap">On trip · 214 North</div>
+    <div style="font:800 92px/.9 'Bricolage Grotesque',sans-serif;letter-spacing:-.05em;color:#F5F2EC;font-variant-numeric:tabular-nums">48</div>
+    <div style="display:flex;align-items:center;gap:9px">
+      <div style="width:34px;height:34px;border-radius:50%;border:2.5px solid #FF6B3D;color:#FF6B3D;display:flex;align-items:center;justify-content:center;font:700 13px/1 'Instrument Sans',sans-serif">40</div>
+      <div style="font:400 13px/1 'Instrument Sans',sans-serif;color:rgba(245,242,236,.55)">School zone until 3rd</div>
+    </div>
+  </div>
+
+  <div style="background:rgba(245,242,236,.07);border:1px solid rgba(245,242,236,.16);border-radius:22px;padding:20px;display:flex;flex-direction:column;gap:14px;animation:evSheet .3s ease">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="position:relative;width:9px;height:9px;flex:none">
+        <div style="position:absolute;inset:0;border-radius:50%;background:#FF6B3D"></div>
+        <div style="position:absolute;inset:0;border-radius:50%;background:#FF6B3D;animation:evPulse 1.8s ease-out infinite"></div>
+      </div>
+      <div style="font:600 11px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#FF6B3D;white-space:nowrap">Heads up</div>
+    </div>
+    <div style="font:500 19px/1.35 'Instrument Sans',sans-serif;color:#F5F2EC">Zone drops to 40 here. Ease off when it's safe.</div>
+    <div style="font:400 13px/1.5 'Instrument Sans',sans-serif;color:rgba(245,242,236,.55)">Nothing is logged yet. Full review lands after the trip — no need to touch your phone.</div>
+    <button type="button" onClick="{{ toPostTrip }}" style="appearance:none;border:1px solid rgba(245,242,236,.25);background:transparent;color:#F5F2EC;border-radius:14px;padding:15px;min-height:50px;font:600 14px/1 'Instrument Sans',sans-serif;cursor:pointer" style-hover="border-color:#FF6B3D;color:#FF6B3D">End trip →</button>
+  </div>
+</div>
+</sc-if>
+
+<!-- ══ POST-TRIP REVIEW ══ -->
+<sc-if value="{{ isPostTrip }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:rgba(11,22,19,.55);display:flex;flex-direction:column;justify-content:flex-end;animation:evFade .2s ease">
+  <div style="background:#F5F2EC;border-radius:28px 28px 0 0;padding:26px 20px 34px;display:flex;flex-direction:column;gap:16px;animation:evSheet .3s cubic-bezier(.2,.8,.2,1)">
+    <div style="width:44px;height:4px;border-radius:999px;background:#D8D1C4;align-self:center"></div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div style="font:500 11px/1 'Instrument Sans',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#9AA6A0;white-space:nowrap">Trip complete · 42 min · 31 km</div>
+      <div style="font:700 26px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.025em">Solid trip. Two moments to look at.</div>
+    </div>
+    <div style="background:#FFFFFF;border:1px solid #E6E0D5;border-radius:18px;overflow:hidden">
+      <sc-for list="{{ tripEvents }}" as="e" hint-placeholder-count="3">
+        <div style="padding:14px 16px;border-bottom:1px solid #F0EBE1;display:flex;align-items:center;gap:12px">
+          <div style="width:8px;height:8px;border-radius:50%;background:{{ e.color }};flex:none"></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+            <div style="font:600 14px/1.2 'Instrument Sans',sans-serif">{{ e.name }}</div>
+            <div style="font:400 11.5px/1.3 'Instrument Sans',sans-serif;color:#6B7A73">{{ e.meta }}</div>
+          </div>
+          <div style="font:500 12px/1.2 'Instrument Sans',sans-serif;color:{{ e.color }};white-space:nowrap;flex:none">{{ e.tag }}</div>
+        </div>
+      </sc-for>
+      <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;background:#FBF9F5">
+        <div style="font:400 12.5px/1.3 'Instrument Sans',sans-serif;color:#6B7A73">Smooth stops, no phone use</div>
+        <div style="font:600 12.5px/1 'Instrument Sans',sans-serif;color:#2F8F6B">+2 pts</div>
+      </div>
+    </div>
+    <button type="button" onClick="{{ goDetail }}" style="appearance:none;border:none;background:#FF6B3D;color:#14261F;border-radius:15px;padding:17px;min-height:52px;font:600 15px/1 'Instrument Sans',sans-serif;cursor:pointer" style-hover="background:#F55B2C">Review the 40-zone moment</button>
+    <button type="button" onClick="{{ goHome }}" style="appearance:none;border:none;background:transparent;color:#6B7A73;padding:12px;min-height:44px;font:500 13.5px/1 'Instrument Sans',sans-serif;cursor:pointer" style-hover="color:#14261F">Later — keep it in Coaching</button>
+  </div>
+</div>
+</sc-if>
+
+<!-- ══ PLAYER ══ -->
+<sc-if value="{{ isPlayer }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:#0B1613;display:flex;flex-direction:column;animation:evFade .2s ease">
+  <div style="padding:56px 16px 10px;display:flex;align-items:center;justify-content:space-between">
+    <button type="button" onClick="{{ closePlayer }}" style="appearance:none;border:none;background:transparent;min-height:44px;padding:0 8px;font:500 13.5px/1 'Instrument Sans',sans-serif;color:rgba(245,242,236,.7);cursor:pointer">Close</button>
+    <div style="font:500 11px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:rgba(245,242,236,.4);white-space:nowrap">Lesson 2 of 4</div>
+  </div>
+
+  <div style="margin:0 16px;aspect-ratio:16/9;border-radius:18px;background:#15241F;border:1px solid rgba(245,242,236,.12);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center">
+    <div style="position:absolute;inset:0;background-image:linear-gradient(115deg,rgba(245,242,236,.05) 0 12%,transparent 12% 24%);background-size:44px 44px"></div>
+    <button type="button" onClick="{{ togglePlay }}" style="appearance:none;width:66px;height:66px;border-radius:50%;border:none;background:#FF6B3D;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2" style-hover="background:#F55B2C">
+      <sc-if value="{{ playing }}" hint-placeholder-val="{{ false }}">
+        <span style="display:flex;gap:5px"><span style="width:5px;height:20px;background:#14261F;border-radius:1px"></span><span style="width:5px;height:20px;background:#14261F;border-radius:1px"></span></span>
+      </sc-if>
+      <sc-if value="{{ paused }}" hint-placeholder-val="{{ true }}">
+        <span style="width:0;height:0;border-left:17px solid #14261F;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:5px"></span>
+      </sc-if>
+    </button>
+    <div style="position:absolute;left:14px;bottom:12px;font:500 10.5px/1 'Instrument Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:rgba(245,242,236,.45)">Video placeholder</div>
+  </div>
+
+  <div style="padding:16px 16px 0;display:flex;flex-direction:column;gap:9px">
+    <div style="height:5px;border-radius:999px;background:rgba(245,242,236,.15);overflow:hidden">
+      <div style="height:100%;width:{{ progressW }};background:#FF6B3D;border-radius:999px;transition:width .3s linear"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font:400 11.5px/1 'Instrument Sans',sans-serif;color:rgba(245,242,236,.45);font-variant-numeric:tabular-nums">
+      <span>{{ elapsed }}</span><span>3:00</span>
+    </div>
+  </div>
+
+  <div style="flex:1;overflow:auto;padding:20px 16px 30px;display:flex;flex-direction:column;gap:16px">
+    <div style="font:700 22px/1.15 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;color:#F5F2EC">Reading a school zone early</div>
+    <div style="font:400 13.5px/1.6 'Instrument Sans',sans-serif;color:rgba(245,242,236,.6)">Three minutes on the cues that show up before the sign does, and how to carry less speed into the turn.</div>
+
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ chapters }}" as="c" hint-placeholder-count="3">
+        <div style="padding:13px 14px;border-radius:13px;background:{{ c.bg }};display:flex;align-items:center;gap:12px">
+          <div style="font:500 11.5px/1 'Instrument Sans',sans-serif;color:rgba(245,242,236,.4);font-variant-numeric:tabular-nums;flex:none;white-space:nowrap">{{ c.time }}</div>
+          <div style="flex:1;font:{{ c.font }};color:{{ c.color }}">{{ c.title }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="background:rgba(245,242,236,.06);border:1px solid rgba(245,242,236,.13);border-radius:18px;padding:17px;display:flex;flex-direction:column;gap:11px">
+      <div style="font:600 11px/1 'Instrument Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:rgba(245,242,236,.45);white-space:nowrap">Notes from {{ coachName }}</div>
+      <div style="font:400 13.5px/1.6 'Instrument Sans',sans-serif;color:rgba(245,242,236,.78)">Your approach speed is fine everywhere else on 214. This one crossing is signed late — the painted markings show up before the sign does.</div>
+    </div>
+
+    <button type="button" onClick="{{ completeLesson }}" style="appearance:none;border:none;background:{{ completeBg }};color:{{ completeFg }};border-radius:15px;padding:17px;min-height:52px;font:600 15px/1 'Instrument Sans',sans-serif;cursor:pointer">{{ completeLabel }}</button>
+  </div>
+</div>
+</sc-if>
+
+</div>
+</x-import>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:800,&quot;height&quot;:1000},&quot;score&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:82,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:0,&quot;max&quot;:100},&quot;coachName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Marcus K&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showStreaks&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Gamification&quot;}}">
+class Component extends DCLogic {
+  state = {
+    route: 'home', overlay: null, acked: false, playing: false, progress: 62,
+    range: 'Week', filter: 'Open', lessonDone: false, draft: '',
+    thread: 'elm',
+    threads: {
+      elm: {
+        title: 'Speed in a posted 40 zone', sub: 'Elm St & 3rd · Sep 8', open: true, unread: 1,
+        msgs: [
+          { id: 1, from: 'coach', text: "Saw the Elm St flag come through. Nothing dramatic — the zone there is signed late and it catches most people on that route.", meta: 'Marcus K · Tue 4:02 PM' },
+          { id: 2, from: 'me', text: "Yeah, I didn't see the 40 until I was past the crossing.", meta: 'You · Tue 6:15 PM' },
+          { id: 3, from: 'coach', text: "That tracks. I've assigned the 3-minute clip on early cues — the painted markings come up before the sign. Watch it and mark the session reviewed when you're done.", meta: 'Marcus K · Tue 6:40 PM' }
+        ]
+      },
+      follow: {
+        title: 'Following distance on 214 North', sub: 'Route 214 · Aug 26', open: false, unread: 0,
+        msgs: [
+          { id: 1, from: 'coach', text: "Two-second gap at 80 km/h is about 45 m. The clip shows the marker trick for judging it without doing maths.", meta: 'Marcus K · Aug 26 3:10 PM' },
+          { id: 2, from: 'me', text: "Watched it. Using the overpass shadows as markers on that stretch now.", meta: 'You · Aug 27 7:02 AM' },
+          { id: 3, from: 'coach', text: "That's the idea. Numbers on 214 are already back down — closing this one out.", meta: 'Marcus K · Aug 29 9:20 AM' }
+        ]
+      },
+      corner: {
+        title: 'Cornering load, yard exit', sub: 'Depot yard · Aug 12', open: false, unread: 0,
+        msgs: [
+          { id: 1, from: 'coach', text: "The yard exit onto Depot is tighter than it looks with a loaded trailer. Slowing before the gate rather than in it does most of the work.", meta: 'Marcus K · Aug 12 5:41 PM' },
+          { id: 2, from: 'me', text: "Makes sense, the load shifted on that one.", meta: 'You · Aug 13 6:55 AM' }
+        ]
+      },
+      stop: {
+        title: 'Rolling stop, Depot Rd', sub: 'Depot Rd · Jul 30', open: false, unread: 0, msgs: []
+      }
+    }
+  };
+
+  componentWillUnmount() { clearInterval(this._t); }
+
+  go(route) { return () => this.setState({ route, overlay: null }); }
+  setOverlay(overlay) { return () => this.setState({ overlay }); }
+
+  tick() {
+    clearInterval(this._t);
+    this._t = setInterval(() => this.setState(s => {
+      if (s.progress >= 100) { clearInterval(this._t); return { progress: 100, playing: false }; }
+      return { progress: Math.min(100, s.progress + 2) };
+    }), 260);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const score = this.props.score ?? 82;
+    const coachName = this.props.coachName ?? 'Marcus K';
+    const showStreaks = this.props.showStreaks ?? true;
+    const overlay = s.overlay;
+    const route = s.route;
+
+    const railDriver = [
+      ['home', 'Home — score & standing', 'Home'],
+      ['nudge', 'In-trip nudge', 'Overlay'],
+      ['posttrip', 'Post-trip review', 'Sheet'],
+      ['detail', 'Session detail', 'Coaching'],
+      ['player', 'Lesson player', 'Learn'],
+      ['coach', 'Message threads', 'Messages'],
+      ['thread', 'Session thread — chat', 'Messages'],
+      ['analytics', 'Score analytics', 'Insights'],
+      ['behaviour', 'Behaviour drill-down', 'Insights'],
+      ['scoring', 'How your score works', 'Trust'],
+      ['sessions', 'Session list & history', 'Coaching']
+    ].map(([key, label, hint]) => {
+      const active = (key === 'nudge' && overlay === 'nudge') || (key === 'posttrip' && overlay === 'posttrip') ||
+        (key === 'player' && overlay === 'player') || (!overlay && key === route);
+      return {
+        key, label, hint,
+        bg: active ? '#14261F' : '#FFFFFF',
+        fg: active ? '#F5F2EC' : '#14261F',
+        border: active ? '#14261F' : '#E0D9CC',
+        go: () => {
+          if (key === 'nudge') return this.setState({ overlay: 'nudge' });
+          if (key === 'posttrip') return this.setState({ overlay: 'posttrip' });
+          if (key === 'player') return this.setState({ overlay: 'player' });
+          this.setState({ route: key, overlay: null });
+        }
+      };
+    });
+
+    const tabDefs = [['home', 'Home'], ['sessions', 'Coaching'], ['learn', 'Learn'], ['coach', 'Messages']];
+    const tabs = tabDefs.map(([key, label]) => {
+      const homeish = ['analytics', 'behaviour', 'scoring'].indexOf(route) > -1;
+      const active = route === key || (key === 'sessions' && route === 'detail') || (key === 'home' && homeish) || (key === 'coach' && route === 'thread');
+      return {
+        key, label,
+        color: active ? '#14261F' : '#9AA6A0',
+        fill: active ? '#14261F' : 'transparent',
+        dot: active ? '#FF6B3D' : '#9AA6A0',
+        font: (active ? '600' : '500') + " 10.5px/1 'Instrument Sans',sans-serif",
+        go: () => this.setState({ route: key === 'learn' ? 'learn' : key, overlay: key === 'learn' ? 'player' : null })
+      };
+    });
+
+    const filters = ['Open', 'History'];
+    const sessionTabs = filters.map(label => ({
+      label, go: () => this.setState({ filter: label }),
+      bg: s.filter === label ? '#14261F' : 'transparent',
+      fg: s.filter === label ? '#F5F2EC' : '#6B7A73',
+      border: s.filter === label ? '#14261F' : '#D8D1C4'
+    }));
+
+    const open = [{
+      title: 'Speed in a posted 40 zone', date: 'Sep 8', status: s.acked ? 'Reviewed' : 'Action needed',
+      meta: 'Elm St & 3rd · 1 clip assigned · ' + coachName
+    }];
+    const history = [
+      { title: 'Following distance on 214 North', date: 'Aug 26', status: 'Closed', meta: 'Reviewed · lesson complete · discussed with coach' },
+      { title: 'Cornering load, yard exit', date: 'Aug 12', status: 'Closed', meta: 'Reviewed · lesson complete' },
+      { title: 'Rolling stop, Depot Rd', date: 'Jul 30', status: 'Closed', meta: 'Reviewed · coach signed off' }
+    ];
+    const rows = s.filter === 'Open' ? open : history;
+    const sessionList = rows.map(r => {
+      const live = r.status === 'Action needed';
+      return Object.assign({}, r, {
+        cardBg: live ? '#FFF3EE' : '#FFFFFF',
+        cardBorder: live ? '#F6CDBB' : '#E6E0D5',
+        chipBg: live ? '#FFE0D2' : '#EDE9E1',
+        chipFg: live ? '#C4501F' : '#6B7A73',
+        go: () => this.setState({ route: 'detail', overlay: null })
+      });
+    });
+
+    const spark = [['M', 44, 0], ['T', 52, 0], ['W', 38, 0], ['T', 60, 0], ['F', 47, 0], ['S', 56, 0], ['S', 66, 1]].map(([label, h, hot]) => ({
+      label, h: h + 'px', fill: hot ? '#FF6B3D' : 'rgba(245,242,236,0.22)'
+    }));
+
+    const bStats = [
+      { key: 'speed', name: 'Following speed limits', count: '6 events', trend: '−3 pts', trendColor: '#C4501F', score: 64, avg: 71, verdict: 'Room to improve',
+        why: 'Sustained speed in a posted zone is the single behaviour most tied to severity when something does go wrong. It also compounds — a few km/h over on a route you drive daily shows up as a lot of events by Friday.',
+        reminders: ['Set your speed before the zone starts, not at the sign.', 'On 214 the school zone at Elm is signed late — the painted markings come first.', 'Short overshoots while merging are not counted, so no need to brake hard for them.'],
+        events: [{ title: '48 km/h in a 40 zone', meta: 'Tue Sep 8 · 2:14 PM · Elm St & 3rd · 22 s', tag: 'Coaching' }, { title: '71 km/h in a 60 zone', meta: 'Fri Sep 4 · 8:41 AM · Route 214 N · 14 s', tag: 'Logged' }] },
+      { key: 'brake', name: 'Steady braking', count: '2 events', trend: '+1 pt', trendColor: '#2F8F6B', score: 81, avg: 76, verdict: 'On track',
+        why: 'Hard stops usually mean the gap ahead closed faster than expected. Reading further down the road gives you the option to coast instead of brake.',
+        reminders: ['Aim for a four-second gap at highway speed.', 'Cover the brake early on the Depot Rd approach — the lights there are short.'],
+        events: [{ title: 'Hard brake', meta: 'Tue Sep 8 · 2:31 PM · Depot Rd · light traffic', tag: 'Logged' }] },
+      { key: 'corner', name: 'Smooth turning', count: '1 event', trend: '−38% vs Aug', trendColor: '#2F8F6B', score: 88, avg: 74, verdict: 'Strong',
+        why: 'Cornering load matters more with a loaded box. Slower in, steady out keeps the load settled and the tyres wearing evenly.',
+        reminders: ['Set speed before the turn, not through it.', 'The yard exit at Depot is tighter than it looks when loaded.'],
+        events: [{ title: 'Cornering load', meta: 'Wed Aug 27 · 11:06 AM · yard exit', tag: 'Closed' }] },
+      { key: 'belt', name: 'Seatbelt use', count: 'No events', trend: '100%', trendColor: '#2F8F6B', score: 100, avg: 92, verdict: 'Perfect',
+        why: 'Belt use is a pass/fail check on every trip start. It carries the most weight of any behaviour because it is the easiest to get right.',
+        reminders: ['38 trips clean. Nothing to change here.'],
+        events: [] },
+      { key: 'phone', name: 'Zero phone distraction', count: 'No events', trend: '100%', trendColor: '#2F8F6B', score: 100, avg: 68, verdict: 'Perfect',
+        why: 'Handling the phone while moving is detected from motion and screen state. Hands-free calls and mounted navigation are not counted.',
+        reminders: ['Mounted nav and hands-free calls are fine.', 'Pull over for anything that needs typing.'],
+        events: [] }
+    ];
+    const behaviours = bStats.map(b => ({
+      name: b.name, count: b.count, trend: b.trend, trendColor: b.trendColor, score: b.score, verdict: b.verdict,
+      w: b.score + '%',
+      color: b.score < 70 ? '#FF6B3D' : (b.score < 90 ? '#E8A33D' : '#2F8F6B'),
+      go: () => this.setState({ route: 'behaviour', behaviour: b.key, overlay: null })
+    }));
+    const bh = bStats.find(b => b.key === (s.behaviour || 'speed'));
+    const bhLow = bh.score < 70;
+
+    const ranges = ['Week', 'Month', '90 days'].map(label => ({
+      label, go: () => this.setState({ range: label }),
+      bg: s.range === label ? '#14261F' : '#FFFFFF',
+      fg: s.range === label ? '#F5F2EC' : '#6B7A73',
+      border: s.range === label ? '#14261F' : '#E0D9CC'
+    }));
+    const rangeMap = { 'Week': [score, '+4 vs last week'], 'Month': [79, '+7 vs August'], '90 days': [76, '+11 since June'] };
+    const rv = rangeMap[s.range];
+
+    const composition = [
+      ['Speed −7', '#FF6B3D', 40], ['Braking −4', '#E8A33D', 24],
+      ['Cornering −2', '#8FB88A', 14], ['Clean driving +5', '#2F8F6B', 22]
+    ].map(([label, color, w]) => ({ label, color, w: w + '%' }));
+
+    const openThread = (id) => this.setState(st => {
+      const th = st.threads[id];
+      return { route: 'thread', overlay: null, thread: id, draft: '', threads: Object.assign({}, st.threads, { [id]: Object.assign({}, th, { unread: 0 }) }) };
+    });
+    const pushMsgs = (add) => this.setState(st => {
+      const id = st.thread, th = st.threads[id];
+      return { threads: Object.assign({}, st.threads, { [id]: Object.assign({}, th, { msgs: th.msgs.concat(add) }) }) };
+    });
+
+    const threadOrder = ['elm', 'follow', 'corner', 'stop'];
+    const threadList = threadOrder.map(id => {
+      const t = s.threads[id];
+      const last = t.msgs[t.msgs.length - 1];
+      return {
+        id, title: t.title, sub: t.sub,
+        preview: last ? (last.from === 'me' ? 'You: ' + last.text : last.text) : 'No messages yet — start the thread.',
+        previewColor: last ? '#6B7A73' : '#9AA6A0',
+        stamp: last ? (last.meta.split(' · ')[1] || '') : '',
+        status: t.open ? 'Open' : 'Closed',
+        chipBg: t.open ? '#FFE7DE' : '#EDE8DE', chipFg: t.open ? '#C4501F' : '#6B7A73',
+        cardBg: t.unread ? '#FFF3EE' : '#FFFFFF',
+        cardBorder: t.unread ? '#F6CDBB' : '#E6E0D5',
+        unread: !!t.unread, unreadCount: t.unread,
+        go: () => openThread(id)
+      };
+    });
+    const active = s.threads[s.thread];
+    const activeMsgs = active.msgs;
+
+    const msgs = activeMsgs.map(m => {
+      const mine = m.from === 'me';
+      const ai = m.from === 'ai';
+      return {
+        id: m.id, text: m.text, meta: ai ? 'Assistant · just now' : m.meta,
+        align: mine ? 'flex-end' : 'flex-start',
+        bg: mine ? '#14261F' : (ai ? '#EFF3E9' : '#FFFFFF'),
+        fg: mine ? '#F5F2EC' : '#14261F',
+        border: mine ? '#14261F' : (ai ? '#D6E0C9' : '#E6E0D5'),
+        radius: mine ? '16px 16px 5px 16px' : '16px 16px 16px 5px'
+      };
+    });
+
+    const answers = {
+      "Why did my score drop 3?": "Three points came off this week: two from the Elm St 40-zone stretch and one from a hard brake on Depot Rd. Your clean-trip credit added two back, so the net is −1.",
+      "What's a 40 zone rule?": "Your fleet flags any sustained 5 km/h over a posted limit for more than 10 seconds. Short overshoots while merging aren't counted.",
+      "How close am I to 85?": "Three more clean trips holds you at 82. Clearing the open session and no speed flags this week puts you at about 85 by Sunday."
+    };
+    const quickAsks = Object.keys(answers).map(label => ({
+      label,
+      go: () => pushMsgs([
+        { id: Date.now(), from: 'me', text: label, meta: 'You · just now' },
+        { id: Date.now() + 1, from: 'ai', text: answers[label], meta: '' }
+      ])
+    }));
+
+    const chapters = [
+      ['0:00', 'Cues before the sign', 32],
+      ['1:08', 'Carrying speed out of a turn', 68],
+      ['2:14', 'Where drivers usually catch it', 100]
+    ].map(([time, title, upTo]) => {
+      const active = s.progress >= upTo - 34 && s.progress < upTo + 2;
+      return {
+        time, title, bg: active ? 'rgba(255,107,61,0.12)' : 'transparent',
+        color: active ? '#FF6B3D' : 'rgba(245,242,236,.75)',
+        font: (active ? '600' : '400') + " 13.5px/1.35 'Instrument Sans',sans-serif"
+      };
+    });
+
+    const secs = Math.round(180 * s.progress / 100);
+    const elapsed = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+
+    return {
+      score, coachName, showStreaks, frameDark: overlay === 'nudge' || overlay === 'player',
+      isHome: !overlay && route === 'home',
+      isSessions: !overlay && route === 'sessions',
+      isDetail: !overlay && route === 'detail',
+      isAnalytics: !overlay && route === 'analytics',
+      isCoach: !overlay && route === 'coach',
+      isCoachView: !overlay && route === 'coachview',
+      isBehaviour: !overlay && route === 'behaviour',
+      isScoring: !overlay && route === 'scoring',
+      bhName: bh.name, bhScore: bh.score, bhScoreW: bh.score + '%', bhVerdict: bh.verdict,
+      bhTrend: bh.trend, bhTrendColor: bh.trendColor, bhCount: bh.count, bhAvg: bh.avg,
+      bhWhy: bh.why, bhRange: 'Rolling 14 days',
+      bhAccent: bhLow ? '#FF6B3D' : (bh.score < 90 ? '#E8A33D' : '#2F8F6B'),
+      bhCardBg: bhLow ? '#FFF3EE' : '#FFFFFF',
+      bhCardBorder: bhLow ? '#F6CDBB' : '#E6E0D5',
+      bhReminders: bh.reminders.map(text => ({ text })),
+      bhEvents: bh.events.map(e => Object.assign({}, e, { go: () => this.setState({ route: 'detail', overlay: null }) })),
+      goScoring: this.go('scoring'),
+      tierPerks: [{ label: 'Route preference' }, { label: 'Self-serve schedule swaps' }, { label: 'Quarterly bonus eligible' }],
+      measured: [
+        { name: 'Following speed limits', rule: '5 km/h over a posted limit for 10 s or more', weight: '30%' },
+        { name: 'Steady braking', rule: 'Deceleration above 0.4 g', weight: '20%' },
+        { name: 'Smooth turning', rule: 'Lateral load above 0.35 g', weight: '15%' },
+        { name: 'Seatbelt use', rule: 'Checked at every trip start', weight: '20%' },
+        { name: 'Zero phone distraction', rule: 'Handling detected while moving', weight: '15%' }
+      ],
+      notMeasured: [
+        { text: 'Idle time, fuel use, or how long a job takes' },
+        { text: 'Traffic, weather, or a route you were assigned' },
+        { text: 'Hands-free calls and mounted navigation' },
+        { text: 'Anything recorded while the vehicle is parked' }
+      ],
+      isNudge: overlay === 'nudge', isPostTrip: overlay === 'posttrip', isPlayer: overlay === 'player',
+      showTabs: !overlay && route !== 'coachview' && route !== 'thread',
+      railDriver, tabs, sessionTabs, sessionList, spark, behaviours, ranges, composition, msgs, quickAsks, chapters,
+      focusRows: [
+        { name: 'Speed in posted zones', note: '6 events, all on route 214', delta: '−7 pts' },
+        { name: 'Braking on approach', note: '2 hard stops this week', delta: '−4 pts' }
+      ],
+      winRows: [
+        { name: 'Seatbelt', note: '38 trips, no exceptions', delta: '100%' },
+        { name: 'Cornering', note: 'Down from 8 events in August', delta: '−38%' }
+      ],
+      tips: [
+        { n: '1', title: 'Set speed before the crossing', body: 'The painted markings at Elm start about 60 m ahead of the sign. Coming off 60, that is the point to lift.' },
+        { n: '2', title: 'Treat 3rd as the exit, not the entry', body: 'Drivers on 214 tend to hold speed until the turn. Carrying 40 through the crossing makes the turn easier anyway.' }
+      ],
+      tripEvents: [
+        { name: 'Speed in a 40 zone', meta: '2:14 PM · Elm St & 3rd · 22 s', tag: 'Coaching', color: '#FF6B3D' },
+        { name: 'Hard brake', meta: '2:31 PM · Depot Rd · light traffic', tag: 'Logged', color: '#E8A33D' }
+      ],
+      roster: [
+        { initials: 'DR', name: 'Dana R', note: '1 session open · due Thu', score: '82', trend: '+4', trendColor: '#2F8F6B' },
+        { initials: 'PS', name: 'Priya S', note: 'Awaiting your review', score: '91', trend: '+1', trendColor: '#2F8F6B' },
+        { initials: 'JL', name: 'Jon L', note: '2 sessions open · overdue', score: '68', trend: '−3', trendColor: '#C4501F' },
+        { initials: 'AM', name: 'Amara M', note: 'No open items', score: '88', trend: '0', trendColor: '#6B7A73' },
+        { initials: 'TC', name: 'Tomas C', note: 'Lesson assigned Monday', score: '75', trend: '+6', trendColor: '#2F8F6B' }
+      ],
+      detailStatus: s.acked ? 'Reviewed' : 'Action needed',
+      acked: s.acked, notAcked: !s.acked,
+      ack: () => this.setState({ acked: true }),
+      rangeLabel: s.range === 'Week' ? 'This week' : (s.range === 'Month' ? 'This month' : 'Last 90 days'),
+      rangeScore: rv[0], rangeTrend: rv[1],
+      playing: s.playing, paused: !s.playing,
+      progressW: s.progress + '%', elapsed,
+      togglePlay: () => this.setState(st => {
+        if (st.playing) { clearInterval(this._t); return { playing: false }; }
+        this.tick(); return { playing: true };
+      }),
+      completeLabel: s.lessonDone ? 'Completed · back to session' : 'Mark lesson complete',
+      completeBg: s.lessonDone ? 'rgba(47,143,107,.2)' : '#FF6B3D',
+      completeFg: s.lessonDone ? '#8FE0BE' : '#14261F',
+      completeLesson: () => {
+        clearInterval(this._t);
+        if (s.lessonDone) return this.setState({ overlay: null, route: 'detail', playing: false });
+        this.setState({ lessonDone: true, progress: 100, playing: false });
+      },
+      closePlayer: () => { clearInterval(this._t); this.setState({ overlay: null, playing: false }); },
+      draft: s.draft,
+      onDraft: e => this.setState({ draft: e.target.value }),
+      send: () => {
+        const t = s.draft.trim(); if (!t) return;
+        this.setState({ draft: '' });
+        pushMsgs([{ id: Date.now(), from: 'me', text: t, meta: 'You · just now' }]);
+        setTimeout(() => pushMsgs([{ id: Date.now(), from: 'coach', text: "Got it — I'll take a look before your Thursday check-in.", meta: coachName + ' · just now' }]), 1100);
+      },
+      goHome: this.go('home'), goSessions: this.go('sessions'), goDetail: this.go('detail'),
+      goAnalytics: this.go('analytics'), goCoach: this.go('coach'), goCoachView: this.go('coachview'),
+      threadList, threadTitle: active.title, threadSub: active.sub,
+      threadStatus: active.open ? 'Open' : 'Closed',
+      threadEmpty: activeMsgs.length === 0,
+      openElmThread: () => openThread('elm'),
+      isThread: !overlay && route === 'thread',
+      goPlayer: () => this.setState({ overlay: 'player' }),
+      toPostTrip: () => this.setState({ overlay: 'posttrip' })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -8,6 +8,7 @@ const css = await readFile(new URL('../dist/styles.css', import.meta.url), 'utf8
 const sharedCss = await readFile(new URL('../dist/design-system.css', import.meta.url), 'utf8');
 const js = await readFile(new URL('../dist/app.js', import.meta.url), 'utf8');
 const programsJs = await readFile(new URL('../dist/programs.js', import.meta.url), 'utf8');
+const activityJs = await readFile(new URL('../dist/program-activity.js', import.meta.url), 'utf8');
 
 function readDomainSnapshot() {
   const domainEnd = js.indexOf('const driverSafetyScores');
@@ -17,20 +18,21 @@ function readDomainSnapshot() {
   return JSON.parse(JSON.stringify(sandbox.__domain));
 }
 
-test('primary navigation and global search are accessible', () => {
+test('primary navigation is accessible and the retired search and Settings entries are gone', () => {
   assert.match(html, /class="skip-link"/);
   assert.match(html, /id="main-content"/);
-  assert.match(html, /id="global-search-trigger"/);
-  assert.match(html, /id="global-search-dialog"/);
+  assert.doesNotMatch(html, /id="global-search-trigger"|id="global-search-dialog"/, 'The September 7 review removed the global search bar');
+  assert.doesNotMatch(html, /data-view="settings"|id="view-settings"/, 'Automation settings live in Programs › Automation');
+  assert.match(html, /<a[^>]+data-view="library"[^>]+aria-label="Learning"/, 'Content is renamed Learning');
 
-  for (const view of ['coaching', 'inbox', 'outcomes', 'programs', 'library', 'settings']) {
+  for (const view of ['coaching', 'inbox', 'programs', 'drivers', 'library', 'driver']) {
     const navLink = new RegExp(`<a[^>]+data-view="${view}"[^>]+aria-label=`, 'i');
     assert.match(html, navLink, `${view} navigation needs an accessible name`);
   }
-  assert.doesNotMatch(html, /<a[^>]+data-view="(?:drivers|groups)"/, 'Drivers and Groups belong inside Analytics, not the sidebar');
+  assert.doesNotMatch(html, /<a[^>]+data-view="(?:outcomes|groups)"/, 'Programmes consolidates reports; Drivers contains Groups');
 
   assert.match(js, /aria-current/);
-  assert.match(js, /global-search-input/);
+  assert.match(js, /internalViewNames\.settings = 'settings'/, 'Legacy #settings links still resolve');
 });
 
 test('session lifecycle is mutually exclusive and reconciles to all sessions', () => {
@@ -67,17 +69,20 @@ test('session lifecycle is mutually exclusive and reconciles to all sessions', (
 });
 
 test('production controls and responsive navigation contracts are present', () => {
-  for (const id of ['settings-impact', 'settings-discard', 'settings-preview', 'settings-save']) {
-    assert.match(html, new RegExp(`id="${id}"`));
+  for (const id of ['settings-impact', 'settings-discard', 'settings-preview', 'settings-save', 'automation-mode-grid']) {
+    assert.match(programsJs, new RegExp(`['"]${id}['"]|id="${id}"`), `${id} is rendered by the Programs › Automation tab`);
   }
+  assert.match(programsJs, /'automation', 'Automation'/);
 
   assert.match(html, /id="mobile-more-trigger"/);
   assert.match(html, /id="mobile-more-dialog"/);
+  assert.match(html, /KEEP: Driver app nav item/, 'The product owner’s protected Driver app navigation stays intact');
+  assert.match(html, /<a[^>]+data-view="driver"[^>]+href="#driver-app"/, 'Driver app remains a clickable sidebar destination');
+  assert.match(html, /data-mobile-view="driver"/, 'Driver app remains in the mobile More sheet');
+  assert.doesNotMatch(sharedCss, /#mobile-more-trigger\s*\{[^}]*display:\s*none\s*!important/, 'More must not be globally hidden');
   assert.match(sharedCss, /prefers-reduced-motion/);
   assert.match(css, /\.skip-link/);
-  assert.match(css, /\.global-search-dialog/);
   assert.match(css, /\.mobile-more-trigger/);
-  assert.match(html, /data-open-global-search/);
   assert.match(js, /content\?\.querySelector\('\[data-filter-sheet-close\]'\)\?\.focus/);
   assert.match(js, /filterDialog\?\.querySelectorAll/);
 });
@@ -94,22 +99,19 @@ test('automation centre shares the analytics KPI strip and hero layout', () => {
   assert.doesNotMatch(html, /Reminders exhausted|Driver replies|Repeated events|Delivery blocked|Repeat after coaching/, 'One review vocabulary: Overdue, Repeated, Replied');
 });
 
-test('Analytics links to full-page Programs with inline outcome data', () => {
+test('Programmes consolidates reports with retained outcome data and standalone Drivers', () => {
   assert.match(html, /data-view="programs"[^>]*href="#programs"/);
-  assert.match(html, /data-view="outcomes"[^>]*href="#analytics"/);
+  assert.match(html, /data-view="drivers"[^>]*href="#drivers"/);
   assert.match(html, /id="view-programs"/);
   assert.match(js, /function openProgramPage/);
   assert.doesNotMatch(html, /script[^>]+src="\.\/program-drawer\.js/, 'Program data lives on the page without a second program-modal renderer');
-  assert.match(programsJs, /id="program-page-outcome-sample"/, 'Retained outcome sample facts are available within Programs');
+  assert.match(activityJs, /id="program-page-outcome-sample"/, 'Retained outcome sample facts are available within Programmes');
   assert.doesNotMatch(programsJs, />Quick view<|aria-haspopup="dialog">Quick/, 'Program detail does not redirect users into a duplicate drawer');
-  const tabs = [...html.matchAll(/data-analytics-tab="([a-z]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(tabs, ['outcomes', 'activity', 'drivers', 'groups']);
-  assert.match(html, /id="analytics-outcomes-tab"[^>]*aria-selected="true"/);
   assert.match(html, /<section[^>]+id="view-drivers"/);
   assert.match(html, /<section[^>]+id="view-groups"/);
-  assert.match(html, /id="analytics-activity"[\s\S]*?id="coaching-queue"/);
-  assert.match(js, /let analyticsTab = 'outcomes'/);
-  assert.match(html, /data-view="programs"[^>]*href="#programs"/, 'Programs remains available in primary navigation');
+  assert.match(html, /id="drivers-panel-groups"/);
+  assert.match(programsJs, /programActivityMarkup\(program\)/);
+  assert.match(html, /script[^>]+src="\.\/program-activity\.js/);
 });
 
 test('analytics separates throughput from outcomes', () => {
@@ -119,11 +121,11 @@ test('analytics separates throughput from outcomes', () => {
   assert.match(js, /outcomeFor/, 'Outcome rates retain their exposure-aware source');
 });
 
-test('Programs begins at All programs with three detail sections', () => {
+test('Programmes begins at All programmes with four sections and a Drivers workspace', () => {
   assert.match(js, /let selectedProgramId = 'all'/, 'Opening Programs must not choose the first category implicitly');
   const definition = programsJs.match(/const programPageTabs = ([^\n]+);/);
   assert.ok(definition, 'Program section declarations are available');
-  assert.deepEqual([...definition[1].matchAll(/\['([^']+)',/g)].map(match => match[1]), ['overview', 'content', 'configuration']);
+  assert.deepEqual([...definition[1].matchAll(/\['([^']+)',/g)].map(match => match[1]), ['activity', 'content', 'configuration', 'automation']);
 });
 
 test('canonical coaching terminology is visible', () => {

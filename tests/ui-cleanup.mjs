@@ -20,33 +20,39 @@ try {
     for(const id of ['all','speeding']) {
       await page.goto(base+'/?program='+id+'&period=4#programs');
       const view=page.locator('#view-programs');
-      for(const tab of ['overview','content','configuration']) {
+      for(const tab of ['activity','content','configuration','automation']) {
         await view.locator('#program-tab-'+tab).click();
-        assert.equal(await view.getByRole('heading',{name:'Programs',exact:true,level:1}).count(),1,'The page title is stable');
-        assert.equal(await view.getByRole('combobox',{name:'Program',exact:true}).count(),1,'A compact selector retains its accessible label');
-        assert.equal(await view.getByRole('combobox',{name:'Period',exact:true}).count(),tab==='overview'?1:0,'Only reporting content offers a reporting period');
-        assert.equal(await view.locator('.kpi-strip').count(),tab==='overview'?1:0,'Metadata sections omit inapplicable coaching KPIs');
-        assert.equal(await view.locator('#program-page-scope').count(),tab==='overview'?1:0);
-        if(tab==='overview') {
+        assert.equal(await view.getByRole('heading',{name:'Programmes',exact:true,level:1}).count(),1,'The page title is stable');
+        assert.equal(await view.getByRole('combobox',{name:'Programme',exact:true}).count(),tab==='automation'?0:1,'A compact selector retains its accessible label; fleet-wide Automation has none');
+        assert.equal(await view.getByRole('combobox',{name:'Period',exact:true}).count(),tab==='activity'?1:0,'Only reporting content offers a reporting period');
+        assert.equal(await view.locator('.kpi-strip:visible').count(),tab==='activity'?1:0,'Metadata sections omit inapplicable coaching KPIs');
+        assert.equal(await view.locator('#program-page-scope').count(),tab==='activity'?1:0);
+        if(tab==='activity') {
           assert.equal(await view.locator('#program-page-scope').textContent(),await page.evaluate(()=>periodScopeLabel()));
           assert.equal(await view.locator('#program-page-period').evaluate(node=>Boolean(node.closest('.data-toolbar'))),true);
         }
         assert.equal(await page.evaluate(()=>coachingPeriod),4,'Metadata navigation preserves the report period in memory');
         assert.equal(new URL(page.url()).searchParams.get('period'),'4');
         assert.equal(await view.locator('.page-heading .ui-status,#program-reports-link,#program-review-context').count(),0,'The heading and toolbar omit duplicate state and navigation');
-        assert.equal(await view.locator('#program-page-select').evaluate(node=>Boolean(node.closest('.data-toolbar'))),true);
-        if(width===1440)await rightOf(view.locator('.program-page-toolbar [role="tablist"]'),view.locator('.program-page-controls'),'Programs');
-        await noOverflow('Programs '+id+' '+tab+' at '+width);
+        if(tab!=='automation')assert.equal(await view.locator('#program-page-select').evaluate(node=>Boolean(node.closest('.data-toolbar'))),true);
+        if(width===1440)await rightOf(view.locator('.program-page-toolbar [role="tablist"]'),view.locator('.program-page-controls'),'Programmes');
+        await noOverflow('Programmes '+id+' '+tab+' at '+width);
       }
-      await view.locator('#program-tab-overview').click();
-      assert.equal(await page.inputValue('#program-page-period'),'4','Overview restores the previous period after metadata sections');
-      assert.equal(await view.locator('.kpi-tile').count(),6);
-      if(id==='all')await view.locator('[data-program-record-scope="all"]').click();
-      const status=view.locator('#program-record-count');
-      assert.equal(await status.getAttribute('role'),'status');
-      assert.equal(await status.evaluate(node=>node.classList.contains('sr-only')),true,'The result count remains available to assistive technology without repeated visible prose');
-      assert.equal(await view.getByRole('combobox',{name:'State',exact:true}).count(),1);
-      assert.equal(await view.getByRole('combobox',{name:'Coach',exact:true}).count(),1);
+      await view.locator('#program-tab-activity').click();
+      assert.equal(await page.inputValue('#program-page-period'),'4','Activity restores the previous period after metadata sections');
+      assert.equal(await view.locator('#program-page-kpis .kpi-tile').count(),7);
+    }
+    // Groups retains the same scoped reporting controls in its new Drivers tab.
+    for(const id of ['all','speeding']) {
+      await page.goto(base+'/?driversTab=groups&program='+id+'&period=4#drivers');
+      const drivers=page.locator('#view-drivers'),controls=drivers.locator('#driver-group-controls');
+      assert.equal(await drivers.locator('#drivers-tab-groups').getAttribute('aria-selected'),'true');
+      assert.equal(await controls.getByRole('combobox',{name:'Programme',exact:true}).inputValue(),id);
+      assert.equal(await controls.getByRole('combobox',{name:'Period',exact:true}).inputValue(),'4');
+      assert.equal(await drivers.locator('.kpi-strip:visible').count(),1,'Groups retains one workload summary');
+      assert.equal(await drivers.locator('#driver-groups-scope').textContent(),await page.evaluate(()=>periodScopeLabel()));
+      if(width===1440)await rightOf(drivers.locator('.drivers-workspace-toolbar [role="tablist"]'),controls,'Driver Groups');
+      await noOverflow('Driver Groups '+id+' at '+width);
     }
     await page.goto(base+'/?session=manager_attention#sessions');
     const sessions=page.locator('#view-inbox'),toolbar=sessions.locator('.session-toolbar');
@@ -58,7 +64,7 @@ try {
     assert.equal(await sessions.locator('nav[aria-label="Session pages"]').isVisible(),false,'A single page has no pagination chrome');
     await noOverflow('Sessions at '+width);
     await page.goto(base+'/#content');
-    const content=page.locator('#view-library'),search=content.getByRole('searchbox',{name:'Search content',exact:true});
+    const content=page.locator('#view-library'),search=content.getByRole('searchbox',{name:'Search lessons',exact:true});
     assert.equal(await search.count(),1);
     if(width===1440) {
       const control=await search.locator('..').boundingBox(),bar=await content.locator('.data-toolbar').boundingBox();
@@ -81,5 +87,5 @@ try {
   assert.equal(await page.locator('#view-inbox [data-record-id]').count(),0);
   assert.equal(await pager.isVisible(),false,'Empty results also hide paging controls');
   assert.deepEqual(errors,[]);
-  console.log('Passed: stable Programs heading, accessible right-hand dataset controls, one exact scope, retained live count, compact single-page pagination, working multiple pages, Content search alignment and mobile overflow.');
+  console.log('Passed: stable Programmes heading, accessible right-hand dataset controls, one exact scope, retained live count, compact single-page pagination, working multiple pages, Content search alignment and mobile overflow.');
 } finally {await browser.close();}

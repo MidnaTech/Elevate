@@ -27,16 +27,17 @@ const expectProfile = async name => {
   assert.equal(await drawer.evaluate(node => node.classList.contains('is-session')), false, 'Opening a driver must show their portfolio');
   assert.equal(new URL(page.url()).searchParams.get('driver'), name, 'Driver links must identify a driver independently of a session');
   assert.equal(new URL(page.url()).searchParams.get('record'), null);
-  assert.equal(new URL(page.url()).hash, '#analytics');
-  assert.equal(new URL(page.url()).searchParams.get('analytics'), 'drivers', 'Driver portfolios remain in the Analytics Drivers view');
+  assert.equal(new URL(page.url()).hash, '#drivers');
+  assert.equal(new URL(page.url()).searchParams.get('analytics'), null, 'Driver portfolios remain in the standalone Drivers workspace');
 };
 const closeProfile = async () => {
   await profile.locator('[data-close-drawer]').click();
   await page.waitForFunction(() => document.getElementById('driver-drawer').getAttribute('aria-hidden') === 'true');
 };
 const revealAllSessions = async () => {
-  const showAll = profile.locator('[data-profile-show-all]');
-  if (await showAll.count() && /Show all/.test(await showAll.textContent())) await showAll.click();
+  for (const disclosure of await profile.locator('.profile-programme-history').all()) {
+    if (!await disclosure.evaluate(node => node.open)) await disclosure.locator(':scope > summary').click();
+  }
 };
 const focusableEnds = () => drawer.evaluate(node => {
   const elements = [...node.querySelectorAll('button, [href], input, select, textarea, summary, [tabindex]')]
@@ -84,12 +85,11 @@ const expectProfileCharts = async name => {
 };
 
 try {
-  await page.goto(base + '/?analytics=outcomes#analytics');
-  await page.locator('[data-analytics-tab="drivers"]').click();
-  assert.equal(await page.locator('#outcomes-title').textContent(), 'Analytics');
-  assert.equal(await page.locator('[data-analytics-tab]:visible').count(), 4, 'Drivers keeps the Analytics view tabs visible');
-  assert.equal(new URL(page.url()).hash, '#analytics');
-  assert.equal(new URL(page.url()).searchParams.get('analytics'), 'drivers');
+  await page.goto(base + '/?analytics=drivers#analytics');
+  assert.equal(await page.locator('#drivers-title').textContent(), 'Drivers');
+  assert.equal(await page.locator('[data-analytics-tab]:visible').count(), 0, 'Legacy Analytics links open the independent directory without obsolete tabs');
+  assert.equal(new URL(page.url()).hash, '#drivers');
+  assert.equal(new URL(page.url()).searchParams.get('analytics'), null);
   const records = await page.evaluate(() => directory.map(({ name, safetyScore, scoreChange, group }) => ({ name, safetyScore, scoreChange, group })));
   assert.equal(records.length, 14, 'Keep every representative directory driver reachable');
   for (const { name } of records) {
@@ -104,13 +104,24 @@ try {
 
   // The name opens the portfolio; the separate Action column chooses a real
   // coaching record or a prefilled create form without changing the ledger.
-  assert.deepEqual(await page.locator('#driver-directory thead th').allTextContents(),['Driver','Elevate score','Top event','Last coached','Status','Action']);
+  assert.deepEqual(await page.locator('#driver-directory thead th').allTextContents(),['Driver','Overall Elevate score','Top event','Last coached','Status','Action']);
   assert.equal(await page.locator('#driver-directory thead th').last().locator('button').count(),0,'Action is not a sortable data column');
   for(const {name} of records) {
     const action=rowFor(name).locator('td').last().locator('button');
     assert.equal(await action.count(),1,name+' has exactly one explicit coaching action');
     assert.match(await action.textContent(),/^(View|Create) session$/);
     assert.ok((await action.getAttribute('aria-label')).includes(name));
+    const shownState=(await rowFor(name).locator('td').nth(4).textContent()).trim();
+    const linked=await action.getAttribute('data-open-session');
+    const source=await page.evaluate(({name,linked})=>({record:sessions.find(record=>record.id===linked)||null,hasActive:sessions.some(record=>record.person===name&&sessionWithinPeriod(record,coachingPeriod)&&!['completed','archived'].includes(record.state))}),{name,linked});
+    if(linked) {
+      assert.equal(source.record.person,name,'Session action keeps driver identity');
+      assert.ok(!['Completed','On track'].includes(shownState),'Active session cannot display a completed/on-track state');
+      assert.equal(shownState,source.record.state==='manager_attention' ? await page.evaluate(reason=>attentionReasonMeta[reason].label,source.record.attentionReason) : 'In progress','Displayed state follows the same actual session as its action');
+    } else {
+      assert.equal(source.hasActive,false,'Create action only appears when there is no active session in scope');
+      assert.ok(['Completed','On track'].includes(shownState),'A driver without active coaching cannot be labelled In progress');
+    }
   }
   // A competing active record inserted ahead of the focused program must not
   // redirect View session to the wrong coaching topic. Fixtures reset on reload.
@@ -140,7 +151,8 @@ try {
   await page.locator('#training-dialog').getByRole('button',{name:'Cancel',exact:true}).click();
   await identityFor('Priya Singh').click();
   await expectProfile('Priya Singh');
-  await profile.locator('[data-profile-coaching-view="past"]').click();
+  await profile.locator('#profile-coaching-filter').selectOption('all');
+  await revealAllSessions();
   assert.deepEqual((await profile.locator('[data-profile-session]').evaluateAll(rows=>rows.map(row=>row.dataset.profileSession))).sort(),['qa-older-history','qa-recent-history'],'Prior coaching remains accessible through the portfolio');
   await profile.locator('[data-open-session="qa-recent-history"]').click();
   await page.waitForFunction(()=>activeSessionId==='qa-recent-history');
@@ -199,30 +211,43 @@ try {
   assert.equal(await profile.locator('.profile-score .kpi-value').textContent(), '58', 'Show the directory safety score');
   assert.match(priyaScore, /prev(?:ious)?\s+67/i, 'Show the actual prior score, current minus the recorded change');
   await expectProfileCharts('Priya Singh');
-  assert.deepEqual(await profile.locator('[data-profile-coaching-view]').allTextContents(), ['Current sessions', 'Past sessions'], 'Coaching has exactly the two requested scopes');
-  assert.equal(await profile.locator('[data-profile-coaching-view="current"]').getAttribute('aria-selected'), 'true', 'Current sessions is the default scope');
+  const coachingFilter=profile.getByRole('combobox',{name:'Coaching filter',exact:true});
+  assert.deepEqual(await coachingFilter.locator('option').allTextContents(), ['All programmes', 'Active', 'Completed', 'Archived'], 'One native filter keeps programme coverage and session states together');
+  assert.equal(await coachingFilter.inputValue(), 'all', 'All programmes is the default');
   assert.equal(await profile.locator('.profile-coaching-list').count(), 1, 'Coaching uses one filtered list');
-  assert.equal(await profile.locator('#profile-rule-breakdown').isVisible(), true, 'Rule breakdown is always visible');
-  assert.match(await profile.locator('#profile-rule-breakdown').innerText(), /Recorded evidence · current sessions/);
-  assert.equal(await profile.locator('#profile-coaching-filter, .profile-shell select').count(), 0, 'No dropdown filters in the portfolio');
-  const sectionOrder = await profile.locator('.profile-scroll > section').evaluateAll(nodes => nodes.map(node => node.id || node.className));
-  assert.deepEqual(sectionOrder.map(id => id.split(' ')[0]), ['profile-week', 'profile-rule-breakdown', 'profile-events', 'profile-coaching'], 'Sections follow This week → Rule breakdown → Recent exceptions → Coaching');
-  assert.equal(await profile.locator('textarea').count(), 0, 'The portfolio must not duplicate the session conversation');
-  const currentIds = await page.evaluate(() => sessions.filter(session => session.person === 'Priya Singh' && !['completed', 'archived'].includes(session.state)).map(session => session.id));
-  const pastIds = await page.evaluate(() => sessions.filter(session => session.person === 'Priya Singh' && ['completed', 'archived'].includes(session.state)).map(session => session.id));
-  assert.ok(currentIds.includes('priya-speeding'));
-  assert.ok(pastIds.length > 0);
-  await revealAllSessions();
-  assert.deepEqual((await profile.locator('[data-profile-session]').evaluateAll(rows => rows.map(row => row.dataset.profileSession))).sort(), currentIds.sort(), 'Current sessions shows the in-progress and needs-review ledger records');
-  await profile.locator('[data-profile-coaching-view="past"]').click();
-  await revealAllSessions();
-  assert.deepEqual((await profile.locator('[data-profile-session]').evaluateAll(rows => rows.map(row => row.dataset.profileSession))).sort(), pastIds.sort(), 'Past sessions shows completed and archived records');
-  await profile.locator('[data-profile-coaching-view="current"]').click();
+  const rules=profile.locator('#profile-rule-breakdown');
+  assert.equal(await rules.evaluate(node=>node.tagName),'DETAILS','Rule breakdown is a native disclosure');
+  assert.equal(await rules.evaluate(node=>node.open),false,'Rule breakdown starts collapsed');
+  await rules.locator(':scope > summary').click();
+  assert.equal(await rules.locator('.profile-rule-list').isVisible(),true,'Rules remain available on demand');
+  await rules.locator(':scope > summary').click();
+  const sectionOrder = await profile.locator('.profile-scroll > section,.profile-scroll > details').evaluateAll(nodes => nodes.map(node => node.id || node.className));
+  assert.deepEqual(sectionOrder.map(id => id.split(' ')[0]), ['profile-week', 'profile-rule-breakdown', 'profile-coaching', 'profile-events'], 'Sections follow This week → collapsed Rules → Coaching → Recent exceptions');
+  assert.equal(await profile.locator('textarea').count(), 0, 'The portfolio does not duplicate the session conversation');
+  const configured=await page.evaluate(()=>categories.map(programme=>programme.id));
+  assert.deepEqual((await profile.locator('[data-profile-programme]').evaluateAll(rows=>rows.map(row=>row.dataset.profileProgramme))).sort(),configured.sort(),'Every configured programme appears, including those without sessions');
+  assert.ok((await profile.locator('[data-profile-programme-score]').allTextContents()).every(value=>value==='—'),'Programme scores remain unavailable rather than borrowing fleet/overall driver values');
+  assert.match(await profile.getByRole('button',{name:'About programme scores and coaching history',exact:true}).getAttribute('data-tooltip'),/evaluation periods are unavailable/);
+  const sourceSessions=await page.evaluate(()=>sessions.filter(session=>session.person==='Priya Singh').map(session=>({id:session.id,state:session.state})));
+  for(const state of ['all','active','completed','archived']) {
+    await coachingFilter.selectOption(state);await revealAllSessions();
+    const expected=sourceSessions.filter(session=>state==='all'||(state==='active'?!['completed','archived'].includes(session.state):session.state===state)).map(session=>session.id).sort();
+    assert.deepEqual((await profile.locator('[data-profile-session]').evaluateAll(rows=>rows.map(row=>row.dataset.profileSession))).sort(),expected,'The '+state+' filter retains the exact matching source sessions');
+  }
+  await coachingFilter.selectOption('all');
+  const create=profile.locator('[data-profile-create-session="backing"]');
+  const beforeCreate=await page.evaluate(()=>sessions.map(session=>session.id));
+  await create.click();
+  assert.equal(await page.inputValue('#manual-driver-select'),'Priya Singh','Programme Create session prefills the driver');
+  assert.equal(await page.inputValue('#manual-category-select'),'backing','Programme Create session prefills that exact programme');
+  await page.locator('#training-dialog').getByRole('button',{name:'Cancel',exact:true}).click();
+  assert.deepEqual(await page.evaluate(()=>sessions.map(session=>session.id)),beforeCreate,'Cancelling creation leaves records unchanged');
+  assert.equal(await create.evaluate(node=>node===document.activeElement),true,'Cancel restores the exact programme action');
+  await coachingFilter.selectOption('active');await revealAllSessions();
   const detail = profile.locator('[data-profile-session="priya-speeding"]');
-  assert.match(await detail.textContent(), /Speeding/);
-  assert.match(await detail.textContent(), /Due Sep 2/, 'A current row shows its program and due context on one line');
+  assert.match(await detail.textContent(), /Due Sep 2/, 'Session history keeps due context without repeating the programme name');
   assert.equal(await drawer.evaluate(node => node.classList.contains('is-profile')), true);
-  const openSession = detail.getByRole('button', { name: /Open .* session for Priya Singh/i });
+  const openSession = profile.locator('[data-profile-programme="speeding"]').getByRole('button', { name: /View .* session for Priya Singh/i });
   await openSession.click();
   await page.waitForFunction(() => document.getElementById('driver-drawer').classList.contains('is-session'));
   assert.equal(new URL(page.url()).searchParams.get('record'), 'priya-speeding');
@@ -231,7 +256,7 @@ try {
   await page.fill('#reply-text', replyDraft);
   await drawer.locator('[data-back-driver-profile]').click();
   await expectProfile('Priya Singh');
-  assert.equal(await profile.locator('[data-profile-coaching-view="current"]').getAttribute('aria-selected'), 'true', 'Back to driver retains the coaching scope');
+  assert.equal(await profile.locator('#profile-coaching-filter').inputValue(), 'active', 'Back to driver retains the coaching scope');
   await openSession.click();
   assert.equal(await page.inputValue('#reply-text'), replyDraft, 'Returning through the profile must retain an unsent reply');
   assert.equal(await page.inputValue('#session-composer-mode'), 'reply');
@@ -272,8 +297,7 @@ try {
   assert.equal(await profile.locator('.profile-score .kpi-value').textContent(), '78');
   assert.match(taylorScore, /prev(?:ious)?\s+71/i, 'Taylor’s previous score must remain 71, not a conflicting attention-insight score');
   await expectProfileCharts('Taylor Brooks');
-  const taylorSession = profile.locator('[data-profile-session="taylor-following"]');
-  const openTaylorSession = taylorSession.getByRole('button', { name: /Open .* session for Taylor Brooks/ });
+  const openTaylorSession = profile.locator('[data-profile-programme="following"]').getByRole('button', { name: /View .* session for Taylor Brooks/ });
   await openTaylorSession.click();
   const removedEventId = await page.evaluate(() => [...sessionWorkspaceState(sessions.find(item => item.id === activeSessionId)).selectedEvents][0]);
   assert.ok(removedEventId, 'Taylor’s existing session includes associated evidence');
@@ -306,7 +330,7 @@ try {
   await page.goto(base + '/?driver=Alex%20Morgan#drivers');
   await expectProfile('Alex Morgan');
   const exceptionTabs = profile.locator('[data-profile-event-view]');
-  assert.deepEqual(await exceptionTabs.allTextContents(), ['Exceptions', 'Video'], 'Recent exceptions has exactly the two requested scopes');
+  assert.deepEqual(await exceptionTabs.allTextContents(), ['Exceptions', 'Videos'], 'Recent exceptions has exactly the two requested scopes');
   assert.equal(await profile.locator('[data-profile-event]').count(), 2, 'Exceptions includes both recorded video and pattern evidence');
   await profile.locator('[data-profile-event-view="videos"]').click();
   assert.equal(await profile.locator('[data-profile-event]').count(), 1, 'Videos excludes telematics patterns');
@@ -384,7 +408,8 @@ try {
     await expectProfile('Priya Singh');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Driver portfolio must not cause page overflow at ' + width);
     assert.equal(await drawer.evaluate(node => node.scrollWidth > node.clientWidth), false, 'Driver portfolio must fit its drawer at ' + width);
-    await profile.locator('[data-profile-coaching-view="past"]').click();
+    await profile.locator('#profile-coaching-filter').selectOption('completed');
+    await revealAllSessions();
     assert.equal(await drawer.evaluate(node => node.scrollWidth > node.clientWidth), false, 'Driver history must fit its drawer at ' + width);
   }
   // Nested record types must keep one workspace width instead of resizing by destination.
@@ -412,8 +437,47 @@ try {
     }
     assert.ok(Math.max(...measuredWidths) - Math.min(...measuredWidths) < 0.1, 'Every drawer must have the same width at ' + width);
   }
+  // Profile creation keeps the chosen driver/programme and returns to the new active record.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(base + '/?driver=Priya%20Singh#drivers');
+  await expectProfile('Priya Singh');
+  const beforeCreation = await page.evaluate(() => sessions.map(record => record.id));
+  await profile.locator('#profile-create-session').click();
+  assert.equal(await page.inputValue('#manual-category-select'), '', 'Header Create leaves programme selection deliberate');
+  assert.equal(await page.inputValue('#manual-driver-select'), 'Priya Singh', 'Header Create preserves the driver context');
+  assert.equal(await page.locator('[data-confirm-manual-session]').isDisabled(), true, 'A programme is required before creating coaching');
+  await page.locator('#training-dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+  assert.deepEqual(await page.evaluate(() => sessions.map(record => record.id)), beforeCreation);
+  await page.waitForFunction(() => document.activeElement.id === 'profile-create-session');
+  await profile.locator('[data-profile-create-session="backing"]').click();
+  assert.deepEqual(await page.locator('#training-dialog .manual-field-grid select').evaluateAll(nodes => nodes.map(node => node.id).sort()), ['manual-category-select', 'manual-driver-select'], 'Creating coaching asks only for programme and driver');
+  assert.equal(await page.locator('#training-dialog #manual-session-reason, #training-dialog #manual-coach-select, #training-dialog #manual-due-select, #training-dialog #manual-lesson-select').count(), 0, 'Creation has no Reason, Coach, Due or Training selectors');
+  assert.equal(await page.locator('#manual-coach-value').evaluate(node => node.tagName), 'DD', 'Coach is a read-only fact');
+  assert.equal((await page.locator('#manual-coach-value').textContent()).trim(), await page.evaluate(() => currentManager.name + ' (you)'));
+  await page.locator('[data-confirm-manual-session]').click();
+  await page.waitForFunction(() => document.querySelector('#driver-drawer').classList.contains('is-session'));
+  const created = await page.evaluate(previous => sessions.find(record => !previous.includes(record.id)), beforeCreation);
+  assert.ok(created, 'Create adds exactly one source record');
+  assert.equal(await page.evaluate(() => sessions.length), beforeCreation.length + 1);
+  assert.equal(created.person, 'Priya Singh');
+  assert.equal(created.categoryId, 'backing');
+  assert.equal(created.deliveryMode, 'one_on_one');
+  assert.equal(created.origin, 'manual_override');
+  assert.equal(created.state, 'system_handling');
+  assert.equal(created.summary, 'One-on-one coaching for ' + created.category + '.', 'The session receives a concise default summary');
+  assert.equal(created.owner, await page.evaluate(() => currentManager.name), 'The current manager owns coaching they create');
+  assert.equal(new URL(page.url()).searchParams.get('record'), created.id);
+  assert.equal(await drawer.locator('[data-back-driver-profile]').isVisible(), true);
+  await drawer.locator('[data-back-driver-profile]').click();
+  await expectProfile('Priya Singh');
+  assert.equal(await profile.locator('#profile-coaching-filter').inputValue(), 'active');
+  assert.equal(await profile.locator('[data-profile-programme-history="backing"]').evaluate(node => node.open), true, 'New programme history remains expanded after returning');
+  assert.equal(await profile.locator('[data-profile-session="' + created.id + '"]').count(), 1);
+  assert.equal(await profile.locator('[data-profile-programme="backing"] [data-open-session="' + created.id + '"]').count(), 1, 'The active record has one explicit session action');
+  await page.waitForFunction(() => document.activeElement.id === 'profile-programme-session-backing');
+  assert.deepEqual(await page.evaluate(previous => sessions.filter(record => previous.includes(record.id)).map(record => record.id), beforeCreation), beforeCreation, 'Creating coaching preserves existing source records');
   assert.deepEqual(errors, []);
-  console.log('Passed: all driver entry points, accurate weekly metrics and daily-mile charts, missing data, one two-scope coaching list, always-visible rule breakdown, deduplicated exception/video scopes and previews, source facts and dismissed-event exclusions, pending-review preview and cancellation, full sessions and preserved reply/note/evidence drafts, driver deep links, preserved filters, focus containment/restoration, stale-close protection, responsive portfolio layout, and matching widths without overflow for all three reachable drawer variants.');
+  console.log('Passed: all driver entry points, accurate weekly metrics and daily-mile charts, missing data, one programme list with a native state filter, all configured programmes and honest missing scores, collapsed rule breakdown, deduplicated exception/video scopes and previews, source facts and dismissed-event exclusions, deliberate profile creation/cancellation and new-session return, full sessions and preserved reply/note/evidence drafts, driver deep links, preserved filters, focus containment/restoration, stale-close protection, responsive portfolio layout, and matching widths without overflow for all three reachable drawer variants.');
 } finally {
   await browser.close();
 }

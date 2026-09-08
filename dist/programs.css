@@ -29,7 +29,7 @@
 .program-quick-work { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
 #program-quick-outcome-sample > .table-scroll { margin-block: var(--space-3); }
 /* Program configuration: native controls from the shared library, page composition only. */
-.program-flow-copy { margin: 0; max-inline-size: 72ch; color: var(--ink-700); line-height: 1.5; }
+.program-flow-copy { margin: 0; max-inline-size: 96ch; color: var(--ink-700); line-height: 1.5; }
 .program-config-form { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-3); margin-block-end: var(--space-4); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-2, 10px); background: var(--surface); }
 .program-config-form .field { flex: 1 1 14rem; }
 .program-config-form-actions { display: flex; gap: var(--space-2); margin-inline-start: auto; }
@@ -49,3 +49,94 @@
   .program-record-controls { inline-size: 100%; }
   .program-record-controls .field { flex: 1 1 10rem; }
 }
+
+/* Programs › Automation (fleet-wide settings moved from the retired Settings page) */
+#program-automation { container: program-automation / inline-size; }
+.program-automation-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--space-6); }
+.program-automation-layout > section > .program-section-heading { min-block-size: var(--control-height); }
+.program-automation-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.program-automation-status .automation-live-dot { flex: 0 0 auto; }
+.program-automation-status strong { font-size: var(--font-3); }
+.program-automation-status .caption { color: var(--ink-500); }
+.program-automation-options { display: grid; gap: var(--space-3); }
+.program-automation-options > .segmented { justify-self: start; flex-wrap: wrap; }
+.program-automation-options .field-help { margin: 0; color: var(--ink-500); max-inline-size: 72ch; }
+.program-automation-due { margin-block-start: var(--space-6); }
+.program-automation-due > .field-help { margin-block-start: var(--space-2); }
+.program-automation-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md, 12px); background: var(--surface); }
+.program-automation-actions[data-state="dirty"] { border-color: var(--border-strong); }
+.program-automation-actions p { margin: 0; color: var(--ink-700); }
+.program-automation-actions .program-config-form-actions { flex-wrap: wrap; justify-content: end; margin-inline-start: auto; }
+.program-automation-history th { text-align: start; }
+@container program-automation (min-width: 44rem) {
+  .program-automation-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .program-automation-completion { grid-column: 1 / -1; }
+}
+@container program-automation (min-width: 64rem) {
+  .program-automation-layout { grid-template-columns: minmax(20rem, 1fr) minmax(16rem, .9fr) minmax(0, 1.4fr); }
+  .program-automation-completion { grid-column: auto; }
+}
+
+/* Rules and escalation */
+.program-rule-source { display: block; color: var(--ink-500); font-size: var(--font-1); }
+/* Settings cards: title + purpose, then label-left / control-right rows */
+.program-config-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--space-4); align-items: start; }
+.program-config-card { display: grid; gap: var(--space-2); padding: var(--space-4); align-content: start; }
+.program-config-card-head { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); padding-block-end: var(--space-2); }
+.program-config-card-head p { margin: var(--space-1) 0 0; }
+.program-setting-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; min-block-size: 44px; padding-block: var(--space-2); border-block-start: 1px solid var(--border-soft); }
+.program-setting-copy { display: grid; gap: 2px; min-inline-size: 0; }
+.program-setting-copy small { color: var(--ink-500); font-size: var(--font-1); line-height: var(--line-1); }
+.program-setting-control { display: inline-flex; align-items: center; gap: var(--space-2); white-space: nowrap; color: var(--ink-500); }
+.program-coach-mode { margin-block-end: var(--space-2); }
+.program-coach-mode label { flex: 1 1 0; }
+.program-config-card .table-scroll { border-block-start: 1px solid var(--border-soft); }
+.program-config-form .field.program-config-check { flex: 1 1 100%; display: flex; align-items: center; gap: var(--space-2); }
+
+/* Weekly coaching and its actionable driver list share one row on wide screens. */
+.program-activity-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+.program-activity-layout > * { min-inline-size: 0; }
+.program-activity-attention { display: flex; flex-direction: column; min-block-size: 0; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
+.program-attention-scroll { max-block-size: 28rem; overflow-y: auto; scrollbar-gutter: stable; }
+@media (min-width: 1100px) {
+  .program-activity-layout { grid-template-columns: minmax(0, 7fr) minmax(0, 3fr); column-gap: 0; align-items: stretch; }
+  .program-activity-layout > .program-activity-chart { border-start-end-radius: 0; border-end-end-radius: 0; border-inline-end: 0; }
+  .program-activity-layout > .program-activity-attention { border-start-start-radius: 0; border-end-start-radius: 0; }
+  .program-activity-attention .program-attention-scroll { flex: 1 1 0; min-block-size: 0; max-block-size: none; contain: size; }
+}
+
+/* Programme policy and the local lesson editor reuse native shared controls. */
+.program-ladder { display: grid; gap: var(--space-2); }
+.program-ladder-row { display: grid; grid-template-columns: 5rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); }
+.program-ladder-row select { inline-size: 100%; }
+.program-policy-notes { margin-block-start: var(--space-2); }
+.learning-card { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-3); padding: var(--space-4); min-inline-size: 0; }
+.learning-card > header { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
+.learning-card p { margin: 0; }
+.learning-card footer { display: grid; gap: var(--space-3); margin-block-start: auto; }
+.learning-card details p { margin-block-start: var(--space-2); }
+.learning-mappings { line-height: var(--line-3); }
+.learning-dialog { inline-size: min(44rem, calc(100vw - 2rem)); }
+.learning-dialog-header, .learning-dialog-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4); }
+.learning-dialog-header { border-block-end: 1px solid var(--border); }
+.learning-dialog-footer { justify-content: end; border-block-start: 1px solid var(--border); }
+.learning-editor-fields, .learning-preview-content { display: grid; gap: var(--space-4); padding: var(--space-4); }
+.learning-editor-fields .field > .filter-control { inline-size: 100%; min-inline-size: 0; }
+.learning-field-row { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-3); }
+#learning-mapping-rows { display: grid; gap: var(--space-2); }
+.learning-mapping-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: var(--space-2); }
+.learning-mapping-row > select { inline-size: 100%; min-inline-size: 0; }
+.learning-editor-fields [hidden] { display: none; }
+.learning-preview-content video { inline-size: 100%; max-block-size: 60dvh; background: var(--ink-900); }
+.learning-preview-content > a { justify-self: start; }
+@media (max-width: 680px) {
+  .program-config-cards { grid-template-columns: minmax(0, 1fr); }
+  .program-setting-row { grid-template-columns: minmax(0, 1fr); }
+  .program-setting-control { justify-self: start; flex-wrap: wrap; white-space: normal; }
+}
+
+/* Home programs table */
+.landing-programs { margin-block-start: var(--space-5, 24px); }
+.landing-programs .program-section-heading { margin-block-end: var(--space-3); }
+#landing-programs-table tbody tr { cursor: pointer; }
+#landing-programs-table tbody tr:hover { background: var(--surface-soft); }

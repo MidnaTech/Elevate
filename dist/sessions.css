@@ -66,3 +66,4 @@
 @media (max-width: 680px) { #view-inbox .session-row .row-action { grid-column: 2; grid-row: 3; justify-self: end; } }
 
 }
+.sw-reason { margin: 0; max-width: 72ch; color: var(--ink-700); font-size: var(--font-2); line-height: 1.45; }

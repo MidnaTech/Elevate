@@ -7,9 +7,9 @@ function sessionWorkspaceState(session) {
     const events = sessionEvidenceEvents(session);
     const shared = new Set((session.messages || []).flatMap(message => message.events || []));
     sessionWorkspaceStates.set(session.id, {
-      drafts: { reply: '', note: '' }, carets: { reply: [0, 0], note: [0, 0] }, mode: 'reply',
+      drafts: { reply: '', note: '' }, carets: { reply: [0, 0], note: [0, 0] }, mode: sessionDeliveryMode(session) === 'automated' ? 'note' : 'reply',
       selectedEvents: new Set(events.filter(event => !shared.has(event.id)).map(event => event.id)),
-      eventId: events[0]?.id || null, clipId: eventClips(events[0])[0]?.id || null, viewerOpen: false, breakdownOpen: true
+      eventId: events[0]?.id || null, clipId: eventClips(events[0])[0]?.id || null, viewerOpen: false, breakdownOpen: false
     });
   }
   return sessionWorkspaceStates.get(session.id);
@@ -17,7 +17,7 @@ function sessionWorkspaceState(session) {
 
 function workspaceSession() { return sessions.find(session => session.id === activeSessionId); }
 function sessionIsReadOnly(session) { return ['completed', 'archived'].includes(session.state); }
-function sessionCanReply(session) { return !sessionIsReadOnly(session); }
+function sessionCanReply(session) { return !sessionIsReadOnly(session) && sessionDeliveryMode(session) === 'one_on_one'; }
 
 function saveSessionWorkspaceDraft() {
   const session = workspaceSession();
@@ -116,7 +116,7 @@ function workspaceMedia(event, context, requestedClipId) {
       (clip.mediaUrl ? '<video controls preload="metadata" playsinline src="' + escapeHtml(clip.mediaUrl) + '"' + (clip.thumbnailUrl ? ' poster="' + escapeHtml(clip.thumbnailUrl) + '"' : '') + ' aria-label="' + escapeHtml(event.title) + '"></video>' : '<div class="sw-video-stage">' + workspaceRoadArt(clip.camera) + '<span class="sw-media-label">Illustrative footage</span><button class="sw-play" type="button" data-sw-play aria-pressed="false" aria-label="Play illustrative clip">' + playGlyph + '</button></div>') +
       '<div class="sw-playback"><span>' + escapeHtml(clip.camera || 'Camera') + '</span><span>' + escapeHtml(clip.duration || 'Duration unavailable') + '</span></div>' +
       (clips.length > 1 ? '<div class="sw-camera-tabs" role="group" aria-label="Camera angle">' + clips.map((camera, index) => '<button type="button" data-sw-camera="' + escapeHtml(camera.id) + '" data-camera-context="' + context + '" aria-pressed="' + (camera.id === clip.id) + '">' + escapeHtml(camera.camera || 'Camera ' + (index + 1)) + '</button>').join('') + '</div>' : '') + '</div>';
-  return '<div class="sw-media-grid">' + workspaceMap(event) + video + '</div>';
+  return '<div class="sw-media-grid">' + (context === 'manual' ? video + workspaceMap(event) : workspaceMap(event) + video) + '</div>';
 }
 
 function sessionOpenedLabel(session) {
@@ -124,31 +124,49 @@ function sessionOpenedLabel(session) {
   return opened?.[1] || session.automationRun || '';
 }
 
+// Why this session exists, in the session's own words: a driver should never have to guess what automation did.
+function sessionOpenReason(session) {
+  const coach = coachLabel(session);
+  const who = coach === 'Automated' ? 'the program coach' : coach;
+  if (session.attentionReason === 'reminders_exhausted') return 'Overdue: ' + session.person + ' did not acknowledge the ' + session.category + ' lesson after automatic reminders, so automation opened this one-on-one for ' + who + '.';
+  if (session.attentionReason === 'repeat_after_coaching') return 'Repeated: the ' + session.category + ' behaviour recurred after completed coaching, so automation opened this one-on-one for ' + who + '.';
+  if (session.attentionReason === 'driver_reply') return 'Replied: ' + session.person + ' replied to the automated ' + session.category + ' session, so it became a one-on-one for ' + who + '.';
+  return '';
+}
+
+function sessionOpenReasonMarkup(session) {
+  const reason = sessionOpenReason(session);
+  return reason ? '<p class="sw-reason">' + escapeHtml(reason) + '</p>' : '';
+}
+
 function sessionWorkspaceHeader(session) {
   const [, label] = compactSessionStatus(session);
-  const waiting = session.state === 'system_handling' && session.origin === 'automated';
-  const action = session.state === 'completed' ? '<button class="secondary-button" type="button" data-archive-session>Archive</button>' : session.state === 'archived' ? '<button class="secondary-button" type="button" data-restore-session>Restore</button>' : waiting ? '' : '<button class="primary-button" type="button" data-complete-session>Complete session</button>';
+  const waiting = sessionDeliveryMode(session) === 'automated';
+  const action = session.state === 'completed' ? '<button class="secondary-button" type="button" data-archive-session>Archive</button>' : session.state === 'archived' ? '<button class="secondary-button" type="button" data-restore-session>Restore</button>' : waiting ? '<button class="secondary-button" type="button" data-start-session-one-on-one>Start one-on-one</button>' : '<button class="primary-button" type="button" data-complete-session>Complete session</button>';
+  const editAction = session.origin === 'manual_override' && !['completed', 'archived'].includes(session.state) ? '<button class="secondary-button" type="button" data-edit-session aria-haspopup="dialog">Edit</button>' : '';
   const coach = coachLabel(session);
   const opened = sessionOpenedLabel(session);
   const context = ['Coaching session', session.person, 'opened by ' + (coach === 'Automated' ? 'Autocoach' : coach) + (opened ? ', ' + opened : '')].join(' · ');
-  return '<div class="sw-header-identity">' + (sessionDrawerOrigin?.type === 'driver-profile' ? '<button class="profile-back" type="button" data-back-driver-profile>← Driver profile</button>' : ['program-page', 'program-drawer'].includes(sessionDrawerOrigin?.type) ? '<button class="profile-back" type="button" data-back-program-drawer>← ' + escapeHtml(session.category) + '</button>' : '') + '<div class="sw-identity"><span class="person-avatar" aria-hidden="true">' + session.initials + '</span><div><h2 id="driver-drawer-title">' + escapeHtml(session.category) + '</h2><span class="sw-program">' + escapeHtml(context) + '</span></div></div></div><div class="sw-header-actions"><span class="sw-status ' + sessionStatusClass(session) + '"' + (session.sla ? ' title="' + escapeHtml(session.sla) + '"' : '') + '><i class="sw-status-dot" aria-hidden="true"></i>' + escapeHtml(label) + (!sessionIsReadOnly(session) && session.due ? ' · ' + escapeHtml(session.due) : '') + '</span>' + action + '<button class="icon-button" type="button" data-close-drawer aria-label="Close session">' + uiIcon('close') + '</button></div>';
+  return '<div class="sw-header-identity">' + (sessionDrawerOrigin?.type === 'driver-profile' ? '<button class="profile-back" type="button" data-back-driver-profile>← Driver profile</button>' : ['program-page', 'program-drawer'].includes(sessionDrawerOrigin?.type) ? '<button class="profile-back" type="button" data-back-program-drawer>← ' + escapeHtml(session.category) + '</button>' : '') + '<div class="sw-identity"><span class="person-avatar" aria-hidden="true">' + session.initials + '</span><div><h2 id="driver-drawer-title">' + escapeHtml(session.category) + '</h2><span class="sw-program">' + escapeHtml(context) + '</span></div></div>' + sessionOpenReasonMarkup(session) + '</div><div class="sw-header-actions"><span class="sw-status ' + sessionStatusClass(session) + '"' + (session.sla ? ' title="' + escapeHtml(session.sla) + '"' : '') + '><i class="sw-status-dot" aria-hidden="true"></i>' + escapeHtml(label) + (!sessionIsReadOnly(session) && session.due ? ' · ' + escapeHtml(session.due) : '') + '</span>' + editAction + action + '<button class="icon-button" type="button" data-close-drawer aria-label="Close session">' + uiIcon('close') + '</button></div>';
 }
 
 function renderSessionWorkspace(session) {
   const state = sessionWorkspaceState(session);
-  return '<div class="sw-shell" data-session-id="' + escapeHtml(session.id) + '"><header class="drawer-header sw-header">' + sessionWorkspaceHeader(session) + '</header><div id="sw-kpis"></div><div class="sw-body"><aside class="drawer drawer--persistent sw-evidence-pane" aria-label="Session evidence"><header class="drawer__header"><h3 class="drawer__title">Evidence</h3></header><div class="drawer__body"><p class="sw-why">' + escapeHtml(session.summary) + '</p><div id="session-evidence"></div></div></aside><section class="sw-conversation-pane" aria-label="Session conversation"><div class="sw-conversation-scroll"><div class="sw-conversation-heading"><h3>Conversation</h3><div id="sw-activity"></div></div><div id="sw-messages"></div></div><div id="sw-composer-region">' + workspaceComposer(session, state) + '</div></section></div></div>';
+  return '<div class="sw-shell" data-session-id="' + escapeHtml(session.id) + '"><header class="drawer-header sw-header">' + sessionWorkspaceHeader(session) + '</header><div id="sw-kpis"></div><div class="sw-body"><aside class="drawer drawer--persistent sw-evidence-pane" aria-label="Session evidence"><header class="drawer__header"><h3 class="drawer__title">Evidence</h3></header><div class="drawer__body"><p class="sw-why">' + escapeHtml(session.summary) + '</p><div id="session-evidence"></div></div></aside><section class="sw-conversation-pane" aria-label="Session conversation"><div class="sw-conversation-scroll"><div id="sw-training-progress"></div><div class="sw-conversation-heading"><h3 id="sw-conversation-title">Conversation</h3><div id="sw-activity"></div></div><div id="sw-messages"></div></div><div id="sw-composer-region">' + workspaceComposer(session, state) + '</div></section></div></div>';
 }
 
 function workspaceComposer(session, state) {
   if (sessionIsReadOnly(session)) return '';
-  return '<div class="sw-composer"><div class="sw-composer-tools"><label><span class="sr-only">Message type</span><select id="session-composer-mode"><option value="reply"' + (state.mode === 'reply' ? ' selected' : '') + '>Reply to ' + escapeHtml(session.person.split(' ')[0]) + '</option><option value="note"' + (state.mode === 'note' ? ' selected' : '') + '>Private note</option></select></label><button class="text-action" type="button" data-open-session-events data-composer-attachment-count>' + uiIcon('paperclip') + '<span></span></button></div><label class="sr-only" id="sw-reply-label" for="reply-text">Reply</label><textarea id="reply-text" rows="3"></textarea><div class="sw-composer-footer"><span id="sw-message-visibility"></span><button class="primary-button" type="button" data-send-reply>Send</button></div></div>';
+  if (!sessionCanReply(session)) state.mode = 'note';
+  return '<div class="sw-composer"><div class="sw-composer-tools"><label><span class="sr-only">Message type</span><select id="session-composer-mode">' + (sessionCanReply(session) ? '<option value="reply"' + (state.mode === 'reply' ? ' selected' : '') + '>Reply to ' + escapeHtml(session.person.split(' ')[0]) + '</option>' : '') + '<option value="note"' + (state.mode === 'note' ? ' selected' : '') + '>Private note</option></select></label><button class="text-action" type="button" data-open-session-events data-composer-attachment-count>' + uiIcon('paperclip') + '<span></span></button></div><label class="sr-only" id="sw-reply-label" for="reply-text">Reply</label><textarea id="reply-text" rows="3"></textarea><div class="sw-composer-footer"><span id="sw-message-visibility"></span><button class="primary-button" type="button" data-send-reply>Send</button></div></div>';
 }
 
 function updateWorkspaceComposer(session, restoreText = false) {
   const state = sessionWorkspaceState(session);
   const region = document.getElementById('sw-composer-region');
   if (!region) return;
-  const kind = sessionIsReadOnly(session) ? 'readonly' : 'composer';
+  if (!sessionCanReply(session)) state.mode = 'note';
+  const kind = sessionIsReadOnly(session) ? 'readonly' : sessionCanReply(session) ? 'composer' : 'private-note';
   if (region.dataset.kind !== kind) {
     region.innerHTML = workspaceComposer(session, state);
     region.dataset.kind = kind;
@@ -210,12 +228,15 @@ function updateWorkspaceEvidence(session) {
   const host = document.getElementById('session-evidence');
   const canAdd = sessionCanReply(session) && state.mode !== 'note';
   const breakdown = workspaceBreakdown(session, events);
-  const meta = events.length + (events.length === 1 ? ' event' : ' events') + (session.automationRun ? ' · ' + session.automationRun : '');
-  host.innerHTML = '<section class="sw-group-card" aria-labelledby="sw-group-title"><div class="sw-group-head"><div><h3 id="sw-group-title">' + escapeHtml(session.category) + '</h3><span>' + escapeHtml(meta) + '</span></div>' +
-    (breakdown.length ? '<button class="secondary-button sw-breakdown-toggle" type="button" data-toggle-breakdown aria-expanded="' + state.breakdownOpen + '" aria-controls="sw-breakdown">' + (state.breakdownOpen ? 'Hide breakdown' : 'Show breakdown') + uiIcon('chevron') + '</button>' : '') + '</div>' +
+  const videos = events.filter(item => eventClips(item).length);
+  const patterns = events.filter(item => !eventClips(item).length);
+  host.innerHTML = '<section class="sw-group-card" aria-labelledby="sw-group-title"><div class="sw-group-head"><div><h3 id="sw-group-title">' + escapeHtml(session.category) + ' breakdown</h3></div>' +
+    (breakdown.length ? '<button class="icon-button sw-breakdown-toggle" type="button" data-toggle-breakdown aria-expanded="' + state.breakdownOpen + '" aria-controls="sw-breakdown" aria-label="' + (state.breakdownOpen ? 'Hide ' : 'Show ') + escapeHtml(session.category) + ' breakdown">' + uiIcon('chevron') + '</button>' : '') + '</div>' +
     (breakdown.length ? '<ul id="sw-breakdown" class="sw-breakdown"' + (state.breakdownOpen ? '' : ' hidden') + '>' + breakdown.map(group => '<li><b>' + group.count + '</b><span>' + escapeHtml(group.label) + '</span><small>' + escapeHtml([group.sameProgram && session.eventType ? 'Rule: ' + session.eventType : group.categoryName || '', [...group.sources].join(', ')].filter(Boolean).join(' · ')) + '</small></li>').join('') + '</ul>' : '') + '</section>' +
-    '<div class="sw-section-heading"><h3>Videos</h3><button class="text-action" type="button" data-open-session-events' + (canAdd ? '' : ' hidden') + '>' + uiIcon('plus') + 'Add video</button></div>' +
-    (events.length ? '<ul class="sw-clip-list">' + events.map(item => workspaceClipRow(session, state, item)).join('') + '</ul>' : '<div class="sw-notice">' + uiIcon('video') + '<strong>No event evidence recorded</strong></div>');
+    '<div class="sw-section-heading"><h3>' + (videos.length ? 'Videos' : 'Events') + '</h3><button class="text-action" type="button" data-open-session-events' + (canAdd ? '' : ' hidden') + '>' + uiIcon('plus') + 'Add events</button></div>' +
+    (videos.length ? '<ul class="sw-clip-list" aria-label="Video events">' + videos.map(item => workspaceClipRow(session, state, item)).join('') + '</ul>' : '') +
+    (patterns.length ? (videos.length ? '<div class="sw-section-heading"><h3>Events</h3></div>' : '') + '<ul class="sw-clip-list" aria-label="Pattern events">' + patterns.map(item => workspaceClipRow(session, state, item)).join('') + '</ul>' : '') +
+    (!events.length ? '<div class="sw-notice">' + uiIcon('video') + '<strong>No event evidence recorded</strong></div>' : '');
   mountWorkspaceMaps(host);
 }
 
@@ -224,6 +245,12 @@ function workspaceMessageEvents(message) {
 }
 
 function updateWorkspaceConversation(session) {
+  const automated = sessionDeliveryMode(session) === 'automated' && !sessionIsReadOnly(session);
+  const progress = document.getElementById('sw-training-progress');
+  const lesson = session.lesson || lessons.find(item => item.category === session.category)?.title;
+  if (progress) progress.innerHTML = automated ? '<section class="sw-training-progress" aria-labelledby="sw-training-title"><h3 id="sw-training-title">' + escapeHtml(lesson || 'Automated lesson') + '</h3><ol class="sw-training-steps"><li>' + uiIcon(session.lessonWatched ? 'check' : 'play') + '<span>' + (session.lessonWatched ? 'Lesson watched' : 'Waiting for video review') + '</span></li><li>' + uiIcon(session.lessonAcknowledged ? 'check' : 'clock') + '<span>' + (session.lessonAcknowledged ? 'Acknowledged' : 'Awaiting acknowledgement') + '</span></li></ol><p class="caption">The driver watches and acknowledges. Start one-on-one if a conversation is needed.</p></section>' : '';
+  const heading = document.getElementById('sw-conversation-title');
+  if (heading) heading.textContent = automated ? 'Private notes' : 'Conversation';
   const messages = session.messages || [];
   const notes = message => message.author === 'note' || (message.author === 'system' && message.text.startsWith('Private note · '));
   const human = messages.filter(message => message.author !== 'system' || notes(message));
@@ -254,10 +281,9 @@ function mountSessionWorkspace(session) {
   if (!same) driverDrawerContent.innerHTML = renderSessionWorkspace(session);
   else driverDrawerContent.querySelector('.sw-header').innerHTML = sessionWorkspaceHeader(session);
   const events = sessionEvidenceEvents(session);
-  document.getElementById('sw-kpis').innerHTML = uiKpiStrip('Session evidence and conversation', [
-    { label: 'Events', value: events.length, context: 'Linked to this session' },
-    { label: 'Videos', value: events.reduce((sum, event) => sum + eventClips(event).length, 0), context: 'Across linked events' },
-    { label: 'Messages', value: (session.messages || []).filter(message => message.author !== 'system' || message.text.startsWith('Private note · ')).length, context: 'Conversation and private notes' }
+  document.getElementById('sw-kpis').innerHTML = uiCompactMetrics('Session evidence', [
+    { label: 'Events', value: events.length, context: 'Distinct linked source records, including video events and multi-trip patterns.' },
+    { label: 'Videos', value: events.reduce((sum, event) => sum + eventClips(event).length, 0), context: 'Camera clips across linked events. Pattern events are not videos.' }
   ]);
   updateWorkspaceEvidence(session);
   updateWorkspaceConversation(session);
@@ -272,13 +298,13 @@ function ensureWorkspaceDialogs() {
   browser.addEventListener('close', () => { if (!browser.open) sessionEventBrowser = null; });
 }
 
-function openSessionEventBrowser(opener) {
-  const session = workspaceSession();
-  if (!session || !sessionCanReply(session) || sessionWorkspaceState(session).mode === 'note') return;
+function openSessionEventBrowser(opener, options = {}) {
+  const session = options.session || workspaceSession();
+  if (!session || !sessionCanReply(session) || !options.session && sessionWorkspaceState(session).mode === 'note') return;
   saveSessionWorkspaceDraft();
   ensureWorkspaceDialogs();
-  const state = sessionWorkspaceState(session);
-  sessionEventBrowser = { sessionId: session.id, scope: 'driver', query: '', previewId: state.eventId, clipId: null, selected: new Set(state.selectedEvents), opener };
+  const state = options.session ? { eventId: options.eventId || null, selectedEvents: options.selectedEvents || [] } : sessionWorkspaceState(session);
+  sessionEventBrowser = { sessionId: session.id, session: options.session || null, onApply: options.onApply || null, filterEvent: options.filterEvent || null, scope: 'driver', query: '', previewId: state.eventId, clipId: null, selected: new Set(state.selectedEvents), opener };
   document.getElementById('session-event-search').value = '';
   updateSessionEventBrowser(true);
   document.getElementById('session-event-browser').showModal();
@@ -287,9 +313,9 @@ function openSessionEventBrowser(opener) {
 
 function updateSessionEventBrowser(preview = false) {
   const browser = sessionEventBrowser;
-  const session = workspaceSession();
+  const session = browser?.session || workspaceSession();
   if (!browser || !session || browser.sessionId !== session.id) return;
-  const events = availableEvidenceEvents(session, browser.scope).filter(event => [event.title, event.time, event.location, event.vehicle, event.source, event.categoryName].filter(Boolean).join(' ').toLowerCase().includes(browser.query.toLowerCase().trim()));
+  const events = availableEvidenceEvents(session, browser.scope).filter(event => !browser.filterEvent || browser.filterEvent(event)).filter(event => [event.title, event.time, event.location, event.vehicle, event.source, event.categoryName].filter(Boolean).join(' ').toLowerCase().includes(browser.query.toLowerCase().trim()));
   if (preview) browser.previewId = (events.find(event => event.id === browser.previewId) || events[0])?.id || null;
   document.querySelectorAll('[data-event-scope]').forEach(button => { const active = button.dataset.eventScope === browser.scope; button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1; button.classList.toggle('is-active', active); });
   document.getElementById('sw-event-results').innerHTML = events.length ? events.map(event => '<div class="sw-event-result' + (event.id === browser.previewId ? ' is-preview' : '') + '"><input type="checkbox" data-select-event="' + escapeHtml(event.id) + '" aria-label="Select ' + escapeHtml(event.title) + '"' + (browser.selected.has(event.id) ? ' checked' : '') + '><button type="button" data-preview-event="' + escapeHtml(event.id) + '" aria-label="Preview ' + escapeHtml(event.title) + '"><strong>' + escapeHtml(event.title) + '</strong><small>' + escapeHtml(event.time || 'Date unavailable') + '</small><span>' + escapeHtml(workspaceSelectionLabel([event]) + (event.vehicle ? ' · ' + event.vehicle : '')) + '</span></button></div>').join('') : '<div class="sw-notice">No matching events</div>';
@@ -297,18 +323,22 @@ function updateSessionEventBrowser(preview = false) {
   if (preview) {
     const event = events.find(event => event.id === browser.previewId) || events[0];
     browser.previewId = event?.id || null;
-    document.getElementById('sw-browser-preview').innerHTML = event ? '<h3>' + escapeHtml(event.title) + '</h3><p class="sw-preview-context">' + escapeHtml([event.time, event.severity ? event.severity + ' severity' : ''].filter(Boolean).join(' · ')) + '</p>' + workspaceMedia(event, 'browser', browser.clipId) + '<p class="sw-preview-sharing">' + (event.person ? 'Selection stages this event for your reply.' : 'Previewing keeps this event unassigned. Sending links it to ' + escapeHtml(session.person) + '.') + '</p>' : '<div class="sw-notice">Select an event to preview</div>';
+    document.getElementById('sw-browser-preview').innerHTML = event ? '<h3>' + escapeHtml(event.title) + '</h3><p class="sw-preview-context">' + escapeHtml([event.time, event.severity ? event.severity + ' severity' : ''].filter(Boolean).join(' · ')) + '</p>' + workspaceMedia(event, 'browser', browser.clipId) + '<p class="sw-preview-sharing">' + (event.person ? 'Selection stages this event for ' + (browser.onApply ? 'the new session.' : 'your reply.') : 'Previewing keeps this event unassigned. ' + (browser.onApply ? 'Creating the session' : 'Sending') + ' links it to ' + escapeHtml(session.person) + '.') + '</p>' : '<div class="sw-notice">Select an event to preview</div>';
     mountWorkspaceMaps(document.getElementById('sw-browser-preview'));
   }
 }
 
 function closeSessionEventBrowser(apply) {
   const browser = sessionEventBrowser;
-  const session = workspaceSession();
+  const session = browser?.session || workspaceSession();
   if (apply && browser && session && sessionCanReply(session)) {
-    sessionWorkspaceState(session).selectedEvents = new Set(selectedWorkspaceEvents(session, browser.selected).map(event => event.id));
-    updateWorkspaceEvidence(session);
-    updateWorkspaceComposer(session);
+    const selection = new Set(selectedWorkspaceEvents(session, browser.selected).map(event => event.id));
+    if (browser.onApply) browser.opener = browser.onApply(selection) || browser.opener;
+    else {
+      sessionWorkspaceState(session).selectedEvents = selection;
+      updateWorkspaceEvidence(session);
+      updateWorkspaceComposer(session);
+    }
   }
   document.getElementById('session-event-browser')?.close();
   sessionEventBrowser = null;
@@ -317,9 +347,10 @@ function closeSessionEventBrowser(apply) {
 
 function sendSessionWorkspaceReply() {
   const session = workspaceSession();
-  if (!session || !sessionCanReply(session)) return;
+  if (!session || sessionIsReadOnly(session)) return;
   saveSessionWorkspaceDraft();
   const state = sessionWorkspaceState(session);
+  if (state.mode === 'reply' && !sessionCanReply(session)) return;
   const text = state.drafts[state.mode].trim();
   const events = selectedWorkspaceEvents(session);
   if (!text && (state.mode === 'note' || !events.length)) return;
@@ -329,11 +360,13 @@ function sendSessionWorkspaceReply() {
   } else {
     const previousState = session.state;
     const previousReason = session.attentionReason;
+    if (session.deliveryMode !== 'one_on_one' && session.origin === 'automated') handoffSessionToCoach(session, 'manager_review');
+    session.deliveryMode = 'one_on_one';
     const linked = linkEvidenceEvents(session, events.map(event => event.id));
     session.messages.push({ author: 'manager', text, time: 'Just now', events: linked.map(event => event.id), clips: linked.flatMap(eventClips).map(clip => clip.id) });
     state.selectedEvents.clear();
     session.state = 'system_handling';
-    session.stateLabel = inProgressLabel(session.origin);
+    session.stateLabel = inProgressLabel(session);
     session.attentionReason = null;
     session.latest = 'Coach replied · just now';
     adjustSessionFleetTotals(previousState, session.state, session.source, previousReason, null);
@@ -341,8 +374,7 @@ function sendSessionWorkspaceReply() {
   }
   state.drafts[state.mode] = '';
   state.carets[state.mode] = [0, 0];
-  driverDrawerContent.querySelector('.sw-header').innerHTML = sessionWorkspaceHeader(session);
-  updateWorkspaceConversation(session);
+  mountSessionWorkspace(session);
   updateWorkspaceComposer(session, true);
   renderInbox();
   const scroll = driverDrawerContent.querySelector('.sw-conversation-scroll');
@@ -359,7 +391,7 @@ document.addEventListener('change', event => {
   if (event.target.id === 'session-composer-mode' && session) {
     saveSessionWorkspaceDraft();
     const state = sessionWorkspaceState(session);
-    state.mode = event.target.value;
+    state.mode = event.target.value === 'reply' && sessionCanReply(session) ? 'reply' : 'note';
     composerMode = state.mode;
     updateWorkspaceComposer(session, true);
     document.querySelector('.sw-evidence-pane [data-open-session-events]').hidden = state.mode === 'note';
@@ -367,12 +399,21 @@ document.addEventListener('change', event => {
   if (event.target.matches('[data-select-event]') && sessionEventBrowser) {
     const id = event.target.dataset.selectEvent;
     if (event.target.checked) sessionEventBrowser.selected.add(id); else sessionEventBrowser.selected.delete(id);
-    document.getElementById('sw-selection-total').textContent = workspaceSelectionLabel(selectedWorkspaceEvents(session, sessionEventBrowser.selected)) + ' selected';
+    document.getElementById('sw-selection-total').textContent = workspaceSelectionLabel(selectedWorkspaceEvents(sessionEventBrowser.session || session, sessionEventBrowser.selected)) + ' selected';
   }
 });
 document.addEventListener('click', event => {
   const target = event.target;
   const session = workspaceSession();
+  if (target.closest('[data-start-session-one-on-one]') && session && !sessionIsReadOnly(session)) {
+    saveSessionWorkspaceDraft();
+    handoffSessionToCoach(session, 'manager_review');
+    sessionWorkspaceState(session).mode = 'reply';
+    adjustSessionFleetTotals();
+    mountSessionWorkspace(session);
+    document.getElementById('reply-text')?.focus();
+    return;
+  }
   if (target.closest('[data-open-session-events]')) openSessionEventBrowser(target.closest('[data-open-session-events]'));
   if (target.closest('[data-cancel-event-selection]') || target.id === 'session-event-browser') closeSessionEventBrowser(false);
   if (target.closest('[data-use-event-selection]')) closeSessionEventBrowser(true);
@@ -385,7 +426,7 @@ document.addEventListener('click', event => {
     const state = sessionWorkspaceState(session);
     state.breakdownOpen = !state.breakdownOpen;
     breakdownToggle.setAttribute('aria-expanded', String(state.breakdownOpen));
-    breakdownToggle.firstChild.textContent = state.breakdownOpen ? 'Hide breakdown' : 'Show breakdown';
+    breakdownToggle.setAttribute('aria-label', (state.breakdownOpen ? 'Hide ' : 'Show ') + session.category + ' breakdown');
     document.getElementById('sw-breakdown').hidden = !state.breakdownOpen;
   }
   const selected = target.closest('[data-session-event]');
@@ -402,7 +443,7 @@ document.addEventListener('click', event => {
     if (!inList) row?.closest('li')?.scrollIntoView({ block: 'nearest' });
   }
   const camera = target.closest('[data-sw-camera]');
-  if (camera && session) {
+  if (camera && camera.dataset.cameraContext !== 'manual' && (session || sessionEventBrowser?.session)) {
     if (camera.dataset.cameraContext === 'browser' && sessionEventBrowser) { sessionEventBrowser.clipId = camera.dataset.swCamera; updateSessionEventBrowser(true); }
     else { sessionWorkspaceState(session).clipId = camera.dataset.swCamera; updateWorkspaceEvidence(session); }
     [...document.querySelectorAll('[data-sw-camera]')].find(button => button.dataset.swCamera === camera.dataset.swCamera && button.dataset.cameraContext === camera.dataset.cameraContext)?.focus({ preventScroll: true });
