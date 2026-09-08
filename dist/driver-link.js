@@ -38,7 +38,11 @@
     const policy = ProgramSetup.getPolicy(categoryId);
     if (!policy) return null;
     const courses = ProgramSetup.getCourses();
-    const course = policy.courseIds.map((id) => courses.find((c) => c.id === id)).filter((c) => c && c.videoUrl).sort((a, b) => (a.level || 0) - (b.level || 0))[0];
+    const byLevel = (a, b) => (a.level || 0) - (b.level || 0);
+    // Approved pool first; otherwise the produced course for the programme's behaviour, so a
+    // delivered video is never hidden behind imported lesson metadata.
+    const course = policy.courseIds.map((id) => courses.find((c) => c.id === id)).filter((c) => c && c.videoUrl).sort(byLevel)[0]
+      || courses.filter((c) => c.behaviorId === policy.behaviorId && c.videoUrl && !c.legacy && !c.customSeriesId).sort(byLevel)[0];
     return course ? courseLesson(course, (categories.find((c) => c.id === categoryId) || {}).name) : null;
   }
   function courseLibrary() {

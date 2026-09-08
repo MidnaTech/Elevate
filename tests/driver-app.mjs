@@ -116,11 +116,8 @@ try {
   assert.equal(await frame.locator('.score-num').first().textContent(), '58', 'The phone shows the Elevate score');
   assert.equal(await frame.locator('.stat-pair').count(), 0, 'Streaks stay hidden without trip exposure data');
   assert.equal((await priya()).state, 'manager_attention');
-  // Imported programmes start without an approved course pool, so the driver sees the legacy lesson.
-  assert.equal(await page.evaluate(() => elevateDriverLink.publish(true).drivers.flatMap(d => d.sessions).find(s => s.id === 'priya-speeding').lesson.title), 'Managing Speed', 'Without approved courses the mapped legacy lesson is assigned');
-  // Approving the delivered speeding courses in Configuration swaps in the Level 1 video for the driver.
-  await page.evaluate(() => { const policy = ProgramSetup.getPolicy('speeding'); policy.courseIds = ['speeding-course-1', 'speeding-course-2', 'speeding-course-3']; ProgramSetup.savePolicy(policy); elevateDriverLink.publish(true); });
-  await frame.locator('h1', { hasText: 'Morning, Priya' }).waitFor();
+  // The produced Level 1 speeding course is assigned even before a manager approves a course pool.
+  assert.equal(await page.evaluate(() => elevateDriverLink.publish(true).drivers.flatMap(d => d.sessions).find(s => s.id === 'priya-speeding').lesson.title), 'Reset your speed', 'The delivered course video replaces imported lesson metadata');
 
   await frame.locator('.action-card [data-act="open-session"]').click();
   assert.equal(await frame.locator('.detail-head .chip').textContent(), 'Overdue');

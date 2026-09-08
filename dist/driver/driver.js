@@ -244,7 +244,7 @@
         clip: videoEv ? { kind: 'video', label: 'Event clip · ' + (videoEv.duration || ''), cam: 'Forward camera', time: '0:00 / ' + (videoEv.duration || '0:00'), note: videoEv.title + ' · ' + videoEv.meta, footnote: 'Clips cover the seconds either side of a flagged event. Nothing outside that window is kept.' }
           : ev ? { kind: 'pattern', title: ev.title, meta: ev.meta + (ev.duration ? ' · ' + ev.duration : ''), footnote: 'This session is based on a telematics pattern, so there is no camera clip to review.' } : null,
         map: ev && ev.location ? { place: ev.location } : null, speedChart: false, tips: null,
-        lesson: s.lesson ? { title: s.lesson.title, length: s.lesson.length || '', videoUrl: s.lesson.videoUrl || '', posterUrl: s.lesson.posterUrl || '', captionsUrl: s.lesson.captionsUrl || '', lede: (s.lesson.videoUrl ? 'The course your fleet approved for ' : 'The lesson your fleet mapped to ') + s.category.toLowerCase() + '. Watch it, then mark the session reviewed.' } : null,
+        lesson: s.lesson ? { title: s.lesson.title, length: s.lesson.length || '', videoUrl: s.lesson.videoUrl || '', posterUrl: s.lesson.posterUrl || '', captionsUrl: s.lesson.captionsUrl || '', lede: (s.lesson.videoUrl ? 'The course for ' : 'The lesson your fleet mapped to ') + s.category.toLowerCase() + '. Watch it, then mark the session reviewed.' } : null,
         coachNote: managerMsgs.length ? managerMsgs[managerMsgs.length - 1].text : '',
         category: s.category, categoryId: s.categoryId, raw: s, coach
       };
