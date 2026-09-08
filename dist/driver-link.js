@@ -31,7 +31,8 @@
   function courseLesson(course, category) {
     const seconds = course.videoSeconds || Math.round((course.durationMinutes || 0) * 60);
     return { title: course.title, length: lengthLabel(seconds), category: category || '', courseId: course.id, level: course.level || null, seconds,
-      videoUrl: absoluteUrl(course.videoUrl), posterUrl: absoluteUrl(course.posterUrl), captionsUrl: absoluteUrl(course.captionsUrl), lede: course.summary || '' };
+      videoUrl: absoluteUrl(course.videoUrl), posterUrl: absoluteUrl(course.posterUrl), captionsUrl: absoluteUrl(course.captionsUrl), lede: course.summary || '',
+      questions: (course.questions || []).map((q) => ({ id: q.id, prompt: q.prompt, options: q.options.slice(), correctIndex: q.correctIndex, explanation: q.explanation || '', feedback: Array.isArray(q.feedback) ? q.feedback.slice() : [] })) };
   }
   function courseLessonFor(categoryId) {
     if (typeof ProgramSetup === 'undefined') return null;
@@ -112,7 +113,7 @@
       })
       .sort((a, b) => (a.name === DEFAULT_DRIVER ? -1 : b.name === DEFAULT_DRIVER ? 1 : a.name.localeCompare(b.name)));
     return {
-      version: 1, publishedAt: new Date().toISOString(), defaultDriver: DEFAULT_DRIVER,
+      version: 1, defaultDriver: DEFAULT_DRIVER,
       today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
       programs: categories.map((c) => ({ id: c.id, name: c.name })),
       lessons: courseLibrary().concat(lessons.map((l) => ({ title: l.title, category: l.category, length: l.length }))), drivers
@@ -120,9 +121,12 @@
   }
   function publish(force) {
     const snapshot = buildSnapshot();
+    // Compare content only: a timestamp in the snapshot made every 2-second tick look like a change,
+    // so the driver app re-rendered (and rebuilt its video) twice every two seconds.
     const json = JSON.stringify(snapshot);
     if (!force && json === linkState.lastSnapshot) return snapshot;
     linkState.lastSnapshot = json;
+    snapshot.publishedAt = new Date().toISOString();
     writeJson(LINK_KEY, snapshot);
     postToFrame({ link: snapshot });
     return snapshot;
@@ -214,6 +218,13 @@
       session.sla = 'On track'; session.slaTone = 'due-soon';
       session.due = 'Today';
       toast = who + ' requested a one-on-one review';
+    } else if (event.type === 'quiz_passed') {
+      if (!isOpen(session)) return;
+      session.quizPassed = true;
+      session.quizPassedAt = event.at || new Date().toISOString();
+      session.history.unshift(['Quiz passed · ' + (event.questions || 3) + ' of ' + (event.questions || 3) + ' correct', 'Just now']);
+      session.latest = 'Driver passed the ' + (event.lesson || 'lesson') + ' quiz · just now';
+      toast = who + ' passed the ' + (event.lesson || 'lesson') + ' quiz';
     } else return;
     rerender(session);
     if (has('showToast') && linkState.ready && currentView !== 'driver') showToast(toast);
