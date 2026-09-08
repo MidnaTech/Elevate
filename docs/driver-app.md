@@ -133,3 +133,8 @@ BASE_URL=http://localhost:5173 npm run test:driver
 Learn library and assigned lesson, player, overlays, device frame), the app-only destination in the workspace, the four ledger effects,
 manager replies reaching the phone, private notes never leaving the workspace, replay after reload,
 reset, and the mobile More sheet.
+
+## Course video and quiz (September 8, 2026)
+
+When a session's lesson is a produced course (currently the three heavy-truck speeding levels under `dist/media/courses/speeding/`), the lesson player shows the real captioned video with a native player instead of the placeholder. Below it, **Take the quiz** walks through the course's three questions one at a time: choosing an answer and pressing **Check answer** shows the source feedback; a wrong answer offers **Try again** without advancing; when every question is correct the player shows *Quiz passed* and only then offers **Mark lesson complete**. Passing sends a `quiz_passed` event to the manager workspace, which records it in the session history. Learn lists each produced course with its runtime and "3-question quiz"; library viewing and quizzes there stay local to the phone. The standalone app loads `speeding-course-pack.js` and `coaching-engine.js` for the questions; linked mode receives them in the snapshot. The manager snapshot is republished only when its content changes, so the phone no longer re-renders (or restarts a video) every two seconds.
+

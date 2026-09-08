@@ -129,6 +129,24 @@ try {
   assert.equal(await assignedVideo.count(), 1, 'The assigned course opens the real video player');
   assert.match(await assignedVideo.getAttribute('src'), /\/media\/courses\/speeding\/speeding-level-1\.mp4$/);
   assert.equal(await assignedVideo.locator('track[kind="captions"]').count(), 1);
+  // The course quiz gates completion: wrong answers get feedback and a retry; all correct passes.
+  const answers = await page.evaluate(() => Coaching.catalog.courses.find(course => course.id === 'speeding-course-1').questions.map(question => question.correctIndex));
+  assert.equal(answers.length, 3);
+  assert.equal(await frame.locator('[data-act="complete-lesson"]').count(), 0, 'Completion waits for the quiz');
+  await frame.locator('[data-act="start-quiz"]').click();
+  await frame.locator('[data-act="quiz-choose"]').nth(answers[0] === 0 ? 1 : 0).click();
+  await frame.locator('[data-act="quiz-check"]').click();
+  assert.equal(await frame.locator('.quiz-feedback strong').textContent(), 'Try again', 'A wrong answer explains and offers a retry');
+  assert.equal(await frame.locator('[data-act="quiz-next"]').count(), 0, 'A wrong answer does not advance');
+  await frame.locator('[data-act="quiz-retry"]').click();
+  for (const answer of answers) {
+    await frame.locator('[data-act="quiz-choose"]').nth(answer).click();
+    await frame.locator('[data-act="quiz-check"]').click();
+    assert.equal(await frame.locator('.quiz-feedback strong').textContent(), 'Correct');
+    await frame.locator('[data-act="quiz-next"]').click();
+  }
+  await page.waitForFunction(() => sessions.find(item => item.id === 'priya-speeding').quizPassed === true);
+  assert.equal(await frame.locator('.quiz-passed').count(), 1, 'The passed quiz is confirmed before completion');
   await frame.locator('[data-act="complete-lesson"]').click();
   await page.waitForFunction(() => sessions.find(item => item.id === 'priya-speeding').lessonWatched === true);
   assert.equal((await priya()).state, 'manager_attention', 'Watching a lesson does not resolve a one-on-one review');

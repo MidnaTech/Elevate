@@ -30,7 +30,7 @@
     sessionId: null, thread: null, behaviour: null,
     filter: 'Open', range: 'Week',
     acked: {}, lessonDone: {}, opened: {}, readThreads: {},
-    lessonTitle: null, watched: {},
+    lessonTitle: null, watched: {}, quizDone: {}, quiz: null,
     localMsgs: {}, draft: '',
     playing: false, progress: 62, timer: null
   };
@@ -135,13 +135,15 @@
     chapters: [['0:00', 'Cues before the sign', 32], ['1:08', 'Carrying speed out of a turn', 68], ['2:14', 'Where drivers usually catch it', 100]]
   };
 
+  // Quiz questions for a produced course come from the shared coaching catalog when it is loaded.
+  const courseQuestions = (courseId) => { const course = globalThis.Coaching && Coaching.catalog.courses.find((c) => c.id === courseId); return course ? course.questions.map((q) => ({ id: q.id, prompt: q.prompt, options: q.options.slice(), correctIndex: q.correctIndex, explanation: q.explanation || '', feedback: Array.isArray(q.feedback) ? q.feedback.slice() : [] })) : []; };
   // The Elevate Learning library. Linked mode replaces it with the workspace's published lessons.
   const LIBRARY = [
     { title: 'Following Distance Basics', category: 'Following distance', length: '2 min video' },
     // Delivered heavy-truck speeding course videos (dist/media/courses/speeding).
-    { title: 'Reset your speed', category: 'Speeding', length: '1 min video', videoUrl: '../media/courses/speeding/speeding-level-1.mp4', posterUrl: '../media/courses/speeding/speeding-level-1.jpg', captionsUrl: '../media/courses/speeding/speeding-level-1.vtt', lede: 'Level 1. Check limits and conditions, adjust early, restore space.' },
-    { title: 'Understand the consequences', category: 'Speeding', length: '90 sec video', videoUrl: '../media/courses/speeding/speeding-level-2.mp4', posterUrl: '../media/courses/speeding/speeding-level-2.jpg', captionsUrl: '../media/courses/speeding/speeding-level-2.vtt', lede: 'Level 2. What extra speed costs a heavy truck in stopping distance, control and time.' },
-    { title: 'Make the safer decision', category: 'Speeding', length: '2 min video', videoUrl: '../media/courses/speeding/speeding-level-3.mp4', posterUrl: '../media/courses/speeding/speeding-level-3.jpg', captionsUrl: '../media/courses/speeding/speeding-level-3.vtt', lede: 'Level 3. Pause and choose: safer judgment under schedule pressure.' },
+    { title: 'Reset your speed', category: 'Speeding', length: '1 min video', videoUrl: '../media/courses/speeding/speeding-level-1.mp4', posterUrl: '../media/courses/speeding/speeding-level-1.jpg', captionsUrl: '../media/courses/speeding/speeding-level-1.vtt', lede: 'Level 1. Check limits and conditions, adjust early, restore space.', courseId: 'speeding-course-1', questions: courseQuestions('speeding-course-1') },
+    { title: 'Understand the consequences', category: 'Speeding', length: '90 sec video', videoUrl: '../media/courses/speeding/speeding-level-2.mp4', posterUrl: '../media/courses/speeding/speeding-level-2.jpg', captionsUrl: '../media/courses/speeding/speeding-level-2.vtt', lede: 'Level 2. What extra speed costs a heavy truck in stopping distance, control and time.', courseId: 'speeding-course-2', questions: courseQuestions('speeding-course-2') },
+    { title: 'Make the safer decision', category: 'Speeding', length: '2 min video', videoUrl: '../media/courses/speeding/speeding-level-3.mp4', posterUrl: '../media/courses/speeding/speeding-level-3.jpg', captionsUrl: '../media/courses/speeding/speeding-level-3.vtt', lede: 'Level 3. Pause and choose: safer judgment under schedule pressure.', courseId: 'speeding-course-3', questions: courseQuestions('speeding-course-3') },
     { title: 'Anticipation & Space', category: 'Harsh braking', length: '2 min video' },
     { title: 'Eyes Forward', category: 'Distracted driving', length: '2 min video' },
     { title: 'Buckle Every Trip', category: 'Seat belt use', length: '90 sec video' },
@@ -244,7 +246,7 @@
         clip: videoEv ? { kind: 'video', label: 'Event clip · ' + (videoEv.duration || ''), cam: 'Forward camera', time: '0:00 / ' + (videoEv.duration || '0:00'), note: videoEv.title + ' · ' + videoEv.meta, footnote: 'Clips cover the seconds either side of a flagged event. Nothing outside that window is kept.' }
           : ev ? { kind: 'pattern', title: ev.title, meta: ev.meta + (ev.duration ? ' · ' + ev.duration : ''), footnote: 'This session is based on a telematics pattern, so there is no camera clip to review.' } : null,
         map: ev && ev.location ? { place: ev.location } : null, speedChart: false, tips: null,
-        lesson: s.lesson ? { title: s.lesson.title, length: s.lesson.length || '', videoUrl: s.lesson.videoUrl || '', posterUrl: s.lesson.posterUrl || '', captionsUrl: s.lesson.captionsUrl || '', lede: (s.lesson.videoUrl ? 'The course for ' : 'The lesson your fleet mapped to ') + s.category.toLowerCase() + '. Watch it, then mark the session reviewed.' } : null,
+        lesson: s.lesson ? { title: s.lesson.title, length: s.lesson.length || '', videoUrl: s.lesson.videoUrl || '', posterUrl: s.lesson.posterUrl || '', captionsUrl: s.lesson.captionsUrl || '', questions: s.lesson.questions || [], lede: (s.lesson.videoUrl ? 'The course for ' : 'The lesson your fleet mapped to ') + s.category.toLowerCase() + '. Watch it, then mark the session reviewed.' } : null,
         coachNote: managerMsgs.length ? managerMsgs[managerMsgs.length - 1].text : '',
         category: s.category, categoryId: s.categoryId, raw: s, coach
       };
@@ -434,7 +436,7 @@
     if (!s) return '<div class="page">' + backHtml('go-sessions', 'Coaching') + '<div class="card empty">No session selected.</div></div>';
     const speed = s.speedChart ? '<div class="card speed-card"><div class="head"><span class="eyebrow eyebrow--sm">Speed vs limit</span><span class="peak">Peak 48 km/h</span></div><div class="speed-plot"><svg viewBox="0 0 300 74" preserveAspectRatio="none" aria-hidden="true"><line x1="0" y1="34" x2="300" y2="34" stroke="#C7C0B4" stroke-width="1.5" stroke-dasharray="5 5"></line><path d="M0 58 L40 52 L80 40 L110 24 L170 22 L200 26 L240 46 L300 60" fill="none" stroke="#14261F" stroke-width="2.5" stroke-linejoin="round"></path><path d="M110 24 L170 22 L200 26 L200 34 L110 34 Z" fill="#FF6B3D" opacity="0.22"></path></svg><span>40 limit</span></div></div>' : '';
     const tips = s.tips ? '<h2 class="title-sm" style="padding-top:4px">Two things that help</h2><div class="tips">' + s.tips.map((t, i) => '<div class="tip"><span class="tip-n">' + (i + 1) + '</span><div class="row-text"><span class="row-title">' + esc(t.title) + '</span><span class="row-note">' + esc(t.body) + '</span></div></div>').join('') + '</div>' : '';
-    const lesson = s.lesson ? '<button class="assign-card" type="button" data-act="player" data-id="' + esc(s.id) + '"><span class="play-tile play-tile--dark" aria-hidden="true"><i class="tri tri--accent"></i></span><span class="row-text"><span class="eyebrow eyebrow--light eyebrow--sm">Assigned ' + (s.lessonDone ? 'lesson · watched' : 'clip' + (s.lesson.length ? ' · ' + esc(s.lesson.length) : '')) + '</span><span class="row-title">' + esc(s.lesson.title) + '</span></span></button>' : '';
+    const lesson = s.lesson ? '<button class="assign-card" type="button" data-act="player" data-id="' + esc(s.id) + '"><span class="play-tile play-tile--dark" aria-hidden="true"><i class="tri tri--accent"></i></span><span class="row-text"><span class="eyebrow eyebrow--light eyebrow--sm">Assigned ' + (s.lessonDone ? 'lesson · completed' : (s.lesson.questions && s.lesson.questions.length ? 'course' : 'clip') + (s.lesson.length ? ' · ' + esc(s.lesson.length) : '') + (s.lesson.questions && s.lesson.questions.length ? ' · ' + s.lesson.questions.length + '-question quiz' : '')) + '</span><span class="row-title">' + esc(s.lesson.title) + '</span></span></button>' : '';
     const ack = s.canAck
       ? '<button class="btn btn--accent mt-6" type="button" data-act="ack" data-id="' + esc(s.id) + '">Got it — mark reviewed</button>'
       : s.acked || s.status === 'completed'
@@ -530,7 +532,7 @@
     if (!rows.length) return '<div class="gap-9"><span class="eyebrow eyebrow--sm">All lessons</span><div class="card empty">No lessons published yet.</div></div>';
     const groups = [];
     rows.forEach((l) => { const key = l.category || 'Other'; let g = groups.find((x) => x.key === key); if (!g) { g = { key, items: [] }; groups.push(g); } g.items.push(l); });
-    const lessonBtn = (l) => '<button class="row lesson-lib" type="button" data-act="play-lesson" data-title="' + esc(l.title) + '"><span class="play-tile play-tile--sm" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(l.title) + '</span><span class="row-note">' + esc(l.length || '') + '</span></span>' + (state.watched[l.title] ? '<span class="delta delta--good">Watched</span>' : '<span class="chev" aria-hidden="true"></span>') + '</button>';
+    const lessonBtn = (l) => '<button class="row lesson-lib" type="button" data-act="play-lesson" data-title="' + esc(l.title) + '"><span class="play-tile play-tile--sm" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(l.title) + '</span><span class="row-note">' + esc([l.length, l.questions && l.questions.length ? l.questions.length + '-question quiz' : ''].filter(Boolean).join(' · ')) + '</span></span>' + (state.watched[l.title] ? '<span class="delta delta--good">Watched</span>' : '<span class="chev" aria-hidden="true"></span>') + '</button>';
     return '<div class="gap-9"><span class="eyebrow eyebrow--sm">All lessons · by programme</span>' +
       groups.map((g) => '<div class="lesson-group"><div class="lesson-group-head">' + esc(g.key) + '</div><div class="card" style="overflow:hidden">' + g.items.map(lessonBtn).join('') + '</div></div>').join('') + '</div>';
   }
@@ -575,9 +577,12 @@
     const s = standalone ? null : (m.sessions.find((x) => x.id === state.sessionId) || m.sessions.find((x) => x.lesson) || m.sessions[0]);
     const lib = standalone ? (m.lessons || []).find((l) => l.title === state.lessonTitle) : null;
     const lesson = lib
-      ? { title: lib.title, length: lib.length, videoUrl: lib.videoUrl, posterUrl: lib.posterUrl, captionsUrl: lib.captionsUrl, lede: [lib.category, lib.length].filter(Boolean).join(' · ') + '. Watch it any time; nothing is assigned or recorded.' }
+      ? { title: lib.title, length: lib.length, videoUrl: lib.videoUrl, posterUrl: lib.posterUrl, captionsUrl: lib.captionsUrl, questions: lib.questions || [], lede: [lib.category, lib.length].filter(Boolean).join(' · ') + '. Watch it any time; nothing is assigned or recorded.' }
       : (s && s.lesson) || { title: 'Reading a school zone early', length: '3 min', lede: 'Three minutes on the cues that show up before the sign does, and how to carry less speed into the turn.' };
     const realVideo = Boolean(lesson.videoUrl);
+    const quizKey = standalone ? 'lib:' + lesson.title : s ? s.id : '';
+    const questions = Array.isArray(lesson.questions) ? lesson.questions : [];
+    const quizPassed = Boolean(state.quizDone[quizKey]);
     const secs = Math.round(180 * state.progress / 100);
     const elapsed = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
     const done = standalone ? Boolean(state.watched[lesson.title]) : s ? Boolean(state.lessonDone[s.id]) : false;
@@ -589,7 +594,26 @@
           '<div class="progress"><div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + state.progress + '"><i style="width:' + state.progress + '%"></i></div><div class="times"><span>' + elapsed + '</span><span>3:00</span></div></div>') +
       '<div class="player-body"><h1 class="title">' + esc(lesson.title) + '</h1><p class="lede">' + esc(lesson.lede || ('Assigned for ' + (s ? s.title.toLowerCase() : 'this session') + '.')) + '</p>' + (realVideo ? '<p class="lede">' + esc(lesson.length || '') + (lesson.captionsUrl ? ' · Captions on screen and in the player.' : '') + '</p>' : '<div class="chapters">' + chapters + '</div>') +
       (s && s.coachNote ? '<div class="notes-card"><span class="eyebrow">Notes from ' + esc(m.coach.name) + '</span><p>' + esc(s.coachNote) + '</p></div>' : '') +
-      '<button class="btn btn--accent' + (done ? ' is-done' : '') + '" type="button" data-act="complete-lesson" data-id="' + esc(s ? s.id : '') + '" data-title="' + esc(standalone ? lesson.title : '') + '">' + (done ? (standalone ? 'Watched · back to Learn' : m.linked ? 'Watched · back to session' : 'Completed · back to session') : (standalone ? 'Mark as watched' : m.linked ? 'Mark watched · prototype' : 'Mark lesson complete')) + '</button></div></div>';
+      (questions.length && !quizPassed && !done ? quizHtml(questions, quizKey) :
+        (questions.length ? '<div class="quiz-passed"><span class="eyebrow eyebrow--sm">Quiz</span><strong>Passed · ' + questions.length + ' of ' + questions.length + ' correct</strong></div>' : '') +
+        '<button class="btn btn--accent' + (done ? ' is-done' : '') + '" type="button" data-act="complete-lesson" data-id="' + esc(s ? s.id : '') + '" data-title="' + esc(standalone ? lesson.title : '') + '">' + (done ? (standalone ? 'Watched · back to Learn' : m.linked ? (questions.length ? 'Completed · back to session' : 'Watched · back to session') : 'Completed · back to session') : (standalone ? (questions.length ? 'Mark as completed' : 'Mark as watched') : m.linked ? (questions.length ? 'Mark lesson complete' : 'Mark watched · prototype') : 'Mark lesson complete')) + '</button>') + '</div></div>';
+  }
+
+  /* Quiz: one question at a time, feedback per answer, retry until every question is correct. */
+  function quizHtml(questions, key) {
+    const q = state.quiz && state.quiz.key === key ? state.quiz : null;
+    if (!q) return '<div class="quiz-intro"><p class="lede">Watch the video, then answer ' + questions.length + ' short questions to complete this lesson.</p><button class="btn btn--accent" type="button" data-act="start-quiz" data-key="' + esc(key) + '">Take the quiz · ' + questions.length + ' questions</button></div>';
+    const question = questions[q.index];
+    const checked = q.checked;
+    const correct = checked && q.choice === question.correctIndex;
+    const rawFeedback = checked ? (question.feedback && question.feedback[q.choice]) || question.explanation || '' : '';
+    const feedback = rawFeedback.replace(/^(Correct|Not quite|Incorrect|Right|Wrong)[.!:]\s*/i, '');
+    return '<div class="quiz" role="group" aria-labelledby="quiz-title"><span class="eyebrow eyebrow--sm">Question ' + (q.index + 1) + ' of ' + questions.length + '</span><h2 class="title-sm" id="quiz-title">' + esc(question.prompt) + '</h2>' +
+      '<div class="quiz-options" role="radiogroup" aria-label="Answers">' + question.options.map((option, index) => '<button class="quiz-option' + (q.choice === index ? ' is-on' : '') + (checked && index === question.correctIndex ? ' is-correct' : '') + (checked && q.choice === index && !correct ? ' is-wrong' : '') + '" type="button" role="radio" aria-checked="' + (q.choice === index) + '" data-act="quiz-choose" data-index="' + index + '"' + (checked ? ' disabled' : '') + '><span class="quiz-mark" aria-hidden="true"></span><span>' + esc(option) + '</span></button>').join('') + '</div>' +
+      (checked ? '<div class="quiz-feedback' + (correct ? ' is-correct' : ' is-wrong') + '" role="status"><strong>' + (correct ? 'Correct' : 'Try again') + '</strong><p>' + esc(feedback) + '</p></div>' : '') +
+      (!checked ? '<button class="btn btn--accent" type="button" data-act="quiz-check"' + (q.choice === null ? ' disabled' : '') + '>Check answer</button>'
+        : correct ? '<button class="btn btn--accent" type="button" data-act="quiz-next">' + (q.index + 1 < questions.length ? 'Next question' : 'Finish quiz') + '</button>'
+        : '<button class="btn btn--accent" type="button" data-act="quiz-retry">Try again</button>') + '</div>';
   }
 
   /* ── Render ────────────────────────────────────────────────────────── */
@@ -620,10 +644,14 @@
     const dark = state.overlay === 'nudge' || state.overlay === 'player';
     device.classList.toggle('is-dark', dark);
     const keepScroll = options.keepScroll ? screen.querySelector('.scroll')?.scrollTop || 0 : 0;
+    const liveVideo = screen.querySelector('video.lesson-video');
     screen.innerHTML = (state.route === 'thread' ? routeHtml(m) : '<div class="scroll">' + routeHtml(m) + '</div>') + tabsHtml(m) +
       (state.overlay === 'nudge' ? nudgeHtml() : state.overlay === 'posttrip' ? postTripHtml(m) : state.overlay === 'player' ? playerHtml(m) : '');
     const scroll = screen.querySelector('.scroll');
     if (scroll) scroll.scrollTop = keepScroll;
+    // A course video keeps its playback position when the surrounding screen re-renders.
+    const freshVideo = screen.querySelector('video.lesson-video');
+    if (liveVideo && freshVideo && freshVideo.getAttribute('src') === liveVideo.getAttribute('src')) freshVideo.replaceWith(liveVideo);
     const msgs = document.getElementById('msgs');
     if (msgs) msgs.scrollTop = msgs.scrollHeight;
     document.title = (m.linked ? esc(firstName(m.driver.name)) + ' · ' : '') + 'Elevate Driver';
@@ -759,6 +787,20 @@
     'play-lesson': (el) => { state.lessonTitle = el.dataset.title; state.sessionId = null; state.progress = 0; openOverlay('player'); },
     'close-player': () => { stopTimer(); state.playing = false; state.overlay = null; render(); syncHash(); notifyRoute(); },
     'toggle-play': () => { if (state.playing) { stopTimer(); state.playing = false; } else { state.playing = true; tick(); } render({ silent: true, keepScroll: true }); },
+    'start-quiz': (el) => { state.quiz = { key: el.dataset.key, index: 0, choice: null, checked: false }; render({ silent: true, keepScroll: true }); document.getElementById('quiz-title')?.focus(); },
+    'quiz-choose': (el) => { if (!state.quiz || state.quiz.checked) return; state.quiz.choice = Number(el.dataset.index); render({ silent: true, keepScroll: true }); },
+    'quiz-check': () => { if (!state.quiz || state.quiz.choice === null) return; state.quiz.checked = true; render({ silent: true, keepScroll: true }); },
+    'quiz-retry': () => { if (!state.quiz) return; state.quiz.choice = null; state.quiz.checked = false; render({ silent: true, keepScroll: true }); },
+    'quiz-next': () => {
+      if (!state.quiz) return;
+      const m = model();
+      const key = state.quiz.key;
+      const lesson = key.startsWith('lib:') ? (m.lessons || []).find((l) => 'lib:' + l.title === key) : (m.sessions.find((x) => x.id === key) || {}).lesson;
+      const total = lesson && Array.isArray(lesson.questions) ? lesson.questions.length : 0;
+      if (state.quiz.index + 1 < total) { state.quiz = { key, index: state.quiz.index + 1, choice: null, checked: false }; }
+      else { state.quizDone[key] = true; state.quiz = null; if (!key.startsWith('lib:')) emit('quiz_passed', { sessionId: key, lesson: lesson ? lesson.title : '', questions: total }); }
+      render({ silent: true, keepScroll: true }); document.getElementById('quiz-title')?.focus();
+    },
     'complete-lesson': (el) => {
       const id = el.dataset.id; const title = el.dataset.title; stopTimer();
       if (!id && title) {
@@ -802,19 +844,25 @@
   app.addEventListener('submit', (event) => { if (event.target.matches('[data-act="send-form"]')) { event.preventDefault(); send(); } });
   app.addEventListener('input', (event) => { if (event.target.id === 'draft') state.draft = event.target.value; });
 
+  const linkKey = (value) => { if (!value) return ''; const copy = Object.assign({}, value); delete copy.publishedAt; return JSON.stringify(copy); };
+  let lastLinkKey = linkKey(link);
   window.addEventListener('storage', (event) => {
-    if (event.key !== LINK_KEY) return;
-    link = storage.get(LINK_KEY, null);
+    if (event.key !== LINK_KEY || EMBED) return; // embedded frames get the same snapshot by postMessage
+    const next = storage.get(LINK_KEY, null);
+    if (linkKey(next) === lastLinkKey) return;
+    link = next; lastLinkKey = linkKey(next);
     render({ silent: true, keepScroll: true });
   });
   window.addEventListener('message', (event) => {
     if (event.origin !== window.location.origin || !event.data || event.data.source !== 'elevate-manager') return;
     const data = event.data;
-    if (data.link) { link = data.link; storage.set(LINK_KEY, data.link); }
+    let changed = false;
+    if (data.link) { const key = linkKey(data.link); changed = key !== lastLinkKey; if (changed) { link = data.link; lastLinkKey = key; storage.set(LINK_KEY, data.link); } }
     if (data.mode && data.mode !== state.mode) { state.mode = data.mode; state.acked = {}; state.lessonDone = {}; state.opened = {}; state.readThreads = {}; state.localMsgs = {}; }
     if (data.driver) { state.driverName = data.driver; state.acked = {}; state.lessonDone = {}; state.opened = {}; state.readThreads = {}; state.localMsgs = {}; state.sessionId = null; state.thread = null; state.behaviour = null; }
     if (data.flow) { actions.flow({ dataset: { flow: data.flow } }); return; }
     if (data.route) { go(data.route); return; }
+    if (!changed && !data.mode && !data.driver) return; // nothing new: leave the screen (and any playing video) alone
     render({ silent: true, keepScroll: true }); notifyRoute();
   });
   window.addEventListener('hashchange', () => { if (!EMBED && readHash()) render(); });
