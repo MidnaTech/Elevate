@@ -12,6 +12,9 @@
     <link rel="stylesheet" href="./drivers-refinement.css?v=design-library-1" />
     <link rel="stylesheet" href="./supporting-refinement.css?v=design-library-1" />
     <link rel="stylesheet" href="./session-workspace.css?v=design-library-1" />
+    <link rel="stylesheet" href="./program-setup.css?v=course-authoring-1" />
+    <link rel="stylesheet" href="./training-library.css?v=course-authoring-1" />
+    <link rel="stylesheet" href="./course-builder.css?v=course-authoring-1" />
     <link rel="stylesheet" href="./programs.css?v=program-review-1" />
     <link rel="stylesheet" href="./design-system.css?v=design-library-1" />
   </head>
@@ -43,9 +46,9 @@
             <span>Programmes</span>
           </a>
           <a class="nav-item" data-view="drivers" aria-label="Drivers" title="Drivers" data-label="Drivers" href="#drivers"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m2-15a3 3 0 0 1 0 6m1 3a5 5 0 0 1 3 4v2"/></svg><span>Drivers</span></a>
-          <a class="nav-item nav-item-secondary" data-view="library" aria-label="Learning" title="Learning" data-label="Learning" href="#learning">
+          <a class="nav-item nav-item-secondary" data-view="library" aria-label="Training library" title="Training library" data-label="Training library" href="#learning">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h13a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H19M8 8h7"/></svg>
-            <span>Learning</span>
+            <span>Training library</span>
           </a>
           <!-- KEEP: Driver app nav item — REQUIRED by the product owner (Calvin), Sep 7 2026. Do NOT remove or
                hide this. It must stay a clickable sidebar destination, not route-only. Registered in
@@ -302,11 +305,25 @@
 
         <section class="app-view" id="view-library" aria-labelledby="library-title">
           <header class="page-heading">
-            <div><h1 id="library-title">Learning</h1></div>
-            <button class="primary-button" type="button" data-new-lesson>New lesson</button>
+            <div><h1 id="library-title">Training library</h1><p>Create and review the video courses, quizzes and reusable templates your programs can use.</p></div>
+            <div class="toolbar"><button class="button button--secondary" type="button" data-open-program-setup>Set up a program</button><button class="button button--primary" type="button" data-open-course-builder aria-haspopup="dialog">Create course</button></div>
           </header>
-          <div class="kpi-region" id="content-kpis"></div><div class="data-toolbar"><div class="toolbar-actions"><label class="search-control" for="content-search"><span class="sr-only">Search lessons</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="content-search" type="search" placeholder="Search lesson or program" autocomplete="off"></label></div></div>
-          <section class="library-grid" id="library-grid"></section>
+          <div class="kpi-region" id="content-kpis"></div>
+          <div class="data-toolbar tl-toolbar"><div class="view-tabs" role="tablist" aria-label="Training library views"><button class="view-tab" type="button" role="tab" id="tl-view-courses" data-tl-view="courses" aria-selected="true" aria-controls="library-grid">Courses</button><button class="view-tab" type="button" role="tab" id="tl-view-templates" data-tl-view="templates" aria-selected="false" aria-controls="library-grid" tabindex="-1">Templates</button></div><div class="toolbar-actions">
+            <label class="field"><span class="field-label">Behavior</span><select class="filter-control" id="tl-behavior"><option value="all">All behaviors</option></select></label>
+            <label class="field" for="content-search"><span class="field-label">Search training library</span><span class="search-control"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="content-search" type="search" placeholder="Course, skill or program" autocomplete="off"></span></label>
+            <div class="filter-sheet" data-filter-sheet="training">
+              <button class="filter-sheet-trigger" type="button" data-filter-sheet-trigger aria-expanded="false" aria-controls="tl-filters"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4"/></svg><span>Filters</span><b id="tl-filter-count" hidden>0</b></button>
+              <button class="filter-sheet-backdrop" type="button" data-filter-sheet-close tabindex="-1" aria-label="Close training filters"></button>
+              <div class="filter-sheet-content" id="tl-filters">
+                <div class="filter-sheet-header"><strong>Training filters</strong><button class="icon-button" type="button" data-filter-sheet-close aria-label="Close training filters">×</button></div>
+                <label class="field"><span class="field-label">Course level</span><select class="filter-control" id="tl-level"><option value="all">All levels</option><option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option><option value="legacy">Imported lessons</option></select></label>
+                <label class="field"><span class="field-label">Readiness</span><select class="filter-control" id="tl-readiness"><option value="all">All materials</option><option value="authored">Materials prepared</option><option value="sample">Sample outlines</option><option value="legacy">Incomplete lessons</option></select></label>
+                <div class="filter-sheet-actions"><button class="text-button" type="button" data-tl-reset disabled>Reset</button><button class="primary-button" type="button" data-filter-sheet-close>Show courses</button></div>
+              </div>
+            </div>
+          </div></div>
+          <section class="library-grid" id="library-grid" role="tabpanel" tabindex="0" aria-labelledby="tl-view-courses"></section>
         </section>
       </main>
     </div>
@@ -315,7 +332,7 @@
       <div class="mobile-more-sheet">
         <header><div><p class="eyebrow">Navigation</p><h2 id="mobile-more-title">More</h2></div><button class="icon-button" type="button" data-mobile-more-close aria-label="Close navigation menu">×</button></header>
         <nav aria-label="More destinations">
-          <button class="mobile-more-link" type="button" data-mobile-view="library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h13a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H19M8 8h7"/></svg><span><strong>Learning</strong><small>Lessons mapped to programs</small></span><b aria-hidden="true">›</b></button>
+          <button class="mobile-more-link" type="button" data-mobile-view="library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h13a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H19M8 8h7"/></svg><span><strong>Training library</strong><small>Courses, quizzes and coaching materials</small></span><b aria-hidden="true">›</b></button>
           <!-- KEEP: Driver app (mobile More) — pairs with the sidebar Driver app item. Required by Calvin; do not remove. -->
           <button class="mobile-more-link" type="button" data-mobile-view="driver"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg><span><strong>Driver app</strong><small>The app your drivers see</small></span><b aria-hidden="true">›</b></button>
         </nav>
@@ -350,6 +367,12 @@
     <script src="./session-workspace.js?v=design-library-1"></script>
     <script src="./driver-spotlight.js?v=design-library-1"></script>
     <script src="./programs.js?v=program-review-1"></script>
+    <script src="./speeding-course-pack.js?v=course-authoring-1"></script>
+    <script src="./coaching-engine.js?v=course-authoring-1"></script>
+    <script src="./course-authoring-store.js?v=course-authoring-1"></script>
+    <script src="./program-setup.js?v=course-authoring-1"></script>
+    <script src="./training-library.js?v=course-authoring-1"></script>
+    <script src="./course-builder.js?v=course-authoring-1"></script>
     <script src="./program-policy.js"></script>
     <script src="./learning-library.js"></script>
     <script src="./program-activity.js?v=program-review-1"></script>

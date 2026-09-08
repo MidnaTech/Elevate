@@ -78,6 +78,7 @@ function programPageLessons(program) {
 }
 
 function programPageContent(program) {
+  if (typeof ProgramSetup !== 'undefined') return ProgramSetup.renderContent(program);
   return learningMappedTable(program);
 }
 
@@ -175,6 +176,7 @@ function deleteProgram(programId) {
     saveSetting('elevate-deleted-programs', JSON.stringify((Array.isArray(deleted) ? deleted : []).concat(programId)));
   }
   removeProgramRecords(programId);
+  if (typeof ProgramSetup !== 'undefined') ProgramSetup.removePolicy(programId);
   saveProgramRules();
   saveProgramSettings();
   if (selectedProgramId === programId) selectedProgramId = 'all';
@@ -284,6 +286,7 @@ function programCreateForm() {
 }
 
 function programPageConfiguration(program) {
+  if (typeof ProgramSetup !== 'undefined') return ProgramSetup.renderConfiguration(program);
   if (program.id !== 'all') return programConfigurationDetail(program);
   const rows = categories.map(item => {
     const rules = eventTypeRules.filter(rule => rule.programId === item.id);

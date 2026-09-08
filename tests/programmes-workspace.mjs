@@ -27,7 +27,7 @@ const facts = async (id, period) => page.evaluate(({ id, period }) => {
 }, { id, period });
 try {
   await open();
-  assert.deepEqual(await page.locator('.primary-nav a[data-view]').allTextContents().then(labels => labels.map(label => label.replace(/\d+/g, '').trim())), ['Automation Centre', 'Sessions', 'Programmes', 'Drivers', 'Learning', 'Driver app']);
+  assert.deepEqual(await page.locator('.primary-nav a[data-view]').allTextContents().then(labels => labels.map(label => label.replace(/\d+/g, '').trim())), ['Automation Centre', 'Sessions', 'Programmes', 'Drivers', 'Training library', 'Driver app']);
   assert.deepEqual(await workspace.locator('[data-program-tab]').allTextContents(), ['Activity', 'Learning', 'Configuration', 'Automation']);
   const baseline = await page.evaluate(() => JSON.stringify(sessions));
   const ids = await page.evaluate(() => ['all', ...categories.map(program => program.id)]);

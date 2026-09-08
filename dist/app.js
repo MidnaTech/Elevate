@@ -1441,7 +1441,7 @@ internalViewNames.settings = 'settings'; // legacy route: automation settings no
 
 function updateUrlState(replace = false) {
   const url = new URL(window.location.href);
-  ['session', 'origin', 'analytics', 'outcome', 'queue', 'lens', 'period', 'driversTab', 'driverStatus', 'group', 'program', 'programTab', 'programState', 'programCoach', 'programComparison', 'programPreview', 'programStage', 'groupPreview', 'score', 'sort', 'view', 'q', 'record', 'driver'].forEach((key) => url.searchParams.delete(key));
+  ['session', 'origin', 'analytics', 'outcome', 'queue', 'lens', 'period', 'driversTab', 'driverStatus', 'group', 'program', 'programTab', 'programState', 'programCoach', 'programComparison', 'libraryTab', 'programPreview', 'programStage', 'groupPreview', 'score', 'sort', 'view', 'q', 'record', 'driver'].forEach((key) => url.searchParams.delete(key));
   if (currentView === 'inbox') {
     url.searchParams.set('session', activeSessionFilter);
     url.searchParams.set('origin', activeSessionSource);
@@ -1457,6 +1457,7 @@ function updateUrlState(replace = false) {
     if (programTab !== 'activity') url.searchParams.set('programTab', programTab);
     if (selectedProgramId === 'all' && programTab === 'activity' && programComparisonView === 'rates') url.searchParams.set('programComparison', 'rates');
   }
+  if (currentView === 'library' && typeof TrainingLibrary !== 'undefined' && TrainingLibrary.getView() === 'templates') url.searchParams.set('libraryTab', 'templates');
   if (coachingPeriod !== 1) url.searchParams.set('period', String(coachingPeriod));
   if (currentView === 'drivers' && driversTab === 'groups') {
     url.searchParams.set('driversTab', 'groups');
@@ -3315,6 +3316,19 @@ function openAttentionDriver(name, programId = null) {
 
 function renderLibrary() {
   renderDesignLibraryKpis();
+  if (typeof TrainingLibrary !== 'undefined') {
+    const term = document.getElementById('content-search')?.value.trim().toLowerCase() || '';
+    const training = TrainingLibrary.metrics();
+    const kpis = document.getElementById('content-kpis');
+    if (kpis) kpis.innerHTML = uiKpiStrip('Training library summary', [
+      { label: 'Courses', value: training.courses, context: 'Published authored courses, prepared previews, sample outlines and preserved imported lessons. Drafts stay separate.' },
+      { label: 'Materials prepared', value: training.authored, context: 'Courses with prepared teaching and quiz materials. Video availability is shown on each course.' },
+      { label: 'Incomplete lessons', value: training.incomplete, context: 'Imported lesson metadata still missing the video and quiz needed for assignment.' }
+    ]);
+    document.getElementById('library-grid').innerHTML = TrainingLibrary.render(term);
+    if (typeof applyDesignLibrary === 'function') applyDesignLibrary(document.getElementById('view-library'));
+    return;
+  }
   renderLearningLibrary();
 }
 
@@ -4497,6 +4511,16 @@ document.addEventListener('keydown', (event) => {
       event.preventDefault();
       first.focus();
     }
+  }
+});
+
+if (typeof CourseAuthoringStore !== 'undefined') CourseAuthoringStore.init();
+if (typeof ProgramSetup !== 'undefined') ProgramSetup.init();
+
+document.addEventListener('click', event => {
+  if (event.target.closest('[data-open-program-setup]') && typeof ProgramSetup !== 'undefined') {
+    openProgramPage('all', 'configuration');
+    ProgramSetup.start();
   }
 });
 

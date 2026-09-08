@@ -1,146 +1,312 @@
-// Program configuration acceptance: programs own thresholds, rules and coach routing; the
-// overview has no per-driver spotlight and nothing "awaits" a session. Local prototype only.
+// Guided setup and versioned policies: migration, drafts, activation, staging and stable mappings.
 import assert from 'node:assert/strict';
-const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
-const browser=await chromium.launch({headless:true,channel:process.env.BROWSER_CHANNEL||'chrome'});
-const base=process.env.BASE_URL||'http://localhost:5173';
-const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
+const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_CHANNEL || 'chrome' });
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+const base = process.env.BASE_URL || 'http://localhost:4173';
 page.setDefaultTimeout(10000);
-await page.route('**/*',route=>['localhost','127.0.0.1','[::1]'].includes(new URL(route.request().url()).hostname)?route.continue():route.abort());
-const errors=[];page.on('pageerror',error=>errors.push(error.message));
-page.on('dialog',dialog=>dialog.accept());
-const config=page.locator('#program-configuration');
-const stored=key=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)||'null'),key);
+await page.route('**/*', route => ['localhost', '127.0.0.1', '[::1]'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
+const errors = [];
+page.on('pageerror', error => errors.push(error.message));
+const policy = id => page.evaluate(id => ProgramSetup.getPolicy(id), id);
+const stored = key => page.evaluate(key => JSON.parse(localStorage.getItem(key) || 'null'), key);
+const configuration = id => page.goto(base + '/?program=' + id + '&programTab=configuration#programs');
+const action = name => page.locator('[data-ps-action="' + name + '"]');
+const openAddRule = async () => {
+  await page.locator('#ps-add-rule-button').click();
+  await page.waitForFunction(() => document.activeElement.id === 'ps-rule-name');
+};
+const fillRule = async ({ name, condition, severity = 'High', allowance = '0' }) => {
+  await page.fill('#ps-rule-name', name);
+  await page.fill('#ps-rule-condition', condition);
+  await page.selectOption('#ps-rule-severity', severity);
+  await page.fill('#ps-rule-allowance', String(allowance));
+};
+const submitRule = () => page.locator('#ps-add-rule-form button[type="submit"]').click();
+const previewPolicy = id => page.evaluate(id => ProgramSetup.getPreviewPolicy(id), id);
 try {
-  // Overview: three human states, no featured driver, no pending-session concept.
-  await page.goto(base+'/#automation');
-  assert.equal(await page.locator('.attention-next, #ai-priority-name, #ai-priority-review').count(),0,'The overview does not single out one driver');
-  assert.deepEqual(await page.locator('#view-coaching .attention-row .attention-row-label').allTextContents(),['Overdue','Repeated','Replied'],'Needs you lists the states a person must act on');
-  assert.equal(await page.locator('.automation-row.is-pending, #automation-week-pending').count(),0,'Nothing awaits a session');
-  assert.deepEqual(await page.locator('.automation-row .automation-row-label').allTextContents(),['Automated sessions','One-on-one sessions']);
-  assert.doesNotMatch(await page.locator('#view-coaching').textContent(),/Session needed|Awaiting session/);
-  assert.equal(await page.evaluate(()=>reviewCandidates.length),0);
-
-  // There is no Settings page: fleet-wide automation mode and cadence live on Programs › Automation.
-  assert.equal(await page.locator('.primary-nav [data-view="settings"], #view-settings').count(),0,'Settings is not a destination');
-  await page.goto(base+'/#settings');
-  await page.waitForSelector('#program-automation');
-  assert.equal(await page.locator('#view-programs [role="tab"][aria-selected="true"]').textContent(),'Automation','Legacy Settings links resolve to Programs › Automation');
-  assert.equal(await page.locator('#program-automation [data-add-program-rule], #program-automation [data-program-rule]').count(),0,'Rules and thresholds are not edited on the fleet-wide tab');
-  assert.ok(await page.locator('#program-automation [data-automation-mode]').count()>=3);
-  assert.ok(await page.locator('#program-automation [data-cadence]').count()>=2);
-  assert.equal(await page.locator('#program-automation #session-due-days').count(),1,'One fleet-wide due period is configured in Automation');
-  assert.equal(await page.locator('#session-due-days').inputValue(),'7','New sessions retain the one-week default');
-  assert.equal(await page.locator('#settings-save').isDisabled(),true,'Nothing to save until the draft changes');
-
-  // All programs: one configuration table with threshold, rule count and coach per program.
-  await page.goto(base+'/?program=all&programTab=configuration#programs');
-  const programCount=await page.evaluate(()=>categories.length);
-  assert.deepEqual(await config.locator('thead th').allTextContents(),['Program','Threshold','Rules','Evaluation period','One-on-one coach','Lessons','Delete']);
-  assert.equal(await config.locator('tbody tr').count(),programCount);
-  assert.equal(await config.locator('[data-delete-program]').count(),programCount,'Every program can be deleted');
-  assert.equal(await page.locator('#program-proposal').count(),0,'The read-only proposal is replaced by real configuration');
-
-  // Create a program.
-  await config.locator('[data-add-program]').click();
-  await page.waitForFunction(()=>document.activeElement?.name==='name');
-  await page.fill('#program-create-form [name="name"]','Lane discipline');
-  await page.locator('#program-create-form button[type="submit"]').click();
-  await page.waitForFunction(()=>selectedProgramId==='lane-discipline');
-  assert.equal(await page.inputValue('#program-page-select'),'lane-discipline','Creating a program opens its configuration');
-  assert.equal(new URL(page.url()).searchParams.get('programTab'),'configuration');
-  assert.deepEqual(await stored('elevate-custom-programs'),[{id:'lane-discipline',name:'Lane discipline'}]);
-  assert.match(await config.textContent(),/No rules yet/);
-
-  // Add, edit, toggle and delete a rule; each rule has a source, severity, weight and threshold.
-  await config.locator('[data-add-program-rule]').click();
-  await page.selectOption('#program-rule-form [name="source"]','Geotab|Harsh cornering');
-  assert.equal(await page.inputValue('#program-rule-form [name="name"]'),'Harsh cornering','Picking a Geotab rule names the rule');
-  await page.fill('#program-rule-form [name="name"]','Lane departure');
-  await page.selectOption('#program-rule-form [name="severity"]','High');
-  assert.equal(await page.inputValue('#program-rule-form [name="weight"]'),'5','Severity sets the default weight');
-  await page.fill('#program-rule-form [name="threshold"]','3');
-  await page.locator('#program-rule-form button[type="submit"]').click();
-  await page.waitForSelector('#program-configuration [data-program-rule]');
-  const rule=await page.evaluate(()=>eventTypeRules.find(item=>item.programId==='lane-discipline'));
-  assert.deepEqual({name:rule.name,severity:rule.severity,weight:rule.weight,threshold:rule.threshold,enabled:rule.enabled,source:rule.source,sourceRule:rule.sourceRule,direct:rule.direct},{name:'Lane departure',severity:'High',weight:5,threshold:3,enabled:true,source:'Geotab',sourceRule:'Harsh cornering',direct:false});
-  await page.selectOption('#program-configuration [data-program-rule-field="severity"]','Low');
-  await page.fill('#program-configuration [data-program-rule-field="threshold"]','8');
-  await page.locator('#program-configuration [data-program-rule-field="threshold"]').press('Tab');
-  await page.waitForFunction(()=>eventTypeRules.find(item=>item.programId==='lane-discipline')?.threshold===8);
-  assert.equal(await page.evaluate(()=>eventTypeRules.find(item=>item.programId==='lane-discipline').severity),'Low');
-  assert.equal(await page.evaluate(()=>eventTypeRules.find(item=>item.programId==='lane-discipline').weight),1,'Changing severity resets the weight to its default');
-  await page.fill('#program-configuration [data-program-rule-field="weight"]','4');
-  await page.locator('#program-configuration [data-program-rule-field="weight"]').press('Tab');
-  await page.waitForFunction(()=>eventTypeRules.find(item=>item.programId==='lane-discipline')?.weight===4);
-  await config.locator('[data-program-rule-field="direct"]').check();
-  await page.waitForFunction(()=>eventTypeRules.find(item=>item.programId==='lane-discipline')?.direct===true);
-  assert.match(await page.locator('#program-flow-copy').getAttribute('data-tooltip'),/Direct one-on-one rules: Lane departure/);
-  assert.equal((await stored('elevate-event-types')).find(item=>item.programId==='lane-discipline').threshold,8,'Rule edits persist immediately');
-  await config.locator('[data-program-rule-field="enabled"]').uncheck();
-  await page.waitForFunction(()=>eventTypeRules.find(item=>item.programId==='lane-discipline')?.enabled===false);
-  assert.match(await page.locator('#program-flow-copy').getAttribute('data-tooltip'),/0 enabled rules/);
-
-  // Per-program grace, reminder count and reset policy are locally configurable.
-  for (const [key, value] of [['graceDays', 7], ['reminderCount', 3], ['resetPeriods', 3]]) {
-    await page.fill('#program-configuration [data-program-policy="' + key + '"]', String(value));
-    await page.locator('#program-configuration [data-program-policy="' + key + '"]').press('Tab');
-    await page.waitForFunction(({ key, value }) => programPolicyFor('lane-discipline')[key] === value, { key, value });
-  }
-  const policy = (await stored('elevate-program-settings'))['lane-discipline'].policy;
-  assert.deepEqual({basis:policy.basis,window:policy.window,graceDays:policy.graceDays,reminderCount:policy.reminderCount,resetPeriods:policy.resetPeriods}, {basis:'calendar',window:2,graceDays:7,reminderCount:3,resetPeriods:3});
-  assert.match(await page.locator('#program-flow-copy').getAttribute('data-tooltip'), /not connected/);
-
-  // Program threshold and coach routing, one coach or per group.
-  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-  await page.fill('#program-configuration [data-program-threshold]','60');
-  await page.locator('#program-configuration [data-program-threshold]').press('Tab');
-  await page.waitForFunction(()=>document.getElementById('program-flow-copy')?.dataset.tooltip.includes('below 60'));
-  assert.equal((await stored('elevate-program-settings'))['lane-discipline'].threshold,60);
-  await page.selectOption('#program-configuration [data-program-coach]','Morgan Chen');
-  await page.waitForFunction(()=>document.getElementById('program-flow-copy')?.dataset.tooltip.includes('Morgan Chen'));
-  await page.locator('#program-coach-mode [data-program-coach-mode="group"]').locator('..').click();
-  await page.waitForSelector('#program-configuration [data-program-group-coach]');
-  const groups=await page.evaluate(()=>Object.keys(groupComparisonData));
-  assert.equal(await config.locator('[data-program-group-coach]').count(),groups.length,'A coach can be set for every group');
-  await page.selectOption('#program-configuration [data-program-group-coach="'+groups[0]+'"]','Alex Kim');
-  await page.waitForFunction(()=>true);
-  const saved=await stored('elevate-program-settings');
-  assert.equal(saved['lane-discipline'].coachMode,'group');
-  assert.equal(saved['lane-discipline'].groupCoaches[groups[0]],'Alex Kim');
-  assert.match(await page.locator('#program-flow-copy').getAttribute('data-tooltip'),/By group/);
-
-  // Delete the rule, then reload: the program, rule set and settings survive.
-  await config.locator('[data-remove-program-rule]').click();
-  await page.waitForFunction(()=>!eventTypeRules.some(item=>item.programId==='lane-discipline'));
+  await configuration('all');
+  const originalCount = await page.evaluate(() => categories.length);
+  assert.equal(await page.locator('#program-page-panel tbody tr').count(), originalCount);
+  const migration = await stored('elevate-program-policies-v1');
+  assert.equal(migration.schemaVersion, 1);
+  assert.equal(migration.policies.length, originalCount);
+  assert.equal(migration.legacyCourses.length, 6);
+  assert.ok(migration.legacyCourses.every(course => !course.videoUrl && !course.questions.length), 'Legacy content remains incomplete');
+  assert.equal((await policy('speeding')).status, 'draft');
+  assert.deepEqual((await policy('speeding')).courseIds, [], 'Migration does not invent ready media for legacy courses');
+  const initialRule = (await policy('speeding')).rules[0];
+  assert.equal(initialRule.ruleId, 'speeding-50', 'Migration preserves connected rule IDs');
+  assert.ok(initialRule.condition);
   await page.reload();
-  await page.waitForSelector('#program-configuration');
-  assert.equal(await page.inputValue('#program-page-select'),'lane-discipline','A created program survives reload');
-  assert.equal(await page.inputValue('#program-configuration [data-program-threshold]'),'60');
-  assert.ok((await page.locator('#landing-program-filter option').allTextContents()).includes('Lane discipline'),'The overview program filter lists the new program');
+  assert.equal((await stored('elevate-program-policies-v1')).legacyCourses.length, 6, 'Migration is idempotent');
 
-  // Delete a fixture program with coaching records: its records leave the workspace without errors.
-  await page.goto(base+'/?program=all&programTab=configuration#programs');
-  const before=await page.evaluate(()=>({programs:categories.length,sessions:sessions.length,backing:sessions.filter(item=>item.categoryId==='backing').length}));
-  await config.locator('[data-delete-program="backing"]').click();
-  await page.waitForFunction(()=>!categories.some(item=>item.id==='backing'));
-  const after=await page.evaluate(()=>({programs:categories.length,sessions:sessions.length}));
-  assert.deepEqual(after,{programs:before.programs-1,sessions:before.sessions-before.backing});
-  assert.equal(await config.locator('tbody tr').count(),before.programs-1);
-  assert.deepEqual(await stored('elevate-deleted-programs'),['backing']);
-  await config.locator('[data-delete-program="lane-discipline"]').click();
-  await page.waitForFunction(()=>!categories.some(item=>item.id==='lane-discipline'));
-  assert.deepEqual(await stored('elevate-custom-programs'),[],'Deleting a created program forgets it instead of listing it as deleted');
-  for(const hash of ['#automation','#sessions','?analytics=drivers#analytics','?analytics=groups#analytics','#programs']) {
-    await page.goto(base+'/'+hash);
-    await page.waitForSelector('.app-view.is-active');
-  }
-  assert.equal(await page.evaluate(()=>categories.some(item=>item.id==='backing')),false,'A deleted program stays deleted across pages and reloads');
-  await page.evaluate(()=>localStorage.clear());
+  // A separate pre-migration workspace retains user rule and routing settings verbatim.
+  const prior = await browser.newPage();
+  await prior.goto(base + '/#programs');
+  await prior.evaluate(() => {
+    localStorage.removeItem('elevate-program-policies-v1');
+    localStorage.setItem('elevate-program-settings', JSON.stringify({ speeding: { threshold: 63, coachMode: 'group', coach: 'Morgan Chen', groupCoaches: { 'Long haul · North': '' } } }));
+    const savedRules = JSON.parse(localStorage.getItem('elevate-event-types') || JSON.stringify(eventTypeRules));
+    Object.assign(savedRules.find(rule => rule.id === 'speeding-50'), { severity: 'Low', threshold: 9, enabled: false });
+    localStorage.setItem('elevate-event-types', JSON.stringify(savedRules));
+    localStorage.setItem('elevate-unrelated-setting', 'preserve-me');
+  });
+  await prior.reload();
+  const preserved = await prior.evaluate(() => ProgramSetup.getPolicy('speeding'));
+  assert.equal(preserved.scoreThreshold, 63);
+  assert.equal(preserved.coach, 'Morgan Chen');
+  assert.equal(preserved.coachMode, 'group');
+  assert.ok(Object.values(preserved.groupCoaches).every(value => value === ''), 'Migration preserves unassigned group routing instead of choosing a manager');
+  assert.deepEqual({ severity: preserved.rules[0].severity, allowance: preserved.rules[0].allowance, enabled: preserved.rules[0].enabled }, { severity: 'Low', allowance: 9, enabled: false });
+  assert.equal(await prior.evaluate(() => localStorage.getItem('elevate-unrelated-setting')), 'preserve-me');
+  await prior.close();
+
+  // Imported settings persist additively, while incomplete courses block activation.
+  await configuration('speeding');
+  const importedBeforeRuleForm = await policy('speeding');
+  const suggestedRuleName = await page.evaluate(() => Coaching.catalog.rules.find(rule => rule.behaviorId === 'speeding' && !ProgramSetup.getPolicy('speeding').rules.some(mapped => mapped.ruleId === rule.id || mapped.name?.trim().toLowerCase() === rule.name.trim().toLowerCase())).name);
+  await openAddRule();
+  await fillRule({ name: '  ' + suggestedRuleName.toUpperCase() + '  ', condition: 'A duplicate source definition must not be added.' });
+  await submitRule();
+  assert.equal(await page.locator('#ps-add-rule-form').isVisible(), true, 'Duplicate names from available catalog suggestions are rejected');
+  assert.deepEqual(await policy('speeding'), importedBeforeRuleForm, 'A rejected duplicate cannot change existing program mappings');
+  await action('cancel-rule').click();
+  await page.waitForFunction(() => document.activeElement.id === 'ps-add-rule-button');
+  const ruleNames = await page.locator('#ps-rules-title').locator('..').locator('..').locator('tbody th').allTextContents();
+  assert.equal(ruleNames.filter(name => name.startsWith('Speeding over 80 km/h')).length, 1, 'Suggestions never duplicate a connected rule with the same name');
+  await action('activate').click();
+  assert.match(await page.locator('#ps-errors').innerText(), /video-and-quiz/);
+  await page.waitForFunction(() => document.activeElement.id === 'ps-errors');
+  await action('recommend-courses').click();
+  assert.equal((await policy('speeding')).courseIds.length, 3);
+  await action('activate').click();
+  assert.equal((await policy('speeding')).status, 'active');
+  assert.equal((await policy('speeding')).legacyCourseIds.length, 1, 'Imported mapping remains recorded after recommendation');
+
+  // First-step drafts persist; closing or reloading does not lose setup progress.
+  await configuration('all');
+  await page.locator('#program-page-panel [data-ps-start]').click();
+  await page.waitForFunction(() => document.activeElement.id === 'ps-name');
+  await page.fill('#ps-name', 'Night driving speed');
+  await page.selectOption('#ps-audienceMode', 'groups');
+  const firstGroup = await page.locator('[data-ps-group]').first().getAttribute('data-ps-group');
+  await page.locator('[data-ps-group]').first().check();
+  await action('next').click();
+  assert.match(await page.locator('#ps-rules-title').innerText(), /Connected rules/);
+  await page.fill('#ps-scoreThreshold', '80');
+  await page.locator('[data-ps-rule-field="allowance"]').first().fill('2');
+
+  // Rules can be created directly in the wizard without changing existing mappings on Cancel.
+  const beforeWizardRule = await previewPolicy('__new');
+  await openAddRule();
+  await fillRule({ name: 'Discard this rule', condition: 'This draft definition must not enter the program.', allowance: 4 });
+  await action('cancel-rule').click();
+  await page.waitForFunction(() => document.activeElement.id === 'ps-add-rule-button');
+  assert.equal(await page.locator('#ps-add-rule-form').isVisible(), false);
+  assert.deepEqual(await previewPolicy('__new'), beforeWizardRule, 'Cancel does not add or mutate a wizard rule');
+
+  await openAddRule();
+  await fillRule({ name: '   ', condition: 'Connected speed event above the configured limit.' });
+  await submitRule();
+  assert.equal(await page.locator('#ps-add-rule-form').isVisible(), true, 'Whitespace-only rule names are rejected');
+  assert.deepEqual(await previewPolicy('__new'), beforeWizardRule);
+  await fillRule({ name: 'Night speed exception', condition: '   ' });
+  await submitRule();
+  assert.equal(await page.locator('#ps-add-rule-form').isVisible(), true, 'Whitespace-only detection conditions are rejected');
+  assert.deepEqual(await previewPolicy('__new'), beforeWizardRule);
+  const nightRuleDefinition = { name: 'Night speed exception', condition: 'Connected feed reports speed over 70 km/h between 22:00 and 05:00.', severity: 'Medium', allowance: 2 };
+  await fillRule({ ...nightRuleDefinition, allowance: -1 });
+  await submitRule();
+  assert.equal(await page.locator('#ps-rule-allowance').evaluate(input => input.validity.rangeUnderflow), true, 'The native tolerated-count minimum is enforced');
+  assert.deepEqual(await previewPolicy('__new'), beforeWizardRule);
+  await fillRule(nightRuleDefinition);
+  await submitRule();
+  const wizardAddedRule = (await previewPolicy('__new')).rules.find(rule => rule.name === nightRuleDefinition.name);
+  assert.ok(wizardAddedRule, 'A valid custom connected rule is added in the wizard');
+  assert.match(wizardAddedRule.ruleId, /^custom-rule-/);
+  assert.deepEqual({ name: wizardAddedRule.name, condition: wizardAddedRule.condition, severity: wizardAddedRule.severity, allowance: wizardAddedRule.allowance, behaviorId: wizardAddedRule.behaviorId, enabled: wizardAddedRule.enabled }, { ...nightRuleDefinition, behaviorId: 'speeding', enabled: true });
+  await page.waitForFunction(id => document.activeElement.dataset.psRule === id && document.activeElement.dataset.psRuleField === 'enabled', wizardAddedRule.ruleId);
+  assert.equal(await page.locator('#ps-add-rule-form').isVisible(), false, 'Success closes the inline form and focuses the new rule checkbox');
+
+  // Normalized custom rule names also remain unique within the program.
+  await openAddRule();
+  await fillRule({ ...nightRuleDefinition, name: '  NIGHT SPEED EXCEPTION  ' });
+  await submitRule();
+  assert.equal(await page.locator('#ps-add-rule-form').isVisible(), true);
+  assert.equal((await previewPolicy('__new')).rules.filter(rule => rule.name === nightRuleDefinition.name).length, 1);
+  await action('cancel-rule').click();
+  await action('close-wizard').click();
+  assert.match(await page.locator('#program-page-panel').innerText(), /Continue setting up Night driving speed/);
   await page.reload();
-  assert.equal(await page.evaluate(()=>categories.length),programCount,'Clearing local state restores the fixture programs');
-  assert.deepEqual(errors,[],'No page errors');
-  console.log('program configuration acceptance passed');
-} finally {
-  await browser.close();
-}
+  await page.getByRole('button', { name: 'Resume setup' }).click();
+  assert.equal(await page.inputValue('#ps-scoreThreshold'), '80');
+  assert.equal(await page.locator('[data-ps-rule-field="allowance"]').first().inputValue(), '2');
+  assert.deepEqual((await previewPolicy('__new')).rules.find(rule => rule.ruleId === wizardAddedRule.ruleId), wizardAddedRule, 'Wizard reload preserves the custom rule ID and source definition');
+  await action('save-draft').click();
+  const draftId = 'night-driving-speed';
+  let draft = await policy(draftId);
+  assert.equal(draft.status, 'draft');
+  assert.equal(draft.scoreThreshold, 80);
+  assert.deepEqual(draft.audience, { mode: 'groups', groups: [firstGroup] });
+  assert.equal(await page.inputValue('#program-page-select'), draftId);
+  await page.reload();
+  assert.equal(await page.inputValue('#ps-name'), 'Night driving speed');
+  assert.equal((await policy(draftId)).rules[0].allowance, 2);
+  assert.deepEqual((await policy(draftId)).rules.find(rule => rule.ruleId === wizardAddedRule.ruleId), wizardAddedRule, 'Saving and reopening a draft retains custom rule mappings');
+
+  // Configuration is one editable page; the advanced cadence is independent of fleet/reporting settings.
+  const fleetCadence = await page.evaluate(() => cadenceWeeks);
+  const reportingPeriod = await page.evaluate(() => coachingPeriod);
+  await page.locator('#ps-advanced > summary').click();
+  await page.selectOption('#ps-assessmentBasis', 'distance');
+  assert.equal(await page.locator('#ps-advanced').getAttribute('open'), '');
+  await page.fill('#ps-assessmentAmount', '1200');
+  await page.selectOption('#ps-assessmentUnit', 'km');
+  await page.selectOption('#ps-coachMode', 'group');
+  await page.locator('[data-ps-group-coach]').selectOption('Morgan Chen');
+  await action('activate').click();
+  draft = await policy(draftId);
+  assert.equal(draft.status, 'active');
+  assert.deepEqual(draft.rules.find(rule => rule.ruleId === wizardAddedRule.ruleId), wizardAddedRule, 'Activation retains the custom rule ID, condition and thresholds');
+  assert.deepEqual(draft.assessment, { basis: 'distance', amount: 1200, unit: 'km' });
+  assert.equal(draft.groupCoaches[firstGroup], 'Morgan Chen');
+  assert.equal(await page.evaluate(() => cadenceWeeks), fleetCadence);
+  assert.equal(await page.evaluate(() => coachingPeriod), reportingPeriod);
+  assert.equal(await page.locator('#program-page-period').count(), 0);
+  assert.equal(await page.locator('#program-page-kpis').count(), 0);
+
+  // Active edits are staged locally and do not change any committed adapters until saved.
+  const originalVersion = draft.version;
+  const courseIds = draft.courseIds.slice();
+  const ruleIds = draft.rules.map(rule => rule.ruleId);
+  await page.fill('#ps-name', 'Safer night speeds');
+  await page.fill('#ps-scoreThreshold', '82');
+  assert.equal((await policy(draftId)).name, 'Night driving speed');
+  assert.equal((await policy(draftId)).scoreThreshold, 80);
+  assert.match(await page.locator('#ps-review-title').locator('..').locator('..').innerText(), /below 82/, 'Plain-language preview follows staged edits');
+  assert.equal(await page.evaluate(id => programSettingFor(id).threshold, draftId), 80, 'Legacy adapter does not apply staged active changes');
+  assert.equal(await page.evaluate(id => ProgramSetup.getPreviewPolicy(id).scoreThreshold, draftId), 82, 'Preview can inspect staged configuration');
+  await page.reload();
+  assert.equal(await page.inputValue('#ps-name'), 'Safer night speeds', 'Staged active edits survive reload');
+  assert.equal((await policy(draftId)).name, 'Night driving speed');
+  await action('discard').click();
+  assert.equal(await page.inputValue('#ps-name'), 'Night driving speed');
+  await page.fill('#ps-name', 'Safer night speeds');
+  await page.fill('#ps-scoreThreshold', '82');
+  await action('save-active').click();
+  draft = await policy(draftId);
+  assert.equal(draft.version, originalVersion + 1);
+  assert.equal(draft.name, 'Safer night speeds');
+  assert.equal(draft.scoreThreshold, 82);
+  assert.deepEqual(draft.courseIds, courseIds, 'Renaming cannot break stable course mappings');
+  assert.deepEqual(draft.rules.map(rule => rule.ruleId), ruleIds);
+  assert.equal(await page.evaluate(id => programSettingFor(id).threshold, draftId), 82);
+  assert.ok((await page.evaluate(id => eventTypeRules.filter(rule => rule.programId === id), draftId)).every(rule => rule.id.includes('::') && rule.sourceRuleId), 'New rules have program-scoped adapters and stable source IDs');
+  await page.reload();
+  assert.equal(await page.inputValue('#ps-name'), 'Safer night speeds');
+  assert.equal(await page.locator('#program-page-select option:checked').innerText(), 'Safer night speeds');
+  await page.getByRole('tab', { name: 'Learning', exact: true }).click();
+  assert.equal(await page.locator('#program-page-panel tbody tr').count(), courseIds.length);
+
+  // Invalid staged changes cannot publish a policy revision.
+  await page.getByRole('tab', { name: 'Configuration', exact: true }).click();
+  const allowanceInput = page.locator('[data-ps-rule-field="allowance"]').first();
+  await allowanceInput.fill('');
+  assert.equal(await page.evaluate(id => ProgramSetup.getPreviewPolicy(id).rules[0].allowance, draftId), null, 'A cleared allowance remains missing rather than becoming zero');
+  await action('save-active').click();
+  assert.match(await page.locator('#ps-errors').innerText(), /allowance/i);
+  assert.equal(await page.locator('[data-ps-rule-field="allowance"]').first().inputValue(), '', 'Invalid blank survives validation rerender');
+  assert.equal((await policy(draftId)).rules[0].allowance, 2, 'Invalid staged allowance cannot change the active policy');
+  assert.equal((await policy(draftId)).version, originalVersion + 1);
+  await action('discard').click();
+  await page.fill('#ps-scoreThreshold', '-1');
+  await action('save-active').click();
+  assert.match(await page.locator('#ps-errors').innerText(), /threshold/i);
+  assert.equal((await policy(draftId)).scoreThreshold, 82);
+  await action('discard').click();
+  await page.locator('#ps-advanced > summary').click();
+  await page.fill('#ps-reminderDays', '3, 9');
+  await action('save-active').click();
+  assert.match(await page.locator('#ps-errors').innerText(), /reminder/i);
+  assert.equal((await policy(draftId)).version, originalVersion + 1);
+  await action('discard').click();
+
+  // Active configuration stages newly added rules; Discard and Save respect policy versions.
+  const beforeActiveRule = await policy(draftId);
+  const committedAdapters = await page.evaluate(id => eventTypeRules.filter(rule => rule.programId === id), draftId);
+  const activeRuleDefinition = { name: 'Residential speed exception', condition: 'Connected feed reports speed above the posted residential limit.', severity: 'High', allowance: 1 };
+  await openAddRule();
+  await fillRule(activeRuleDefinition);
+  await submitRule();
+  const discardedRule = (await previewPolicy(draftId)).rules.find(rule => rule.name === activeRuleDefinition.name);
+  assert.ok(discardedRule);
+  assert.deepEqual(await policy(draftId), beforeActiveRule, 'Adding a rule does not modify the committed active policy');
+  assert.deepEqual(await page.evaluate(id => eventTypeRules.filter(rule => rule.programId === id), draftId), committedAdapters, 'A staged new rule does not enter legacy event adapters');
+  await page.reload();
+  assert.deepEqual((await previewPolicy(draftId)).rules.find(rule => rule.ruleId === discardedRule.ruleId), discardedRule, 'Staged active additions survive reload without publishing');
+  await action('discard').click();
+  assert.deepEqual(await previewPolicy(draftId), beforeActiveRule, 'Discard removes the staged rule and preserves the active version');
+  assert.equal(await page.locator('[data-ps-rule="' + discardedRule.ruleId + '"]').count(), 0);
+
+  await openAddRule();
+  await fillRule(activeRuleDefinition);
+  await submitRule();
+  const committedRule = (await previewPolicy(draftId)).rules.find(rule => rule.name === activeRuleDefinition.name);
+  assert.notEqual(committedRule.ruleId, discardedRule.ruleId, 'A later creation receives a fresh stable ID');
+  await action('save-active').click();
+  const afterActiveRule = await policy(draftId);
+  assert.equal(afterActiveRule.version, beforeActiveRule.version + 1);
+  assert.deepEqual(afterActiveRule.rules.find(rule => rule.ruleId === committedRule.ruleId), committedRule);
+  assert.deepEqual(afterActiveRule.rules.filter(rule => rule.ruleId !== committedRule.ruleId), beforeActiveRule.rules, 'Publishing an addition preserves all existing rule mappings');
+  const customAdapter = await page.evaluate(({ id, ruleId }) => eventTypeRules.find(rule => rule.programId === id && rule.sourceRuleId === ruleId), { id: draftId, ruleId: committedRule.ruleId });
+  assert.equal(customAdapter.name, activeRuleDefinition.name);
+  assert.equal(customAdapter.condition, activeRuleDefinition.condition);
+  await page.reload();
+  assert.deepEqual((await policy(draftId)).rules.find(rule => rule.ruleId === committedRule.ruleId), committedRule, 'Published additions retain stable IDs after reload');
+
+  // Full four-step creation recommends a pool, offers preview, and activates under the fleet mode.
+  await configuration('all');
+  await page.locator('#program-page-panel [data-ps-start]').click();
+  await page.fill('#ps-name', 'Braking improvement');
+  await page.selectOption('#ps-behaviorId', 'braking');
+  await action('next').click();
+  await action('next').click();
+  assert.equal(await page.locator('[data-ps-course]:checked').count(), 3);
+  await action('next').click();
+  assert.match(await page.locator('#program-page-panel').innerText(), /Sample score 68\/100 is below the 75-point threshold/);
+  assert.equal(await page.evaluate(() => ProgramSetup.getPreviewPolicy('__new').behaviorId), 'braking');
+  await action('activate').click();
+  assert.equal((await policy('braking-improvement')).status, 'active');
+
+  // All-program content deduplicates shared courses while exposing both programs.
+  await page.goto(base + '/?program=all&programTab=content#programs');
+  const rows = await page.locator('#program-page-panel tbody tr th').allTextContents();
+  assert.equal(new Set(rows).size, rows.length);
+  const introTitle = await page.evaluate(() => Coaching.catalog.courses.find(course => course.id === 'speeding-course-1').title);
+  const introRow = page.locator('#program-page-panel tbody tr').filter({ has: page.getByRole('rowheader', { name: introTitle, exact: true }) });
+  assert.match(await introRow.innerText(), /Speeding/);
+  assert.match(await introRow.innerText(), /Safer night speeds/);
+
+  // The long configuration reflows at mobile and enlarged text without page-level overflow.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await configuration(draftId);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+  await openAddRule();
+  await fillRule({ name: 'Mobile draft', condition: 'A readable rule definition on a narrow screen.' });
+  assert.equal(await page.locator('#ps-add-rule-form').isVisible(), true);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'The inline Add rule form reflows on mobile');
+  const mobileRuleBeforeCancel = await policy(draftId);
+  await page.evaluate(() => document.documentElement.style.fontSize = '32px');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, '200% text stays inside the page with local table scrolling');
+  assert.equal(await page.locator('#ps-name').isVisible(), true);
+  assert.equal(await page.locator('#ps-rule-name').isVisible(), true, 'Add rule remains usable at 200% text zoom');
+  await action('cancel-rule').click();
+  await page.waitForFunction(() => document.activeElement.id === 'ps-add-rule-button');
+  assert.deepEqual(await policy(draftId), mobileRuleBeforeCancel, 'Cancelling the mobile form keeps committed mappings unchanged');
+  assert.deepEqual(errors, []);
+  console.log('Program configuration acceptance passed: migration, four-step setup, drafts, activation, versioned edits, stable mappings, inline rule creation and validation, local persistence and reflow.');
+} catch (error) {
+  console.error('Configuration failure at', page.url(), 'Page errors:', errors, 'Panel:', await page.locator('#program-page-panel').innerText().catch(() => 'unavailable'));
+  throw error;
+} finally { await browser.close(); }

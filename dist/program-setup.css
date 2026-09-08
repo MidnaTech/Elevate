@@ -1,0 +1,38 @@
+/* Program setup layout only; native controls, tables and surfaces use the shared library. */
+.ps-workspace { min-inline-size: 0; }
+.ps-workspace p { margin-block: 0; }
+.ps-workspace .caption { margin-block-start: var(--space-1); }
+.ps-section { display: grid; grid-template-columns: minmax(12rem, 0.7fr) minmax(0, 2fr); gap: var(--space-6); min-inline-size: 0; padding-block-end: var(--space-6); border-block-end: 1px solid var(--border); }
+.ps-section-intro, .ps-section-body { display: grid; gap: var(--space-4); min-inline-size: 0; align-content: start; }
+.ps-section-intro p { max-inline-size: 32ch; }
+.ps-section-body > .field { max-inline-size: 32rem; }
+.ps-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.ps-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; }
+.ps-field-note { align-self: center; }
+.ps-number { inline-size: 6rem; }
+.ps-rule-form:not([hidden]) { display: grid; gap: var(--space-4); }
+.ps-rule-form textarea { block-size: auto; min-block-size: 5rem; resize: vertical; }
+.ps-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); padding: 0; margin: 0; border: 0; }
+.ps-checks legend { margin-block-end: var(--space-2); }
+.ps-checks label { display: flex; gap: var(--space-2); align-items: center; min-block-size: var(--control-height); }
+.ps-course-pool { display: grid; border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; }
+.ps-series-list { display: grid; gap: var(--space-3); }
+.ps-course-option { display: flex; align-items: start; gap: var(--space-3); padding: var(--space-4); background: var(--surface); cursor: pointer; }
+.ps-course-option + .ps-course-option { border-block-start: 1px solid var(--border-soft); }
+.ps-course-option input { flex: 0 0 auto; margin-block-start: var(--space-1); }
+.ps-course-option > span { display: grid; gap: var(--space-2); min-inline-size: 0; }
+.ps-course-option .caption { margin: 0; }
+.ps-policy-summary { display: grid; gap: var(--space-2); }
+.ps-details-body { display: grid; gap: var(--space-4); padding-block: var(--space-4); }
+.ps-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); padding-block: var(--space-2); }
+.ps-steps { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; margin: 0; }
+.ps-steps li { min-inline-size: 0; }
+.ps-review-facts { display: grid; gap: var(--space-3); margin: 0; }
+.ps-review-facts > div { display: grid; grid-template-columns: minmax(8rem, 0.6fr) minmax(0, 2fr); gap: var(--space-4); }
+.ps-review-facts dt { font-weight: var(--weight-heading); }
+.ps-review-facts dd { margin: 0; }
+.ps-journey { display: grid; gap: var(--space-3); margin: 0; padding-inline-start: var(--space-5); }
+.ps-errors ul { margin-block-end: 0; padding-inline-start: var(--space-5); }
+#library-grid:has(.ps-workspace) { display: block; }
+@media (max-width: 70rem) { .ps-section { grid-template-columns: 1fr; } .ps-section-intro p { max-inline-size: none; } }
+@media (max-width: 40rem) { .ps-fields, .ps-checks, .ps-review-facts > div { grid-template-columns: 1fr; } .ps-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .ps-steps button { inline-size: 100%; justify-content: start; text-align: start; } .ps-footer { align-items: start; } .ps-footer .toolbar { inline-size: 100%; } }

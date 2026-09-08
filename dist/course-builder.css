@@ -1,0 +1,26 @@
+/* Course authoring layout; controls, tabs, surfaces and drawer geometry come from the shared library. */
+.cb-body, .cb-stack { display: grid; gap: var(--space-4); min-inline-size: 0; }
+.cb-body { gap: var(--space-6); }
+.cb-body p { margin-block: 0; }
+.cb-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; }
+.cb-heading, .cb-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.cb-heading > *, .cb-footer > * { min-inline-size: 0; }
+.cb-footer { border-block-start: 1px solid var(--border); padding-block-start: var(--space-4); }
+.cb-footer > div:first-child { flex: 1 1 20rem; }
+.cb-progression { display: grid; gap: var(--space-2); }
+.cb-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); padding: 0; border: 0; margin: 0; }
+.cb-template-option { display: flex; align-items: start; gap: var(--space-3); cursor: pointer; }
+.cb-template-option input { flex: 0 0 auto; }
+.cb-template-option > span { display: grid; gap: var(--space-2); min-inline-size: 0; }
+.cb-levels.segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex: 1 1 32rem; overflow: visible; }
+.cb-levels label { min-inline-size: 0; }
+.cb-levels .segmented__option { display: grid; inline-size: 100%; min-inline-size: 0; gap: var(--space-1); justify-content: start; text-align: start; }
+.cb-levels .caption { white-space: normal; overflow-wrap: anywhere; }
+.cb-lesson-section { padding-block-end: var(--space-4); border-block-end: 1px solid var(--border-soft); }
+.cb-question { display: grid; gap: var(--space-4); }
+.cb-template-save { padding-block-start: var(--space-4); border-block-start: 1px solid var(--border); }
+.cb-template-save-fields { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: end; }
+.cb-template-save-fields .field { flex: 1 1 18rem; }
+.cb-details { padding-block: var(--space-4); }
+.cb-errors ul { margin-block-end: 0; padding-inline-start: var(--space-5); }
+@media (max-width: 44rem) { .cb-fields, .cb-template-grid, .cb-levels.segmented { grid-template-columns: 1fr; } .cb-levels.segmented { flex-basis: 100%; } .cb-footer .toolbar { inline-size: 100%; } }

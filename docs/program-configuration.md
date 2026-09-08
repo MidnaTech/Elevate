@@ -3,6 +3,19 @@
 > Latest correction: Groups now lives under Drivers; Programmes has Activity, Learning, Configuration and Automation. Weekly coaching and attention share a 70/30 row, with the full attention list scrollable. This document contains earlier scope/history; the [full request audit](request-audit-2026-09-07.md) records current implementation and outstanding decisions. Historical descriptions of scoring or escalation are not proof of an operational engine.
 
 
+## Current implementation: guided setup and versioned policies
+
+Programs › Configuration and Programs › Learning are rendered by `dist/program-setup.js` (ported from `codex/automated-program-setup` on September 7, 2026). A program is a **policy** with a stable ID, behavior, connected rules (severity and tolerated event allowance), an assessment interval, a coaching score threshold (75 is an editable sample default), an approved course pool, a cycle limit and a coach. Policies live in `localStorage` under `elevate-program-policies-v1`; existing fixture programs and their `elevate-event-types` rules migrate additively on first load, and imported lesson metadata is preserved as incomplete courses.
+
+- **New program** (Configuration, or **Set up a program** on the Training library) opens a four-step setup: name and focus, connected rules, coaching plan, review and activate. The draft persists locally between steps.
+- A saved program has one editable Configuration page. Changes to an active program require **Save changes**, increment the policy version and apply to future work only.
+- Programs › Learning lists the approved course pool for the selected program with the same stable course IDs used in Configuration.
+- The **Training library** (navigation label; route `#learning`, `#content` remains an alias) lists courses and templates with behavior, level and readiness filters, course previews (lesson, video script, quiz, follow-up) and **Create course**, a template-first editor backed by `dist/course-authoring-store.js` (`elevate-course-authoring-v1`). **Use this series** on a program replaces its approved pool with the series' ordered levels.
+- `dist/coaching-engine.js` supplies the behavior, rule and course catalog and policy validation. Its scenario simulator and the Preview driver journey dialog are not wired into this build; nothing scores events, schedules work or contacts drivers.
+- Acceptance: `npm run test:config`, `npm run test:library`, `npm run test:authoring`; `npm test` covers the catalog and store.
+
+The per-rule weight, escalation and evaluation-period cards described below remain in `dist/programs.js` and `dist/program-policy.js` as data the one-on-one flow still reads, but they are no longer rendered on Configuration.
+
 Decided with Calvin on September 7, 2026 and refined in the same-day UI review with Jobin (see [meeting-2026-09-07-ui-decisions.md](meeting-2026-09-07-ui-decisions.md)). Replaces the read-only "shared draft proposal" that used to sit under Programs › Configuration, removes event types and coaching rules from the former Settings page, and moves the remaining fleet-wide automation settings to Programs › Automation.
 
 ## Model
@@ -91,4 +104,5 @@ No scoring engine runs. Rules, weights, thresholds and escalation settings are s
 - `dist/app.js`: `eventTypeRules` is the rule store; `reviewCandidates` is empty; automation mode and cadence draft state stay here and `renderSettings` re-renders the Automation tab.
 - `dist/components.js`: `uiSessionState` returns the single record state and reads "In progress" for automated sessions waiting on the driver.
 - `dist/session-workspace.js`: `sessionOpenReason`.
-- Acceptance: `npm run test:config` (`tests/program-configuration.mjs`).
+- `dist/program-setup.js`, `dist/training-library.js`, `dist/course-builder.js`, `dist/course-authoring-store.js`, `dist/coaching-engine.js`, `dist/speeding-course-pack.js`: guided setup, Training library and course authoring (see above).
+- Acceptance: `npm run test:config` (`tests/program-configuration.mjs`), `npm run test:library`, `npm run test:authoring`.

@@ -191,13 +191,20 @@ try {
   await page.selectOption('#program-page-select','all');
   assert.equal(new URL(page.url()).searchParams.get('program'),'all');
   assert.equal(await programPage.locator('#program-tab-configuration').getAttribute('aria-selected'),'true','Changing program scope retains Configuration');
-  const configurationRows=await programPage.locator('[data-program-configuration]').evaluateAll(rows=>rows.map(row=>[row.dataset.programConfiguration,Number(row.cells[1].textContent),Number(row.cells[2].textContent),row.cells[3].textContent,row.cells[4].textContent,Number(row.cells[5].textContent)]));
-  const configurationFacts=await page.evaluate(()=>categories.map(program=>{const cfg=programSettingFor(program.id);return [program.id,cfg.threshold,eventTypeRules.filter(rule=>rule.programId===program.id).length,programPolicyPeriodLabel(program.id),programCoachLabel(program),learningLessonsForProgram(program.id).length];}));
-  assert.deepEqual(configurationRows,configurationFacts,'All Configuration lists each program’s threshold, rules, escalation, coach and lesson mappings');
+  const configurationRows=await programPage.locator('#program-page-panel tbody tr').evaluateAll(rows=>rows.map(row=>[row.querySelector('[data-open-program-page]').dataset.openProgramPage,row.cells[1].textContent.trim(),Number(row.cells[2].textContent),row.cells[3].textContent,Number(row.cells[4].textContent),Number(row.cells[5].textContent),row.cells[6].textContent]));
+  const configurationFacts=await page.evaluate(()=>ProgramSetup.getPolicies().map(policy=>[policy.id,policy.status==='active'?'Active':'Draft',policy.scoreThreshold,'every '+policy.assessment.amount+' '+policy.assessment.unit,policy.rules.filter(rule=>rule.enabled).length,policy.courseIds.length,policy.coachMode==='group'?'By group':policy.coach||'Unassigned']));
+  assert.deepEqual(configurationRows,configurationFacts,'All Configuration lists each stable program ID, state, coaching threshold, independent assessment, enabled rules, approved course pool and manager');
+  assert.ok(configurationFacts.every(row=>row[5]===0),'Imported metadata is preserved separately and is not counted as an approved video-and-quiz course');
   await programPage.locator('#program-tab-content').click();
-  const allLessons=await programPage.locator('[data-program-lesson]').evaluateAll(rows=>rows.map(row=>[row.cells[0].textContent,row.cells[1].textContent]));
-  assert.deepEqual(allLessons,await page.evaluate(()=>lessons.filter(lesson=>learningMappings(lesson).length).map(lesson=>[lesson.title,learningMappings(lesson).map(mapping=>mapping.programName+' · Level '+mapping.level).join('')])),'All Content shows every source lesson once with its program');
-  const contentLink=programPage.locator('[data-program-lesson] [data-open-program-page]').first();
+  const allLessons=await programPage.locator('#program-page-panel tbody tr').evaluateAll(rows=>rows.map(row=>[row.cells[0].textContent,[...row.cells[1].querySelectorAll('[data-open-program-page]')].map(link=>link.dataset.openProgramPage),row.cells[2].textContent,row.cells[3].textContent,row.cells[4].textContent]));
+  const contentFacts=await page.evaluate(()=>{
+    const policies=ProgramSetup.getPolicies(),courses=ProgramSetup.getCourses();
+    const ids=[...new Set(policies.flatMap(policy=>[...policy.courseIds,...(policy.legacyCourseIds||[])]))];
+    return ids.map(id=>{const course=courses.find(item=>item.id===id);return [course.title,policies.filter(policy=>[...policy.courseIds,...(policy.legacyCourseIds||[])].includes(id)).map(policy=>policy.id),course.legacy?course.length:course.durationMinutes+' min video · '+course.questions.length+' questions',course.legacy?course.version:'v'+course.version,course.legacy?'Incomplete · no video or quiz':'Course preview · video unavailable'];});
+  });
+  assert.deepEqual(allLessons,contentFacts,'All Content shows each stable mapped course once, its program links, version and honest availability');
+  assert.equal(allLessons.length,await page.evaluate(()=>lessons.length),'Migration preserves every original lesson as incomplete metadata');
+  const contentLink=programPage.locator('#program-page-panel tbody [data-open-program-page]').first();
   const contentProgram=await contentLink.getAttribute('data-open-program-page');
   await contentLink.click();
   await assertFullPage(contentProgram);
@@ -284,19 +291,19 @@ try {
   await page.selectOption('#program-page-select','speeding');
 
   await programPage.locator('#program-tab-content').click();
-  const titles=await page.evaluate(()=>learningLessonsForProgram('speeding').map(lesson=>lesson.title));
-  assert.deepEqual(await programPage.locator('#program-page-panel table tbody tr td:first-child').allTextContents(),titles,'Only recorded mapped lesson metadata is shown');
+  const titles=await page.evaluate(()=>{const policy=ProgramSetup.getPolicy('speeding'),courses=ProgramSetup.getCourses();return [...policy.courseIds,...policy.legacyCourseIds].map(id=>courses.find(course=>course.id===id).title);});
+  assert.deepEqual(await programPage.locator('#program-page-panel table tbody tr th').allTextContents(),titles,'Selected Content follows stable course IDs and retains imported lesson metadata');
   assert.doesNotMatch(await programPage.locator('#program-page-panel').textContent(),/\d+%/,'Unlinked fixture completion percentages are omitted');
   await programPage.locator('#program-tab-configuration').click();
-  assert.equal(await programPage.locator('#program-configuration [data-program-threshold]').count(),1,'A program owns its coaching threshold');
-  assert.equal(await programPage.locator('#program-configuration [data-program-rule-field="severity"]').count(),2,'Each Speeding rule has an editable severity');
-  assert.equal(await programPage.locator('#program-configuration [data-program-rule-field="threshold"]').count(),2,'Each rule has its own threshold');
-  assert.equal(await programPage.locator('#program-configuration [data-program-rule-field="weight"]').count(),2,'Each rule has an editable weight');
-  assert.equal(await programPage.locator('#program-configuration [data-program-rule-field="direct"]').count(),2,'Each rule can escalate directly to a one-on-one');
-  assert.deepEqual(await programPage.locator('#program-configuration [data-program-escalation]').evaluateAll(nodes=>nodes.map(node=>node.dataset.programEscalation)),['minTrips'],'The previous minimum-trip exposure preference remains inside Evaluation details');
-  assert.match(await programPage.locator('#program-flow-copy').getAttribute('data-tooltip'),/below 75/,'Configuration explains what happens in plain language');
-  assert.deepEqual(await programPage.locator('[data-program-policy]').evaluateAll(nodes=>nodes.map(node=>node.dataset.programPolicy)),['basis','window','resetPeriods','graceDays','reminderCount'],'Programme configuration exposes its period, reset and completion policy');
-  assert.equal(await programPage.locator('#program-configuration [data-program-coach]').count(),1,'One-on-ones route to a named coach');
+  const speedPolicy=await page.evaluate(()=>ProgramSetup.getPolicy('speeding'));
+  assert.equal(await programPage.locator('[data-ps-field="scoreThreshold"]').inputValue(),String(speedPolicy.scoreThreshold),'A program owns its coaching threshold');
+  for(const rule of speedPolicy.rules){
+    assert.equal(await programPage.locator('[data-ps-rule="'+rule.ruleId+'"][data-ps-rule-field="severity"]').inputValue(),rule.severity,'Each preserved connected rule has an editable severity');
+    assert.equal(await programPage.locator('[data-ps-rule="'+rule.ruleId+'"][data-ps-rule-field="allowance"]').inputValue(),String(rule.allowance),'Each rule retains its own tolerated event count');
+    assert.equal(await programPage.locator('[data-ps-rule="'+rule.ruleId+'"][data-ps-rule-field="enabled"]').isChecked(),rule.enabled);
+  }
+  assert.match(await programPage.locator('#ps-review-title').locator('..').locator('..').textContent(),new RegExp('score below '+speedPolicy.scoreThreshold),'Configuration explains what happens in plain language');
+  assert.equal(await programPage.locator('[data-ps-field="coach"]').inputValue(),speedPolicy.coach,'Manager exceptions route to the configured coach');
   assert.equal(await programPage.locator('[data-bulk-training]').count(),0,'Program review has no bulk coaching action');
 
 

@@ -23,7 +23,7 @@ test('primary navigation is accessible and the retired search and Settings entri
   assert.match(html, /id="main-content"/);
   assert.doesNotMatch(html, /id="global-search-trigger"|id="global-search-dialog"/, 'The September 7 review removed the global search bar');
   assert.doesNotMatch(html, /data-view="settings"|id="view-settings"/, 'Automation settings live in Programs › Automation');
-  assert.match(html, /<a[^>]+data-view="library"[^>]+aria-label="Learning"/, 'Content is renamed Learning');
+  assert.match(html, /<a[^>]+data-view="library"[^>]+aria-label="Training library"/, 'Content is renamed Training library');
 
   for (const view of ['coaching', 'inbox', 'programs', 'drivers', 'library', 'driver']) {
     const navLink = new RegExp(`<a[^>]+data-view="${view}"[^>]+aria-label=`, 'i');
