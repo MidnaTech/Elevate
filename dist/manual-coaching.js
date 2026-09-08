@@ -1,6 +1,6 @@
 /* One-on-one sessions: one page to create, and the same page to edit. A draft is never a ledger
    record; evidence is linked only on Create. Layout mirrors the session workspace (header with
-   identity and actions, details on the left, evidence on the right). */
+   identity and actions, stacked details and expandable evidence rows). */
 let manualCoachingState = null;
 // The existing incident fixtures cover late August / early September 2026.
 // This is a labelled prototype calendar boundary, not a live programme evaluation.
@@ -60,8 +60,10 @@ function resetManualCoachingEvidence() {
   if (!manualCoachingState) return;
   const evidence = manualSuggestedEvents();
   manualCoachingState.selectedEvents = new Set(evidence.map(event => event.id));
-  manualCoachingState.previewId = evidence.find(event => eventClips(event).length)?.id || null;
+  manualCoachingState.previewId = null;
   manualCoachingState.clipId = null;
+  manualCoachingState.addedEvents = new Set();
+  manualCoachingState.picker = null;
 }
 
 function manualSuggestedEvents() {
@@ -100,7 +102,7 @@ function openManualCoaching(prefill = null) {
 function manualCoachingHeader() {
   const draft = manualCoachingState;
   const editing = manualEditingSession();
-  const ready = Boolean(manualCoachingDraft());
+  const ready = Boolean(manualCoachingDraft()) && !draft.picker;
   const program = categories.find(item => item.id === draft.programId);
   const context = editing
     ? 'One-on-one coaching · ' + editing.person + ' · opened by ' + (editing.owner || 'a manager')
@@ -121,14 +123,14 @@ function renderManualCoaching() {
   const names = [...new Set([draft.person, ...directory.map(driver => driver.name), ...sessions.map(session => session.person)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const coach = editing?.owner || currentManager.name;
   trainingDialog.querySelector('header').innerHTML = manualCoachingHeader();
-  trainingDialogContent.innerHTML = '<div class="sw-body manual-coaching-body">' +
-    '<section class="manual-coaching-scroll manual-coaching-details" aria-label="Session details"><div class="manual-field-grid">' +
+  trainingDialogContent.innerHTML = '<div class="manual-coaching-body">' +
+    '<section class="manual-coaching-details" aria-label="Session details"><div class="manual-field-grid">' +
       manualSelect('manual-driver-select', 'Driver', names.map(name => '<option' + (draft.person === name ? ' selected' : '') + '>' + escapeHtml(name) + '</option>').join(''), draft.person, { placeholder: 'Choose driver', disabled: Boolean(editing), help: editing ? 'Fixed once evidence is linked.' : '' }) +
       manualSelect('manual-category-select', 'Programme', categories.map(item => '<option value="' + escapeHtml(item.id) + '"' + (draft.programId === item.id ? ' selected' : '') + '>' + escapeHtml(item.name) + '</option>').join(''), draft.programId, { placeholder: 'Choose programme', disabled: Boolean(editing), help: editing ? 'Fixed once evidence is linked.' : '' }) +
       '<dl class="manual-coach-summary manual-field--full"><dt>Coach</dt><dd id="manual-coach-value">' + escapeHtml(coach) + (coach === currentManager.name ? ' <span class="caption">(you)</span>' : '') + '</dd></dl>' +
       (editing ? '<label class="field manual-field manual-field--full"><span class="field-label">Reason (optional)</span><textarea class="filter-control" id="manual-session-reason" rows="4" placeholder="What would you like to discuss?">' + escapeHtml(draft.reason) + '</textarea></label>' : '') +
     '</div></section>' +
-    '<aside class="drawer drawer--persistent sw-evidence-pane manual-evidence-pane" aria-label="Session evidence"><header class="drawer__header manual-evidence-header"><h3 class="drawer__title">Evidence</h3>' + (editing ? '' : '<button class="text-link" type="button" data-manual-browse-events' + (manualCoachingDraft() ? '' : ' disabled') + '>Add events</button>') + '</header><div class="drawer__body" id="manual-coaching-evidence"></div></aside></div>';
+    '<section class="manual-evidence-pane" aria-labelledby="manual-evidence-title"><header class="manual-evidence-header"><h3 class="section-title" id="manual-evidence-title">Evidence</h3>' + (editing ? '' : '<button class="text-link" type="button" data-manual-browse-events aria-expanded="' + Boolean(draft.picker) + '" aria-controls="manual-event-picker"' + (manualCoachingDraft() ? '' : ' disabled') + '>Add events</button>') + '</header><div id="manual-coaching-evidence"></div></section></div>';
   renderManualCoachingEvidence();
 }
 
@@ -139,8 +141,9 @@ function renderManualCoachingEvidence() {
   if (editing) {
     const linked = sessionEvidenceEvents(editing);
     host.innerHTML = linked.length
-      ? '<ul class="sw-clip-list manual-event-list">' + linked.map(event => '<li class="manual-event-readonly"><span class="sw-clip-title"><strong>' + escapeHtml(event.title) + '</strong><small>' + escapeHtml([event.time || 'Date unavailable', workspaceSelectionLabel([event])].join(' · ')) + '</small></span></li>').join('') + '</ul><p class="caption">Add or share more events from the session itself.</p>'
+      ? manualEvidenceTable(linked, { readOnly: true }) + '<p class="caption">Add or share more events from the session itself.</p>'
       : '<p class="caption">No events linked yet. Add events from the session itself.</p>';
+    mountWorkspaceMaps(host);
     return;
   }
   const session = manualCoachingDraft();
@@ -150,26 +153,94 @@ function renderManualCoachingEvidence() {
   const programmeEvents = manualSuggestedEvents();
   const groups = workspaceBreakdown(session, programmeEvents);
   const chosen = selectedWorkspaceEvents(session, draft.selectedEvents);
-  const visible = [...new Map([...programmeEvents, ...chosen].map(event => [event.id, event])).values()];
-  const rows = visible.map(event => '<li><label class="manual-event-selection"><input type="checkbox" data-manual-event="' + escapeHtml(event.id) + '" aria-label="Include ' + escapeHtml(event.title) + '"' + (draft.selectedEvents.has(event.id) ? ' checked' : '') + '></label><button type="button" data-manual-preview="' + escapeHtml(event.id) + '" aria-expanded="' + (draft.previewId === event.id) + '"><span class="sw-clip-title"><strong>' + escapeHtml(event.title) + '</strong><small>' + escapeHtml([event.time || 'Date unavailable', workspaceSelectionLabel([event]), !event.person ? 'Unassigned' : ''].filter(Boolean).join(' · ')) + '</small></span>' + uiIcon('chevron') + '</button></li>').join('');
-  const preview = visible.find(event => event.id === draft.previewId);
-  host.innerHTML = '<div class="stack program-section-stack manual-evidence-stack"><p class="caption">' + escapeHtml(session.category) + ' <button class="hint-trigger" type="button" aria-label="About programme evidence" data-tooltip="' + escapeHtml('Videos assigned to this driver and programme are selected automatically, including every camera clip. Non-video patterns use ' + window.label + '. ' + window.note) + '">' + uiIcon('info') + '</button></p>' +
+  const added = selectedWorkspaceEvents(session, draft.addedEvents || []);
+  const visible = [...new Map([...programmeEvents, ...added, ...chosen].map(event => [event.id, event])).values()];
+  host.innerHTML = '<div class="stack program-section-stack manual-evidence-stack">' +
     (groups.length ? '<details id="manual-evidence-breakdown"' + (draft.breakdownOpen ? ' open' : '') + '><summary>' + escapeHtml(session.category) + ' breakdown</summary><ul class="sw-breakdown">' + groups.map(group => '<li><b>' + group.count + '</b><span>' + escapeHtml(group.label) + '</span></li>').join('') + '</ul></details>' : '<p class="caption">No matching evidence for this driver and programme.</p>') +
-    (rows ? '<ul class="sw-clip-list manual-event-list">' + rows + '</ul>' : '') +
-    (preview ? '<div class="manual-evidence-preview">' + workspaceMedia(preview, 'manual', draft.clipId) + '</div>' : '') +
-    '<p class="caption" data-manual-selection-summary>' + escapeHtml(workspaceSelectionLabel(chosen)) + ' selected</p></div>';
-  if (preview) mountWorkspaceMaps(host);
+    (visible.length ? manualEvidenceTable(visible) : '') +
+    '<div class="manual-evidence-total"><span class="caption" role="status" data-manual-selection-summary>' + escapeHtml(workspaceSelectionLabel(chosen)) + ' selected</span><button class="hint-trigger" type="button" aria-label="About programme evidence" data-tooltip="' + escapeHtml('Videos assigned to this driver and programme are selected automatically, including every camera clip. Non-video patterns use ' + window.label + '. ' + window.note) + '">' + uiIcon('info') + '</button></div></div><div id="manual-event-picker"' + (draft.picker ? '' : ' hidden') + '></div>';
+  if (draft.picker) renderManualEventPicker();
+  mountWorkspaceMaps(host);
 }
 
 function openManualEvidenceBrowser(opener) {
   const session = manualCoachingDraft();
   if (!session) return;
-  openSessionEventBrowser(opener, {
-    session, eventId: manualCoachingState.previewId,
-    selectedEvents: manualCoachingState.selectedEvents,
-    filterEvent: event => event.categoryId === session.categoryId,
-    onApply: selection => { manualCoachingState.selectedEvents = selection; renderManualCoachingEvidence(); return document.querySelector('[data-manual-browse-events]'); }
+  if (manualCoachingState.picker) return closeManualEventPicker(false);
+  manualCoachingState.picker = { scope: 'driver', query: '', selected: new Set(), previewId: null, clipId: null };
+  trainingDialog.querySelector('header').innerHTML = manualCoachingHeader();
+  renderManualCoachingEvidence();
+  opener.setAttribute('aria-expanded', 'true');
+  document.getElementById('manual-event-search')?.focus();
+}
+
+function manualEvidenceTable(events, { picker = false, readOnly = false } = {}) {
+  const draft = manualCoachingState;
+  const state = picker ? draft.picker : draft;
+  const rows = events.map(event => {
+    const id = (picker ? 'manual-picker-row-' : 'manual-row-') + encodeURIComponent(event.id);
+    const included = !picker && readOnly || draft.selectedEvents.has(event.id);
+    const checked = picker ? included || state.selected.has(event.id) : included;
+    const expanded = state.previewId === event.id;
+    const selectAttr = picker ? 'data-manual-picker-select' : 'data-manual-event';
+    const previewAttr = picker ? 'data-manual-picker-preview' : 'data-manual-preview';
+    const select = '<label class="manual-event-selection"><input type="checkbox" ' + selectAttr + '="' + escapeHtml(event.id) + '" aria-label="' + escapeHtml((included && picker ? 'Already included: ' : 'Include ') + event.title) + '"' + (checked ? ' checked' : '') + (readOnly || picker && included ? ' disabled' : '') + '></label>';
+    return '<tr id="' + id + '" data-selected="' + checked + '"><td>' + select + '</td><td><button type="button" class="manual-event-toggle" ' + previewAttr + '="' + escapeHtml(event.id) + '" aria-expanded="' + expanded + '" aria-controls="' + id + '-detail">' + uiIcon('chevron') + '<span>' + escapeHtml(event.title) + '</span></button></td><td>' + escapeHtml(event.time || 'Date unavailable') + '</td><td class="num">' + eventClips(event).length + '</td></tr>' +
+      '<tr class="manual-evidence-expanded" id="' + id + '-detail" data-detail-for="' + id + '"' + (expanded ? '' : ' hidden') + '><td colspan="4">' + (expanded ? '<div class="manual-evidence-preview" role="region" aria-label="' + escapeHtml(event.title + ' evidence') + '">' + workspaceMedia(event, 'manual', state.clipId) + '</div>' : '') + '</td></tr>';
+  }).join('');
+  return '<div class="manual-evidence-table">' + uiTable(picker ? 'Available programme events' : 'Session evidence', ['', 'Event', 'Recorded', { label: 'Videos', numeric: true }], rows) + '</div>';
+}
+
+function manualPickerEvents() {
+  const session = manualCoachingDraft();
+  const picker = manualCoachingState?.picker;
+  if (!session || !picker) return [];
+  return availableEvidenceEvents(session, picker.scope).filter(event => event.categoryId === session.categoryId).filter(event =>
+    [event.title, event.eventType, event.time, event.location, event.vehicle, event.source].filter(Boolean).join(' ').toLowerCase().includes(picker.query.trim().toLowerCase()));
+}
+
+function renderManualEventPicker() {
+  const picker = manualCoachingState?.picker;
+  const host = document.getElementById('manual-event-picker');
+  if (!picker || !host) return;
+  host.hidden = false;
+  host.className = 'manual-event-picker';
+  host.setAttribute('role', 'region'); host.setAttribute('aria-labelledby', 'manual-picker-title');
+  host.innerHTML = '<header class="manual-picker-heading"><h3 class="section-title" id="manual-picker-title">Add events</h3><div class="manual-picker-actions"><button class="secondary-button" type="button" data-manual-picker-cancel>Cancel</button><button class="primary-button" type="button" data-manual-picker-apply disabled>Add selected</button></div></header>' +
+    '<div class="manual-picker-toolbar"><div class="view-tabs" role="tablist" aria-label="Event source">' + [['driver', 'This driver'], ['unassigned', 'Unassigned']].map(([scope, label]) => '<button class="view-tab" type="button" id="manual-picker-tab-' + scope + '" role="tab" data-manual-picker-scope="' + scope + '" aria-selected="' + (picker.scope === scope) + '" aria-controls="manual-event-results" tabindex="' + (picker.scope === scope ? 0 : -1) + '">' + label + '</button>').join('') + '</div><label class="search-control">' + searchGlyph + '<span class="sr-only">Search events</span><input id="manual-event-search" type="search" autocomplete="off" placeholder="Search events" value="' + escapeHtml(picker.query) + '"></label></div><div id="manual-event-results" role="tabpanel" aria-labelledby="manual-picker-tab-' + picker.scope + '"></div><p class="caption" id="manual-picker-selection" role="status"></p>';
+  renderManualEventResults();
+}
+
+function renderManualEventResults() {
+  const picker = manualCoachingState?.picker;
+  const results = document.getElementById('manual-event-results');
+  if (!picker || !results) return;
+  const events = manualPickerEvents();
+  results.innerHTML = events.length ? manualEvidenceTable(events, { picker: true }) : '<p class="manual-evidence-empty caption">No matching events.</p>';
+  updateManualPickerSelection();
+  mountWorkspaceMaps(results);
+}
+
+function updateManualPickerSelection() {
+  const picker = manualCoachingState?.picker;
+  if (!picker) return;
+  const selected = selectedWorkspaceEvents(manualCoachingDraft(), picker.selected).filter(event => event.categoryId === manualCoachingState.programId && !manualCoachingState.selectedEvents.has(event.id));
+  document.getElementById('manual-picker-selection').textContent = selected.length ? workspaceSelectionLabel(selected) + ' to add' : 'Select events to add.';
+  document.querySelector('[data-manual-picker-apply]').disabled = selected.length === 0;
+}
+
+function closeManualEventPicker(apply) {
+  const draft = manualCoachingState;
+  if (!draft?.picker) return;
+  if (apply) selectedWorkspaceEvents(manualCoachingDraft(), draft.picker.selected).filter(event => event.categoryId === draft.programId).forEach(event => {
+    draft.selectedEvents.add(event.id);
+    draft.addedEvents.add(event.id);
   });
+  draft.picker = null;
+  trainingDialog.querySelector('header').innerHTML = manualCoachingHeader();
+  renderManualCoachingEvidence();
+  const opener = document.querySelector('[data-manual-browse-events]');
+  opener?.setAttribute('aria-expanded', 'false'); opener?.focus({ preventScroll: true });
 }
 
 function readManualCoachingFields() {
@@ -205,7 +276,7 @@ function createManualCoaching() {
   const editing = manualEditingSession();
   if (editing) return saveManualCoachingEdits(editing);
   const proposed = manualCoachingDraft();
-  if (!draft || !proposed) return;
+  if (!draft || !proposed || draft.picker) return;
   readManualCoachingFields();
   const program = categories.find(item => item.id === draft.programId);
   const selected = selectedWorkspaceEvents(proposed, draft.selectedEvents);
@@ -253,10 +324,30 @@ document.addEventListener('change', event => {
   if (event.target.matches('[data-manual-event]')) {
     if (event.target.checked) manualCoachingState.selectedEvents.add(event.target.dataset.manualEvent);
     else manualCoachingState.selectedEvents.delete(event.target.dataset.manualEvent);
+    event.target.closest('tr').dataset.selected = String(event.target.checked);
     const summary = document.querySelector('[data-manual-selection-summary]');
     if (summary) summary.textContent = workspaceSelectionLabel(selectedWorkspaceEvents(manualCoachingDraft(), manualCoachingState.selectedEvents)) + ' selected';
   }
+  if (event.target.matches('[data-manual-picker-select]') && manualCoachingState.picker) {
+    const id = event.target.dataset.manualPickerSelect;
+    if (manualCoachingState.selectedEvents.has(id) || !manualPickerEvents().some(item => item.id === id)) return;
+    if (event.target.checked) manualCoachingState.picker.selected.add(id);
+    else manualCoachingState.picker.selected.delete(id);
+    event.target.closest('tr').dataset.selected = String(event.target.checked);
+    updateManualPickerSelection();
+  }
 });
+document.addEventListener('input', event => {
+  if (event.target.id !== 'manual-event-search' || !manualCoachingState?.picker) return;
+  manualCoachingState.picker.query = event.target.value;
+  renderManualEventResults();
+});
+document.addEventListener('cancel', event => {
+  if (event.target.id === 'training-dialog' && manualCoachingState?.picker) {
+    event.preventDefault();
+    closeManualEventPicker(false);
+  }
+}, true);
 document.addEventListener('close', event => {
   if (event.target.id === 'training-dialog' && !event.target.open) {
     const opener = manualCoachingState?.opener;
@@ -273,15 +364,40 @@ document.addEventListener('click', event => {
   if (edit && typeof activeSessionId !== 'undefined' && activeSessionId) { openManualCoaching({ editSessionId: activeSessionId }); return; }
   if (!manualCoachingState) return;
   if (event.target.closest('[data-manual-close]')) { trainingDialog.close(); return; }
+  if (event.target.closest('[data-manual-picker-cancel]')) { closeManualEventPicker(false); return; }
+  if (event.target.closest('[data-manual-picker-apply]')) { closeManualEventPicker(true); return; }
   const browse = event.target.closest('[data-manual-browse-events]');
-  if (browse) openManualEvidenceBrowser(browse);
+  if (browse) { openManualEvidenceBrowser(browse); return; }
+  const scope = event.target.closest('[data-manual-picker-scope]');
+  if (scope && manualCoachingState.picker) {
+    manualCoachingState.picker.scope = scope.dataset.manualPickerScope;
+    manualCoachingState.picker.previewId = null;
+    manualCoachingState.picker.clipId = null;
+    renderManualEventPicker();
+    document.getElementById('manual-picker-tab-' + scope.dataset.manualPickerScope)?.focus({ preventScroll: true });
+    return;
+  }
+  const pickerPreview = event.target.closest('[data-manual-picker-preview]');
+  if (pickerPreview && manualCoachingState.picker) {
+    const picker = manualCoachingState.picker;
+    picker.previewId = picker.previewId === pickerPreview.dataset.manualPickerPreview ? null : pickerPreview.dataset.manualPickerPreview;
+    picker.clipId = null;
+    renderManualEventResults();
+    [...document.querySelectorAll('[data-manual-picker-preview]')].find(node => node.dataset.manualPickerPreview === pickerPreview.dataset.manualPickerPreview)?.focus({ preventScroll: true });
+    return;
+  }
   const preview = event.target.closest('[data-manual-preview]');
   if (preview) {
     manualCoachingState.previewId = manualCoachingState.previewId === preview.dataset.manualPreview ? null : preview.dataset.manualPreview;
     manualCoachingState.clipId = null;
     renderManualCoachingEvidence();
-    document.querySelector('[data-manual-preview="' + preview.dataset.manualPreview + '"]')?.focus({ preventScroll: true });
+    [...document.querySelectorAll('[data-manual-preview]')].find(node => node.dataset.manualPreview === preview.dataset.manualPreview)?.focus({ preventScroll: true });
   }
   const camera = event.target.closest('[data-sw-camera][data-camera-context="manual"]');
-  if (camera) { manualCoachingState.clipId = camera.dataset.swCamera; renderManualCoachingEvidence(); }
+  if (camera) {
+    const inPicker = Boolean(camera.closest('#manual-event-picker'));
+    if (inPicker && manualCoachingState.picker) { manualCoachingState.picker.clipId = camera.dataset.swCamera; renderManualEventResults(); }
+    else { manualCoachingState.clipId = camera.dataset.swCamera; renderManualCoachingEvidence(); }
+    [...document.querySelectorAll('[data-sw-camera][data-camera-context="manual"]')].find(node => node.dataset.swCamera === camera.dataset.swCamera && Boolean(node.closest('#manual-event-picker')) === inPicker)?.focus({ preventScroll: true });
+  }
 });

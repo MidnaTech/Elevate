@@ -278,7 +278,10 @@ document.addEventListener('click', event => {
   table.querySelectorAll('[aria-sort]').forEach(node => node.setAttribute('aria-sort', 'none'));
   heading.setAttribute('aria-sort', descending ? 'descending' : 'ascending');
   const index = Number(button.dataset.tableSort);
-  const rows = [...table.tBodies[0].rows];
+  const allRows = [...table.tBodies[0].rows];
+  // Expanded evidence belongs to its source row, including while the table sorts.
+  const rows = allRows.filter(row => !row.dataset.detailFor);
+  const details = new Map(allRows.filter(row => row.dataset.detailFor).map(row => [row.dataset.detailFor, row]));
   const text = row => row.cells[index]?.textContent.trim().replace(/[−,]/g, match => match === '−' ? '-' : '') || '';
   const numeric = heading.classList.contains('num');
   const quantity = row => {
@@ -295,7 +298,10 @@ document.addEventListener('click', event => {
     }
     return text(a).localeCompare(text(b), undefined, { numeric: true }) * (descending ? -1 : 1);
   });
-  rows.forEach(row => table.tBodies[0].append(row));
+  rows.forEach(row => {
+    table.tBodies[0].append(row);
+    if (details.has(row.id)) table.tBodies[0].append(details.get(row.id));
+  });
 }, true);
 
 document.addEventListener('input', event => {
