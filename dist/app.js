@@ -1435,6 +1435,16 @@ const routeViewNames = {
   groups: 'groups', // Legacy route: opens Drivers › Groups
   library: 'learning'
 };
+// The lesson an automation-started session carries: the programme's produced course when one exists,
+// otherwise the imported lesson label. Keeps the draft, the session and the driver app in agreement.
+function draftCourse(category) { return typeof ProgramSetup !== 'undefined' ? ProgramSetup.courseForProgram(category.id) : null; }
+function draftLessonTitle(category) { const course = draftCourse(category); return course ? course.title : category.training; }
+function draftLessonLabel(category) {
+  const course = draftCourse(category);
+  if (!course) return category.training;
+  const seconds = course.videoSeconds || 0;
+  return course.title + ' · ' + (seconds % 60 === 0 ? seconds / 60 + ' min video' : seconds + ' sec video') + (course.questions?.length ? ' · ' + course.questions.length + '-question quiz' : '');
+}
 const internalViewNames = Object.fromEntries(Object.entries(routeViewNames).map(([internal, route]) => [route, internal]));
 internalViewNames.content = 'library'; // legacy route: Content is now Learning
 internalViewNames.settings = 'settings'; // legacy route: automation settings now live in Programs › Automation
@@ -2485,7 +2495,7 @@ function renderSessionComposer() {
         '</section>',
         '<section class="compose-section compose-options">',
           '<label><input type="checkbox" data-draft-option="requireResponse" ' + (sessionDraft.requireResponse ? 'checked' : '') + '><span><strong>Response required</strong><small>Keep the session open until the driver replies</small></span></label>',
-          '<label><input type="checkbox" data-draft-option="includeLesson" ' + (sessionDraft.includeLesson ? 'checked' : '') + '><span><strong>Include mapped lesson</strong><small>' + escapeHtml(activeCategory.training) + '</small></span></label>',
+          '<label><input type="checkbox" data-draft-option="includeLesson" ' + (sessionDraft.includeLesson ? 'checked' : '') + '><span><strong>Include mapped lesson</strong><small>' + escapeHtml(draftLessonLabel(activeCategory)) + '</small></span></label>',
           '<label><input type="checkbox" data-draft-option="trackOutcome" ' + (sessionDraft.trackOutcome ? 'checked' : '') + '><span><strong>Measure 14-day outcome</strong><small>Track the category after this follow-up</small></span></label>',
         '</section>',
       '</aside>',
@@ -2535,7 +2545,8 @@ function sendSessionDraft() {
     title: sessionDraft.title,
     method: sessionDraft.method,
     goal: sessionDraft.goal,
-    lesson: sessionDraft.includeLesson ? activeCategory.training : null,
+    lesson: sessionDraft.includeLesson ? draftLessonTitle(activeCategory) : null,
+    lessonId: sessionDraft.includeLesson ? (draftCourse(activeCategory)?.id || null) : null,
     state: 'system_handling',
     stateLabel: 'One-on-one',
     attentionReason: null,

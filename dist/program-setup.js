@@ -46,7 +46,7 @@
       }));
       const policy = Coaching.createPolicy(behavior?.id || 'speeding', {
         id: program.id, name: program.name, behaviorId: behavior?.id || '', status: 'draft',
-        rules: importedRules, courseIds: [], legacyCourseIds: mapped, imported: true,
+        rules: importedRules, courseIds: producedCourses(behavior?.id || '').map(course => course.id), legacyCourseIds: mapped, imported: true,
         scoreThreshold: cfg.threshold, coachMode: cfg.coachMode, coach: cfg.coach,
         groupCoaches: Object.fromEntries(groups().map(group => [group, cfg.coachMode === 'group' ? (cfg.groupCoaches?.[group] ?? '') : (cfg.groupCoaches?.[group] ?? cfg.coach)]))
       });
@@ -89,6 +89,19 @@
     persist();
   }
   function getCourses() { return [...catalog().courses, ...state.legacyCourses]; }
+  const byLevel = (a, b) => (a.level || 0) - (b.level || 0);
+  // Produced catalog courses (delivered video) for a behavior, lowest level first.
+  function producedCourses(behaviorId) { return catalog().courses.filter(course => course.behaviorId === behaviorId && course.videoUrl && !course.customSeriesId).sort(byLevel); }
+  // The course a driver in this program is assigned: the approved pool's lowest playable level,
+  // otherwise the produced course for the program's behavior. Null when nothing playable exists.
+  function courseForProgram(programId) {
+    init();
+    const policy = state.policies.find(item => item.id === programId);
+    if (!policy) return null;
+    const pool = policy.courseIds.map(courseFor).filter(course => course && course.videoUrl).sort(byLevel);
+    const course = pool[0] || producedCourses(policy.behaviorId)[0] || null;
+    return course ? copy(course) : null;
+  }
   function courseFor(id) { return getCourses().find(item => item.id === id); }
   function ruleFor(rule) { return catalog().rules.find(item => item.id === rule.ruleId) || rule; }
   function behaviorName(policy) { return catalog().behaviors.find(item => item.id === policy.behaviorId)?.name || 'Choose a behavior'; }
@@ -258,7 +271,7 @@
     return '<div class="stack ps-workspace"><div class="program-section-heading"><div><h2 class="section-title" id="ps-section-title" tabindex="-1">Automated programs</h2><p>Define the boundaries. Automation coaches drivers; managers handle exceptions.</p></div><button class="button button--primary" type="button" data-ps-start>New program</button></div>' +
       (state.wizard ? '<div class="card ps-section-heading"><div><strong>Continue setting up ' + h(state.wizard.policy.name || 'your program') + '</strong><p class="caption">Step ' + (state.wizard.step + 1) + ' of 4 · Draft saved locally</p></div><button class="button button--secondary" type="button" data-ps-start>Resume setup</button></div>' : '') +
       uiTable('Automated program configuration', ['Program', 'State', { label: 'Score threshold', numeric: true }, 'Assessment', { label: 'Rules', numeric: true }, { label: 'Courses', numeric: true }, 'Manager', 'Action'], rows) +
-      '<p class="caption">Imported programs keep their existing rules and content mappings. Review the recommended video-and-quiz courses before activating their new coaching workflow. Historical coaching records are unchanged.</p></div>';
+      '<p class="caption">Imported programs keep their existing rules and content mappings. Produced course videos for a program\'s behavior are approved from the start; review them before activating the new coaching workflow. Historical coaching records are unchanged.</p></div>';
   }
   function renderConfiguration(program) {
     init();
@@ -465,5 +478,5 @@
       persist(); redraw(errors.length ? 'ps-errors' : 'ps-section-title');
     }
   });
-  globalThis.ProgramSetup = { init, start, getPolicy, getPreviewPolicy, getPolicies, savePolicy, removePolicy, getCourses, renderConfiguration, renderContent, renderLibrary, libraryMetrics, validatePolicy: validate };
+  globalThis.ProgramSetup = { init, start, getPolicy, getPreviewPolicy, getPolicies, savePolicy, removePolicy, getCourses, courseForProgram, renderConfiguration, renderContent, renderLibrary, libraryMetrics, validatePolicy: validate };
 })();

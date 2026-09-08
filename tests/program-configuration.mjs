@@ -34,7 +34,7 @@ try {
   assert.equal(migration.legacyCourses.length, 6);
   assert.ok(migration.legacyCourses.every(course => !course.videoUrl && !course.questions.length), 'Legacy content remains incomplete');
   assert.equal((await policy('speeding')).status, 'draft');
-  assert.deepEqual((await policy('speeding')).courseIds, [], 'Migration does not invent ready media for legacy courses');
+  assert.deepEqual((await policy('speeding')).courseIds, ['speeding-course-1', 'speeding-course-2', 'speeding-course-3'], 'Imported programs start with their produced course videos approved; legacy courses stay separate');
   const initialRule = (await policy('speeding')).rules[0];
   assert.equal(initialRule.ruleId, 'speeding-50', 'Migration preserves connected rule IDs');
   assert.ok(initialRule.condition);
@@ -75,6 +75,10 @@ try {
   await page.waitForFunction(() => document.activeElement.id === 'ps-add-rule-button');
   const ruleNames = await page.locator('#ps-rules-title').locator('..').locator('..').locator('tbody th').allTextContents();
   assert.equal(ruleNames.filter(name => name.startsWith('Speeding over 80 km/h')).length, 1, 'Suggestions never duplicate a connected rule with the same name');
+  // Produced courses start approved; remove them to show that legacy metadata alone cannot activate.
+  assert.equal(await page.locator('[data-ps-course]:checked').count(), 3, 'The three produced speeding courses are approved from the start');
+  for (const id of ['speeding-course-1', 'speeding-course-2', 'speeding-course-3']) await page.locator('[data-ps-course="' + id + '"]').uncheck();
+  assert.deepEqual(await page.evaluate(() => ProgramSetup.getPreviewPolicy('speeding').courseIds), [], 'The pool can be emptied before activation');
   await action('activate').click();
   assert.match(await page.locator('#ps-errors').innerText(), /video-and-quiz/);
   await page.waitForFunction(() => document.activeElement.id === 'ps-errors');

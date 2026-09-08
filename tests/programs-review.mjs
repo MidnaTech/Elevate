@@ -194,7 +194,7 @@ try {
   const configurationRows=await programPage.locator('#program-page-panel tbody tr').evaluateAll(rows=>rows.map(row=>[row.querySelector('[data-open-program-page]').dataset.openProgramPage,row.cells[1].textContent.trim(),Number(row.cells[2].textContent),row.cells[3].textContent,Number(row.cells[4].textContent),Number(row.cells[5].textContent),row.cells[6].textContent]));
   const configurationFacts=await page.evaluate(()=>ProgramSetup.getPolicies().map(policy=>[policy.id,policy.status==='active'?'Active':'Draft',policy.scoreThreshold,'every '+policy.assessment.amount+' '+policy.assessment.unit,policy.rules.filter(rule=>rule.enabled).length,policy.courseIds.length,policy.coachMode==='group'?'By group':policy.coach||'Unassigned']));
   assert.deepEqual(configurationRows,configurationFacts,'All Configuration lists each stable program ID, state, coaching threshold, independent assessment, enabled rules, approved course pool and manager');
-  assert.ok(configurationFacts.every(row=>row[5]===0),'Imported metadata is preserved separately and is not counted as an approved video-and-quiz course');
+  assert.ok(configurationFacts.every(row=>row[0]==='speeding'?row[5]===3:row[5]===0),'Only the programme with produced course videos starts with an approved pool; imported metadata is never counted as an approved course');
   await programPage.locator('#program-tab-content').click();
   const allLessons=await programPage.locator('#program-page-panel tbody tr').evaluateAll(rows=>rows.map(row=>[row.cells[0].textContent,[...row.cells[1].querySelectorAll('[data-open-program-page]')].map(link=>link.dataset.openProgramPage),row.cells[2].textContent,row.cells[3].textContent,row.cells[4].textContent]));
   const contentFacts=await page.evaluate(()=>{
@@ -203,7 +203,8 @@ try {
     return ids.map(id=>{const course=courses.find(item=>item.id===id);return [course.title,policies.filter(policy=>[...policy.courseIds,...(policy.legacyCourseIds||[])].includes(id)).map(policy=>policy.id),course.legacy?course.length:course.durationMinutes+' min video · '+course.questions.length+' questions',course.legacy?course.version:'v'+course.version,course.legacy?'Incomplete · no video or quiz':course.videoUrl?'Video linked · quiz prepared':'Course preview · video unavailable'];});
   });
   assert.deepEqual(allLessons,contentFacts,'All Content shows each stable mapped course once, its program links, version and honest availability');
-  assert.equal(allLessons.length,await page.evaluate(()=>lessons.length),'Migration preserves every original lesson as incomplete metadata');
+  assert.equal(allLessons.filter(row=>/Incomplete/.test(row[4])).length,await page.evaluate(()=>lessons.length),'Migration preserves every original lesson as incomplete metadata');
+  assert.equal(allLessons.filter(row=>/Video linked/.test(row[4])).length,3,'The three produced speeding course videos are listed as approved content');
   const contentLink=programPage.locator('#program-page-panel tbody [data-open-program-page]').first();
   const contentProgram=await contentLink.getAttribute('data-open-program-page');
   await contentLink.click();

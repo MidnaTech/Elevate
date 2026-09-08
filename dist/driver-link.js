@@ -36,14 +36,7 @@
   }
   function courseLessonFor(categoryId) {
     if (typeof ProgramSetup === 'undefined') return null;
-    const policy = ProgramSetup.getPolicy(categoryId);
-    if (!policy) return null;
-    const courses = ProgramSetup.getCourses();
-    const byLevel = (a, b) => (a.level || 0) - (b.level || 0);
-    // Approved pool first; otherwise the produced course for the programme's behaviour, so a
-    // delivered video is never hidden behind imported lesson metadata.
-    const course = policy.courseIds.map((id) => courses.find((c) => c.id === id)).filter((c) => c && c.videoUrl).sort(byLevel)[0]
-      || courses.filter((c) => c.behaviorId === policy.behaviorId && c.videoUrl && !c.legacy && !c.customSeriesId).sort(byLevel)[0];
+    const course = ProgramSetup.courseForProgram(categoryId);
     return course ? courseLesson(course, (categories.find((c) => c.id === categoryId) || {}).name) : null;
   }
   function courseLibrary() {
@@ -54,7 +47,14 @@
   }
   function lessonFor(session) {
     if (session.lesson === null) return null;
-    if (session.lesson) return { title: session.lesson, length: (lessons.find((l) => l.title === session.lesson) || {}).length || '' };
+    // Manager-created one-on-ones carry no automated course unless one is named explicitly.
+    if (!session.lesson && session.origin === 'manual_override') return null;
+    if (session.lesson) {
+      // An explicitly named lesson that is a produced course carries that course's video and quiz.
+      const named = typeof ProgramSetup !== 'undefined' ? ProgramSetup.getCourses().find((c) => c.videoUrl && !c.legacy && (c.id === session.lessonId || c.title === String(session.lesson).replace(/ · .*$/, ''))) : null;
+      if (named) return courseLesson(named, session.category);
+      return { title: session.lesson, length: (lessons.find((l) => l.title === session.lesson) || {}).length || '' };
+    }
     const course = courseLessonFor(session.categoryId);
     if (course) return course;
     const lesson = lessons.find((l) => l.category === session.category);
@@ -116,7 +116,7 @@
       version: 1, defaultDriver: DEFAULT_DRIVER,
       today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
       programs: categories.map((c) => ({ id: c.id, name: c.name })),
-      lessons: courseLibrary().concat(lessons.map((l) => ({ title: l.title, category: l.category, length: l.length }))), drivers
+      lessons: (() => { const produced = courseLibrary(); const covered = new Set(produced.map((l) => l.category)); return produced.concat(lessons.filter((l) => !covered.has(l.category)).map((l) => ({ title: l.title, category: l.category, length: l.length }))); })(), drivers
     };
   }
   function publish(force) {
