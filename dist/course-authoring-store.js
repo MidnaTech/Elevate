@@ -32,6 +32,7 @@
     } catch (_) { storageAvailable = false; lastError = 'Browser storage is unavailable. Keep this page open to retain draft changes.'; return false; }
   }
   function urlValid(value) {
+    if (/^(\.{0,2}\/|media\/)\S+$/.test(value)) return true; // same-origin file shipped with the app, e.g. media/courses/…
     try { const parsed = new URL(value); return ['http:', 'https:'].includes(parsed.protocol) && !parsed.username && !parsed.password; } catch (_) { return false; }
   }
   function validate(series) {
@@ -51,7 +52,7 @@
       if (!positive(level.video?.seconds)) errors.push(label + ': set a positive video duration in seconds.');
       if (!['planned', 'url'].includes(level.video?.mode)) errors.push(label + ': choose a planned video or an existing video URL.');
       else if (level.video.mode === 'planned' && !text(level.video.script)) errors.push(label + ': add the script for the planned video.');
-      else if (level.video.mode === 'url' && !urlValid(text(level.video.url))) errors.push(label + ': provide an HTTP or HTTPS video URL without embedded credentials.');
+      else if (level.video.mode === 'url' && !urlValid(text(level.video.url))) errors.push(label + ': provide an HTTP or HTTPS video URL without embedded credentials, or a media path shipped with the app.');
       if (!Array.isArray(level.questions) || level.questions.length !== 3) { errors.push(label + ': include exactly three quiz questions.'); return; }
       level.questions.forEach((question, qIndex) => {
         const qLabel = label + ', question ' + (qIndex + 1);
@@ -125,7 +126,7 @@
       id: 'speeding-pack', name: 'Heavy-truck speeding', description: 'Adapt the supplied three-level course pack, including scripts, teaching and scenario questions.', builtin: true, behaviorId: 'speeding', source: clone(global.SpeedingCoursePack.source),
       levels: global.SpeedingCoursePack.levels.map(level => ({
         title: level.title, learningGoal: level.learningGoal, tip: level.level === 1 ? level.commitment.prompt : level.lesson[0].body,
-        video: { mode: 'planned', url: '', seconds: level.videoSeconds, script: level.transcript || level.scenes.map(scene => scene.voiceover).join('\n\n') },
+        video: { mode: level.media?.videoUrl ? 'url' : 'planned', url: level.media?.videoUrl || '', poster: level.media?.posterUrl || '', captions: level.media?.captionsUrl || '', seconds: level.videoSeconds, script: level.transcript || level.scenes.map(scene => scene.voiceover).join('\n\n') },
         lesson: clone(level.lesson), questions: (level.level === 3 ? [2, 3, 4] : [1, 2, 3]).map(number => { const q = clone(level.questions.find(question => question.id === 'L' + level.level + '-Q' + number)); q.sourceQuestionId = q.id; delete q.id; return q; }),
         commitment: clone(level.commitment)
       }))
@@ -205,7 +206,7 @@
       id: level.id, version: series.version, behaviorId: series.behaviorId, title: level.title, level: index + 1,
       custom: true, authored: true, customSeriesId: series.id, seriesId: series.id, seriesTitle: series.title, seriesLevelCount: series.levels.length, progression: 'ordered',
       focus: ['foundation', 'reinforcement', 'reflection'][index], ruleIds: global.Coaching.catalog.rules.filter(rule => rule.behaviorId === series.behaviorId).map(rule => rule.id),
-      durationMinutes: Number(level.video.seconds) / 60, videoSeconds: Number(level.video.seconds), videoUrl: planned ? null : text(level.video.url), previewOnly: planned,
+      durationMinutes: Number(level.video.seconds) / 60, videoSeconds: Number(level.video.seconds), videoUrl: planned ? null : text(level.video.url), posterUrl: planned ? null : text(level.video.poster || '') || null, captionsUrl: planned ? null : text(level.video.captions || '') || null, previewOnly: planned,
       summary: level.learningGoal, learningGoal: level.learningGoal, tip: level.tip, videoSummary: level.video.script || level.learningGoal,
       lesson: clone(level.lesson || []), questions: clone(level.questions), commitment: clone(level.commitment || { title: '', prompt: '' }), transcript: level.video.script || '', source: series.source ? { ...clone(series.source), adapted: true } : { title: 'Locally authored coaching series', version: String(series.version), mediaStatus: planned ? 'not-rendered' : 'url-supplied' }
     };

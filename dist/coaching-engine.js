@@ -85,6 +85,7 @@
       ...course, version: 2, title: sourceLevel.title,
       summary: sourceLevel.summary, learningGoal: sourceLevel.learningGoal,
       durationMinutes: sourceLevel.videoSeconds / 60, videoSeconds: sourceLevel.videoSeconds,
+      videoUrl: sourceLevel.media?.videoUrl || null, posterUrl: sourceLevel.media?.posterUrl || null, captionsUrl: sourceLevel.media?.captionsUrl || null, previewOnly: !sourceLevel.media?.videoUrl,
       estimatedDuration: sourceLevel.estimatedDuration,
       tip: (course.level === 1 ? sourceLevel.commitment?.prompt : sourceLevel.lesson?.[0]?.body) || course.tip,
       videoSummary: sourceLevel.summary,

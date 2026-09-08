@@ -109,8 +109,13 @@ try {
   await page.keyboard.press('Enter');
   assert.equal(await dialog.locator('[data-tl-tab="video"]').getAttribute('aria-selected'), 'true', 'Enter activates the focused course tab');
   assert.match(await dialog.locator('#tc-panel').innerText(), /scene|storyboard|narration/i, 'The video tab exposes the authored video plan');
-  assert.match(await dialog.locator('#tc-panel').innerText(), /not .*render|not .*supplied|not produced|no playable|unavailable|video.*production|storyboard/i, 'A storyboard is not presented as a playable finished video');
-  assert.equal(await dialog.locator('video[src], video source[src]').count(), 0, 'Missing video media is never invented');
+  const courseVideo = dialog.locator('video#tc-video');
+  assert.equal(await courseVideo.count(), 1, 'The delivered Level 1 course video is playable from the preview');
+  assert.match(await courseVideo.getAttribute('src'), /media\/courses\/speeding\/speeding-level-1\.mp4$/, 'The player uses the local delivered file, not an invented source');
+  assert.match(await courseVideo.getAttribute('poster'), /speeding-level-1\.jpg$/, 'The delivered cover is the poster');
+  assert.equal(await courseVideo.locator('track[kind="captions"]').count(), 1, 'Captions ship as a WebVTT track');
+  assert.equal(await courseVideo.evaluate(node => node.autoplay || !node.paused), false, 'Nothing plays until the driver chooses Play');
+  assert.doesNotMatch(await dialog.locator('#tc-panel').innerText(), /not produced|no playable|unavailable/i, 'Linked media is not described as missing');
   await selectTab('quiz');
   assert.equal(await dialog.locator('#tc-quiz-form fieldset').count(), firstCourse.questions.length, 'Preview uses the same canonical short quiz as driver coaching');
   for (const [index, question] of firstCourse.questions.entries()) {

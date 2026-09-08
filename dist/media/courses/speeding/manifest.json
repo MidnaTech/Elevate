@@ -1,0 +1,70 @@
+{
+  "title": "Heavy-Truck Speeding: Three Escalating Courses",
+  "narrator": "Emily",
+  "masterResolution": "2560x1440",
+  "aspectRatio": "16:9",
+  "captions": "Burned into the video; matching WebVTT tracks supplied for accessibility and search",
+  "levels": [
+    {
+      "level": 1,
+      "courseId": "speeding-course-1",
+      "title": "Reset your speed",
+      "seconds": 60,
+      "video": "speeding-level-1.mp4",
+      "poster": "speeding-level-1.jpg",
+      "captions": "speeding-level-1.vtt",
+      "masters": {
+        "captioned": "https://d2ol7oe51mr4n9.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/0bc49144-9a44-4c9b-a50b-ed8ac50f02cc.mp4",
+        "clean": "https://d2ol7oe51mr4n9.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/f1b79e02-5d05-4c6f-8371-463bddc1df20.mp4",
+        "cover": "https://d8j0ntlcm91z4.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/hf_20260907_223733_fb87390e-2632-45a9-9392-acff33be6c6a.png",
+        "productionReceipts": "https://d2ol7oe51mr4n9.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/2407fc80-0ff8-4a8b-a592-bce677e94949.zip"
+      }
+    },
+    {
+      "level": 2,
+      "courseId": "speeding-course-2",
+      "title": "Understand the consequences",
+      "seconds": 90,
+      "video": "speeding-level-2.mp4",
+      "poster": "speeding-level-2.jpg",
+      "captions": "speeding-level-2.vtt",
+      "masters": {
+        "captioned": "https://d2ol7oe51mr4n9.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/4204fea3-ad82-498c-ad8d-b542e76b5b33.mp4",
+        "clean": "https://d2ol7oe51mr4n9.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/023e17fe-7b9d-4b93-ae8f-14a51bc42d19.mp4",
+        "cover": "https://d8j0ntlcm91z4.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/hf_20260907_223733_c44164d5-b1aa-43ad-8868-a156997f65fe.png",
+        "productionReceipts": "https://d2ol7oe51mr4n9.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/ad1f6592-cd39-43f1-b1ea-c32c33d1f495.zip"
+      }
+    },
+    {
+      "level": 3,
+      "courseId": "speeding-course-3",
+      "title": "Make the safer decision",
+      "seconds": 120,
+      "video": "speeding-level-3.mp4",
+      "poster": "speeding-level-3.jpg",
+      "captions": "speeding-level-3.vtt",
+      "masters": {
+        "captioned": "https://d2ol7oe51mr4n9.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/a95444f0-87aa-419e-8d07-596ce2440a7e.mp4",
+        "clean": "https://d2ol7oe51mr4n9.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/6b85a7c0-8166-4d97-ba04-2a7815cd37dd.mp4",
+        "cover": "https://d8j0ntlcm91z4.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/hf_20260907_223734_60ea1e53-8c66-485a-9a88-defe6aa23c22.png",
+        "productionReceipts": "https://d2ol7oe51mr4n9.cloudfront.net/user_3IjzpBBrQS3j6TsYfaiGuWTL67W/5f9f8ce5-0574-4b0b-bb7a-cdb1c42552b4.zip"
+      }
+    }
+  ],
+  "sources": [
+    "https://www.fmcsa.dot.gov/safespeed",
+    "https://www.fmcsa.dot.gov/safety/driver-safety/cmv-driving-tips-too-fast-conditions",
+    "https://www.fmcsa.dot.gov/safety/driver-safety/cmv-driving-tips-following-too-closely",
+    "https://tc.canada.ca/en/road-transportation/stay-safe-when-driving/winter-driving/driving-safely-winter",
+    "https://www.ontario.ca/document/official-air-brake-handbook/demands-brakes-while-driving",
+    "https://www.icbc.com/assets/en/3ZRN0guL3MkbgvZvTCBfbu/drive_commercial_veh_full.pdf",
+    "https://www.ontario.ca/document/official-ministry-transportation-mto-truck-handbook/use-brakes",
+    "https://www.fmcsa.dot.gov/ourroads/tips-truck-and-bus-drivers",
+    "https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/conservation-of-energy/",
+    "https://www.fmcsa.dot.gov/safety/driver-safety/cmv-driving-tips-unfamiliar-roadway",
+    "https://www.ontario.ca/document/official-ministry-transportation-mto-truck-handbook/driving-night-and-bad-weather",
+    "https://www.ontario.ca/document/official-ministry-transportation-mto-truck-handbook/stopping"
+  ],
+  "receivedOn": "2026-09-08",
+  "from": "Desktop/videos (videos.zip)"
+}

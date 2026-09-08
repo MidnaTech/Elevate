@@ -34,7 +34,7 @@ test('templates provide independent three-level, source-backed and blank startin
   assert.equal(source.levels.length, 3); assert.deepEqual(plain(source.levels.map(level => level.questions.length)), [3, 3, 3]);
   assert.deepEqual(plain(source.levels[2].questions.map(q => q.sourceQuestionId)), ['L3-Q2', 'L3-Q3', 'L3-Q4']);
   assert.ok(source.levels[2].questions.every(q => q.critical));
-  assert.ok(source.levels.every(level => level.video.script && level.video.mode === 'planned'));
+  assert.ok(source.levels.every(level => level.video.script && level.video.mode === 'url' && level.video.url.startsWith('media/courses/speeding/') && level.video.poster && level.video.captions), 'The delivered course videos are linked into the pack template');
   assert.notEqual(source.id, second.id); assert.notEqual(source.levels[0].id, second.levels[0].id); assert.notEqual(source.levels[0].questions[0].id, second.levels[0].questions[0].id);
   source.levels[0].title = 'Changed outside the store'; assert.equal(second.levels[0].title, 'Reset your speed'); assert.equal(S.get(source.id).levels[0].title, 'Reset your speed');
   assert.equal(C.catalog.courses.length, 30); assert.equal(S.getPublishedCourses().length, 0);

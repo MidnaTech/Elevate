@@ -138,7 +138,10 @@
   // The Elevate Learning library. Linked mode replaces it with the workspace's published lessons.
   const LIBRARY = [
     { title: 'Following Distance Basics', category: 'Following distance', length: '2 min video' },
-    { title: 'Managing Speed', category: 'Speeding', length: '3 min video' },
+    // Delivered heavy-truck speeding course videos (dist/media/courses/speeding).
+    { title: 'Reset your speed', category: 'Speeding', length: '1 min video', videoUrl: '../media/courses/speeding/speeding-level-1.mp4', posterUrl: '../media/courses/speeding/speeding-level-1.jpg', captionsUrl: '../media/courses/speeding/speeding-level-1.vtt', lede: 'Level 1. Check limits and conditions, adjust early, restore space.' },
+    { title: 'Understand the consequences', category: 'Speeding', length: '90 sec video', videoUrl: '../media/courses/speeding/speeding-level-2.mp4', posterUrl: '../media/courses/speeding/speeding-level-2.jpg', captionsUrl: '../media/courses/speeding/speeding-level-2.vtt', lede: 'Level 2. What extra speed costs a heavy truck in stopping distance, control and time.' },
+    { title: 'Make the safer decision', category: 'Speeding', length: '2 min video', videoUrl: '../media/courses/speeding/speeding-level-3.mp4', posterUrl: '../media/courses/speeding/speeding-level-3.jpg', captionsUrl: '../media/courses/speeding/speeding-level-3.vtt', lede: 'Level 3. Pause and choose: safer judgment under schedule pressure.' },
     { title: 'Anticipation & Space', category: 'Harsh braking', length: '2 min video' },
     { title: 'Eyes Forward', category: 'Distracted driving', length: '2 min video' },
     { title: 'Buckle Every Trip', category: 'Seat belt use', length: '90 sec video' },
@@ -241,7 +244,7 @@
         clip: videoEv ? { kind: 'video', label: 'Event clip · ' + (videoEv.duration || ''), cam: 'Forward camera', time: '0:00 / ' + (videoEv.duration || '0:00'), note: videoEv.title + ' · ' + videoEv.meta, footnote: 'Clips cover the seconds either side of a flagged event. Nothing outside that window is kept.' }
           : ev ? { kind: 'pattern', title: ev.title, meta: ev.meta + (ev.duration ? ' · ' + ev.duration : ''), footnote: 'This session is based on a telematics pattern, so there is no camera clip to review.' } : null,
         map: ev && ev.location ? { place: ev.location } : null, speedChart: false, tips: null,
-        lesson: s.lesson ? { title: s.lesson.title, length: s.lesson.length || '', lede: 'The lesson your fleet mapped to ' + s.category.toLowerCase() + '. Watch it, then mark the session reviewed.' } : null,
+        lesson: s.lesson ? { title: s.lesson.title, length: s.lesson.length || '', videoUrl: s.lesson.videoUrl || '', posterUrl: s.lesson.posterUrl || '', captionsUrl: s.lesson.captionsUrl || '', lede: (s.lesson.videoUrl ? 'The course your fleet approved for ' : 'The lesson your fleet mapped to ') + s.category.toLowerCase() + '. Watch it, then mark the session reviewed.' } : null,
         coachNote: managerMsgs.length ? managerMsgs[managerMsgs.length - 1].text : '',
         category: s.category, categoryId: s.categoryId, raw: s, coach
       };
@@ -572,16 +575,19 @@
     const s = standalone ? null : (m.sessions.find((x) => x.id === state.sessionId) || m.sessions.find((x) => x.lesson) || m.sessions[0]);
     const lib = standalone ? (m.lessons || []).find((l) => l.title === state.lessonTitle) : null;
     const lesson = lib
-      ? { title: lib.title, length: lib.length, lede: [lib.category, lib.length].filter(Boolean).join(' · ') + '. Watch it any time; nothing is assigned or recorded.' }
+      ? { title: lib.title, length: lib.length, videoUrl: lib.videoUrl, posterUrl: lib.posterUrl, captionsUrl: lib.captionsUrl, lede: [lib.category, lib.length].filter(Boolean).join(' · ') + '. Watch it any time; nothing is assigned or recorded.' }
       : (s && s.lesson) || { title: 'Reading a school zone early', length: '3 min', lede: 'Three minutes on the cues that show up before the sign does, and how to carry less speed into the turn.' };
+    const realVideo = Boolean(lesson.videoUrl);
     const secs = Math.round(180 * state.progress / 100);
     const elapsed = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
     const done = standalone ? Boolean(state.watched[lesson.title]) : s ? Boolean(state.lessonDone[s.id]) : false;
     const chapters = m.chapters.map(([time, title, upTo]) => { const on = state.progress >= upTo - 34 && state.progress < upTo + 2; return '<div class="chapter' + (on ? ' is-on' : '') + '"><small class="num">' + time + '</small><span>' + esc(title) + '</span></div>'; }).join('');
     return '<div class="overlay player" role="dialog" aria-label="Lesson player"><div class="player-top"><button class="close" type="button" data-act="close-player">Close</button><span class="eyebrow">' + (standalone ? 'From the library' : m.linked ? 'Assigned lesson' : 'Lesson 2 of 4') + '</span></div>' +
-      '<div class="video"><button class="play-toggle" type="button" data-act="toggle-play" aria-label="' + (state.playing ? 'Pause' : 'Play') + '" aria-pressed="' + state.playing + '">' + (state.playing ? '<span class="pause" aria-hidden="true"><i></i><i></i></span>' : '<span class="play" aria-hidden="true"></span>') + '</button><span class="tag">Video placeholder</span></div>' +
-      '<div class="progress"><div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + state.progress + '"><i style="width:' + state.progress + '%"></i></div><div class="times"><span>' + elapsed + '</span><span>3:00</span></div></div>' +
-      '<div class="player-body"><h1 class="title">' + esc(lesson.title) + '</h1><p class="lede">' + esc(lesson.lede || ('Assigned for ' + (s ? s.title.toLowerCase() : 'this session') + '.')) + '</p><div class="chapters">' + chapters + '</div>' +
+      (realVideo
+        ? '<div class="video video--real"><video class="lesson-video" controls playsinline preload="metadata"' + (lesson.posterUrl ? ' poster="' + esc(lesson.posterUrl) + '"' : '') + ' aria-label="' + esc(lesson.title + ' course video') + '" src="' + esc(lesson.videoUrl) + '">' + (lesson.captionsUrl ? '<track kind="captions" srclang="en" label="English" src="' + esc(lesson.captionsUrl) + '">' : '') + '</video></div>'
+        : '<div class="video"><button class="play-toggle" type="button" data-act="toggle-play" aria-label="' + (state.playing ? 'Pause' : 'Play') + '" aria-pressed="' + state.playing + '">' + (state.playing ? '<span class="pause" aria-hidden="true"><i></i><i></i></span>' : '<span class="play" aria-hidden="true"></span>') + '</button><span class="tag">Video placeholder</span></div>' +
+          '<div class="progress"><div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + state.progress + '"><i style="width:' + state.progress + '%"></i></div><div class="times"><span>' + elapsed + '</span><span>3:00</span></div></div>') +
+      '<div class="player-body"><h1 class="title">' + esc(lesson.title) + '</h1><p class="lede">' + esc(lesson.lede || ('Assigned for ' + (s ? s.title.toLowerCase() : 'this session') + '.')) + '</p>' + (realVideo ? '<p class="lede">' + esc(lesson.length || '') + (lesson.captionsUrl ? ' · Captions on screen and in the player.' : '') + '</p>' : '<div class="chapters">' + chapters + '</div>') +
       (s && s.coachNote ? '<div class="notes-card"><span class="eyebrow">Notes from ' + esc(m.coach.name) + '</span><p>' + esc(s.coachNote) + '</p></div>' : '') +
       '<button class="btn btn--accent' + (done ? ' is-done' : '') + '" type="button" data-act="complete-lesson" data-id="' + esc(s ? s.id : '') + '" data-title="' + esc(standalone ? lesson.title : '') + '">' + (done ? (standalone ? 'Watched · back to Learn' : m.linked ? 'Watched · back to session' : 'Completed · back to session') : (standalone ? 'Mark as watched' : m.linked ? 'Mark watched · prototype' : 'Mark lesson complete')) + '</button></div></div>';
   }
@@ -792,6 +798,7 @@
     const handler = actions[el.dataset.act];
     if (handler) { event.preventDefault(); handler(el); }
   });
+  app.addEventListener('ended', (event) => { if (event.target.matches('.lesson-video')) { state.progress = 100; state.playing = false; } }, true);
   app.addEventListener('submit', (event) => { if (event.target.matches('[data-act="send-form"]')) { event.preventDefault(); send(); } });
   app.addEventListener('input', (event) => { if (event.target.id === 'draft') state.draft = event.target.value; });
 

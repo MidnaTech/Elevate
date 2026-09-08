@@ -24,9 +24,34 @@
     const owner = list.map((s) => s.owner).find((o) => o && !/automation|unassigned|manager/i.test(o)) || 'Alex Kim';
     return { name: owner, initials: initials(owner) };
   }
+  /* Course videos approved for a programme (ProgramSetup policy pool) become the driver's
+     playable lesson. URLs are made absolute so the embedded driver app can load them. */
+  const absoluteUrl = (path) => path ? new URL(path, window.location.href).href : '';
+  const lengthLabel = (seconds) => !seconds ? '' : seconds % 60 === 0 ? (seconds / 60) + ' min video' : seconds + ' sec video';
+  function courseLesson(course, category) {
+    const seconds = course.videoSeconds || Math.round((course.durationMinutes || 0) * 60);
+    return { title: course.title, length: lengthLabel(seconds), category: category || '', courseId: course.id, level: course.level || null, seconds,
+      videoUrl: absoluteUrl(course.videoUrl), posterUrl: absoluteUrl(course.posterUrl), captionsUrl: absoluteUrl(course.captionsUrl), lede: course.summary || '' };
+  }
+  function courseLessonFor(categoryId) {
+    if (typeof ProgramSetup === 'undefined') return null;
+    const policy = ProgramSetup.getPolicy(categoryId);
+    if (!policy) return null;
+    const courses = ProgramSetup.getCourses();
+    const course = policy.courseIds.map((id) => courses.find((c) => c.id === id)).filter((c) => c && c.videoUrl).sort((a, b) => (a.level || 0) - (b.level || 0))[0];
+    return course ? courseLesson(course, (categories.find((c) => c.id === categoryId) || {}).name) : null;
+  }
+  function courseLibrary() {
+    if (typeof ProgramSetup === 'undefined') return [];
+    const behaviors = (typeof Coaching !== 'undefined' && Coaching.catalog.behaviors) || [];
+    return ProgramSetup.getCourses().filter((c) => c.videoUrl && !c.legacy).sort((a, b) => (a.level || 0) - (b.level || 0))
+      .map((c) => courseLesson(c, (categories.find((item) => item.id === c.behaviorId) || behaviors.find((item) => item.id === c.behaviorId) || {}).name || c.behaviorId));
+  }
   function lessonFor(session) {
     if (session.lesson === null) return null;
     if (session.lesson) return { title: session.lesson, length: (lessons.find((l) => l.title === session.lesson) || {}).length || '' };
+    const course = courseLessonFor(session.categoryId);
+    if (course) return course;
     const lesson = lessons.find((l) => l.category === session.category);
     return lesson ? { title: lesson.title, length: lesson.length } : null;
   }
@@ -86,7 +111,7 @@
       version: 1, publishedAt: new Date().toISOString(), defaultDriver: DEFAULT_DRIVER,
       today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
       programs: categories.map((c) => ({ id: c.id, name: c.name })),
-      lessons: lessons.map((l) => ({ title: l.title, category: l.category, length: l.length })), drivers
+      lessons: courseLibrary().concat(lessons.map((l) => ({ title: l.title, category: l.category, length: l.length }))), drivers
     };
   }
   function publish(force) {

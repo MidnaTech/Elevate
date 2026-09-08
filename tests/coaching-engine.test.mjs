@@ -19,8 +19,8 @@ test('catalog has stable behavior/rule/course identifiers and honest complete sa
   assert.equal(new Set(C.catalog.courses.map(course => course.id)).size, 30);
   for (const course of C.catalog.courses) {
     assert.equal(course.questions.length, 3);
-    assert.equal(course.previewOnly, true);
-    assert.equal(course.videoUrl, null);
+    if (course.behaviorId === 'speeding') { assert.equal(course.previewOnly, false); assert.match(course.videoUrl, /^media\/courses\/speeding\/speeding-level-[123]\.mp4$/); }
+    else { assert.equal(course.previewOnly, true); assert.equal(course.videoUrl, null); }
     assert.equal(new Set(course.questions.map(question => question.correctIndex)).size, 3);
     assert.ok(course.questions.every(question => question.explanation && question.options[question.correctIndex]));
   }
@@ -40,7 +40,7 @@ test('heavy-truck source content versions the existing speeding courses while re
     assert.deepEqual(course.lesson, level.lesson); assert.deepEqual(course.commitment, level.commitment);
     assert.deepEqual(course.questions.map(question => question.id), selectedIds[index]);
     assert.deepEqual(course.questions, selectedIds[index].map(id => level.questions.find(question => question.id === id)));
-    assert.equal(course.videoUrl, null); assert.equal(course.previewOnly, true);
+    assert.equal(course.videoUrl, level.media.videoUrl); assert.equal(course.posterUrl, level.media.posterUrl); assert.equal(course.captionsUrl, level.media.captionsUrl); assert.equal(course.previewOnly, false);
     assert.ok(course.questions.every(question => question.feedback.length === question.options.length));
     assert.notEqual(course.questions[0], level.questions.find(question => question.id === selectedIds[index][0]), 'Catalog content is isolated from the source bank');
   }

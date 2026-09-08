@@ -64,7 +64,7 @@ try {
   await page.locator('.tab', { hasText: 'Learn' }).click();
   assert.equal(await heading(), 'Learn', 'Learn is a learning module, not a direct jump into one video');
   assert.equal(await page.locator('.lesson-row').count(), 1, 'The assigned lesson comes first');
-  assert.equal(await page.locator('.lesson-lib').count(), 6, 'The whole Elevate lesson library is browsable');
+  assert.equal(await page.locator('.lesson-lib').count(), 8, 'The whole Elevate lesson library is browsable, including the three delivered speeding course videos');
   await page.locator('.lesson-lib', { hasText: 'Eyes Forward' }).click();
   assert.equal(await page.locator('.player .title').textContent(), 'Eyes Forward');
   assert.equal(await page.locator('.player .eyebrow').textContent(), 'From the library');
@@ -116,13 +116,22 @@ try {
   assert.equal(await frame.locator('.score-num').first().textContent(), '58', 'The phone shows the Elevate score');
   assert.equal(await frame.locator('.stat-pair').count(), 0, 'Streaks stay hidden without trip exposure data');
   assert.equal((await priya()).state, 'manager_attention');
+  // Imported programmes start without an approved course pool, so the driver sees the legacy lesson.
+  assert.equal(await page.evaluate(() => elevateDriverLink.publish(true).drivers.flatMap(d => d.sessions).find(s => s.id === 'priya-speeding').lesson.title), 'Managing Speed', 'Without approved courses the mapped legacy lesson is assigned');
+  // Approving the delivered speeding courses in Configuration swaps in the Level 1 video for the driver.
+  await page.evaluate(() => { const policy = ProgramSetup.getPolicy('speeding'); policy.courseIds = ['speeding-course-1', 'speeding-course-2', 'speeding-course-3']; ProgramSetup.savePolicy(policy); elevateDriverLink.publish(true); });
+  await frame.locator('h1', { hasText: 'Morning, Priya' }).waitFor();
 
   await frame.locator('.action-card [data-act="open-session"]').click();
   assert.equal(await frame.locator('.detail-head .chip').textContent(), 'Overdue');
   assert.equal(await frame.locator('.clip--pattern').count(), 1, 'Telematics-only evidence renders as a pattern, not a fake clip');
-  assert.equal(await frame.locator('.assign-card .row-title').textContent(), 'Managing Speed', 'The mapped Elevate lesson is assigned');
+  assert.equal(await frame.locator('.assign-card .row-title').textContent(), 'Reset your speed', 'The approved Level 1 course video is assigned for the speeding programme');
   assert.equal(await frame.locator('[data-act="ack"]').count(), 0, 'An escalated one-on-one cannot be cleared by acknowledgement');
   await frame.locator('.assign-card').click();
+  const assignedVideo = frame.locator('video.lesson-video');
+  assert.equal(await assignedVideo.count(), 1, 'The assigned course opens the real video player');
+  assert.match(await assignedVideo.getAttribute('src'), /\/media\/courses\/speeding\/speeding-level-1\.mp4$/);
+  assert.equal(await assignedVideo.locator('track[kind="captions"]').count(), 1);
   await frame.locator('[data-act="complete-lesson"]').click();
   await page.waitForFunction(() => sessions.find(item => item.id === 'priya-speeding').lessonWatched === true);
   assert.equal((await priya()).state, 'manager_attention', 'Watching a lesson does not resolve a one-on-one review');

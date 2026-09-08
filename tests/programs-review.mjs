@@ -200,7 +200,7 @@ try {
   const contentFacts=await page.evaluate(()=>{
     const policies=ProgramSetup.getPolicies(),courses=ProgramSetup.getCourses();
     const ids=[...new Set(policies.flatMap(policy=>[...policy.courseIds,...(policy.legacyCourseIds||[])]))];
-    return ids.map(id=>{const course=courses.find(item=>item.id===id);return [course.title,policies.filter(policy=>[...policy.courseIds,...(policy.legacyCourseIds||[])].includes(id)).map(policy=>policy.id),course.legacy?course.length:course.durationMinutes+' min video · '+course.questions.length+' questions',course.legacy?course.version:'v'+course.version,course.legacy?'Incomplete · no video or quiz':'Course preview · video unavailable'];});
+    return ids.map(id=>{const course=courses.find(item=>item.id===id);return [course.title,policies.filter(policy=>[...policy.courseIds,...(policy.legacyCourseIds||[])].includes(id)).map(policy=>policy.id),course.legacy?course.length:course.durationMinutes+' min video · '+course.questions.length+' questions',course.legacy?course.version:'v'+course.version,course.legacy?'Incomplete · no video or quiz':course.videoUrl?'Video linked · quiz prepared':'Course preview · video unavailable'];});
   });
   assert.deepEqual(allLessons,contentFacts,'All Content shows each stable mapped course once, its program links, version and honest availability');
   assert.equal(allLessons.length,await page.evaluate(()=>lessons.length),'Migration preserves every original lesson as incomplete metadata');

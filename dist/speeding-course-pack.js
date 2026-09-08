@@ -1,7 +1,8 @@
 /* Source-backed teaching content from the supplied DOCX.
  * Source administrator routing, pass marks and retry limits are intentionally absent:
  * the agreed application coaching policy remains authoritative.
- * Video scripts and production notes are reference material; no media is rendered.
+ * Video scripts and production notes are reference material. Each level's `media` entry
+ * points at the delivered captioned video, poster and WebVTT track under dist/media/.
  */
 globalThis.SpeedingCoursePack = {
   "source": {
@@ -9,7 +10,8 @@ globalThis.SpeedingCoursePack = {
     "title": "Heavy-truck speeding — Three levels. A stronger driving habit.",
     "version": "1.0",
     "date": "2026-09-07",
-    "mediaStatus": "not-rendered"
+    "mediaStatus": "rendered",
+    "mediaNote": "Captioned course videos, posters and WebVTT tracks delivered September 8, 2026; see dist/media/courses/speeding/manifest.json."
   },
   "summary": "Level 1: reset the habit. Level 2: understand the risk. Level 3: demonstrate safer judgment under pressure.",
   "audience": "Designed for licensed heavy-duty truck drivers, with a recurring tractor-trailer example and a shared Canadian/U.S. safety core. The learning becomes more demanding through realistic choices, a specific action plan and coach follow-up.",
@@ -22,6 +24,14 @@ globalThis.SpeedingCoursePack = {
       "summary": "Extra speed uses up the space and time you need when traffic or road conditions change. In a heavy truck, a small correction made early can prevent an urgent decision later.",
       "tagline": "Check. Ease off. Protect space.",
       "videoSeconds": 60,
+      "media": {
+        "videoUrl": "media/courses/speeding/speeding-level-1.mp4",
+        "posterUrl": "media/courses/speeding/speeding-level-1.jpg",
+        "captionsUrl": "media/courses/speeding/speeding-level-1.vtt",
+        "resolution": "2560x1440",
+        "narrator": "Emily",
+        "captionsBurnedIn": true
+      },
       "estimatedDuration": "3–4 min",
       "learningGoal": "Check limits and conditions; adjust early; restore space.",
       "lesson": [
@@ -170,6 +180,14 @@ globalThis.SpeedingCoursePack = {
       "summary": "Your next improvement is to act earlier. Identify what usually pushes your speed up, then prepare a response before the road becomes demanding.",
       "tagline": "Extra speed changes the whole decision",
       "videoSeconds": 90,
+      "media": {
+        "videoUrl": "media/courses/speeding/speeding-level-2.mp4",
+        "posterUrl": "media/courses/speeding/speeding-level-2.jpg",
+        "captionsUrl": "media/courses/speeding/speeding-level-2.vtt",
+        "resolution": "2560x1440",
+        "narrator": "Emily",
+        "captionsBurnedIn": true
+      },
       "estimatedDuration": "5–6 min",
       "learningGoal": "Connect speed to stopping, energy, curves and braking heat.",
       "lesson": [
@@ -379,6 +397,14 @@ globalThis.SpeedingCoursePack = {
       "summary": "Maya has a secured load, a tight delivery time and worsening weather. Her route includes a curved exit and a long downgrade. Use this sequence to protect control.",
       "tagline": "Control the trip before pressure controls your speed",
       "videoSeconds": 120,
+      "media": {
+        "videoUrl": "media/courses/speeding/speeding-level-3.mp4",
+        "posterUrl": "media/courses/speeding/speeding-level-3.jpg",
+        "captionsUrl": "media/courses/speeding/speeding-level-3.vtt",
+        "resolution": "2560x1440",
+        "narrator": "Emily",
+        "captionsBurnedIn": true
+      },
       "estimatedDuration": "8–10 min + coach",
       "learningGoal": "Handle a combined-hazard trip and write a measurable plan.",
       "lesson": [
