@@ -126,7 +126,10 @@ try {
   assert.ok(programmeNotes.every(note => !/completed/i.test(note)), 'No programme row is described as completed');
   assert.equal(await frame.locator('.card-head', { hasText: 'Completed' }).count(), 0, 'Home has no completed-programme group');
   const programmeScores = await frame.locator('[data-act="behaviour"] .delta').allTextContents();
-  assert.ok(programmeScores.every(value => value === '—' || /^\d{1,3}$/.test(value)), 'The score column is a score or an explicit dash, never Done');
+  assert.ok(programmeScores.length >= 2 && programmeScores.every(value => /^\d{1,3}$/.test(value)), 'Every programme row shows its own score, never Done');
+  const published = await page.evaluate(() => elevateDriverLink.publish(false).drivers.find(driver => driver.name === 'Priya Singh').programmes);
+  assert.equal(programmeScores[0], String(published.find(programme => programme.id === 'speeding').score), 'The flagged programme leads the list with the score the manager published');
+  assert.ok(published.every(programme => Number.isFinite(programme.score) && programme.scoreSource), 'Every published programme score names its source');
   assert.equal((await priya()).state, 'manager_attention');
   // The produced Level 1 speeding course is assigned even before a manager approves a course pool.
   assert.equal(await page.evaluate(() => elevateDriverLink.publish(true).drivers.flatMap(d => d.sessions).find(s => s.id === 'priya-speeding').lesson.title), 'Reset your speed', 'The delivered course video replaces imported lesson metadata');
@@ -223,17 +226,30 @@ try {
     const count = sessions.length, origin = record.origin;
     elevateDriverLink.applyEvent({id:'driver-review',type:'review_requested',sessionId:record.id});
     const snapshot = elevateDriverLink.publish(true);
-    return {count,after:sessions.length,origin,currentOrigin:record.origin,mode:record.deliveryMode,excluded:record.scoreReviewExcluded,scores:snapshot.drivers.flatMap(driver=>driver.programmes.map(program=>program.score))};
+    return {count,after:sessions.length,origin,currentOrigin:record.origin,mode:record.deliveryMode,excluded:record.scoreReviewExcluded,program:record.categoryId,scores:snapshot.drivers.flatMap(driver=>driver.programmes.map(program=>program.score))};
   });
   assert.equal(handoff.after,handoff.count,'Handoff keeps the same case');
   assert.equal(handoff.currentOrigin,handoff.origin,'Creation origin is immutable');
   assert.equal(handoff.mode,'one_on_one');
   assert.equal(handoff.excluded,true);
-  assert.ok(handoff.scores.every(score=>score===null),'No status-derived score penalties');
+  assert.ok(handoff.scores.every(score=>Number.isFinite(score)),'Every programme carries its own score');
   await page.goto(base + '/#drivers');
   const cameron = page.locator('.directory-record', { has: page.locator('[data-open-driver-profile="Cameron Davis"]') });
   assert.match(await cameron.textContent(), /In progress/);
-  await page.evaluate(() => elevateDriverLink.applyEvent({ id: 'directory-live-reply', type: 'message_sent', sessionId: 'cameron-following-manual', text: 'Ready to discuss.' }));
+  // A programme under open coaching sits below the coaching threshold, and asking for a review costs nothing.
+  const reviewScores = await page.evaluate(() => {
+    const scoreFor = () => {
+      const record = sessions.find(item => item.id === 'cameron-following-manual');
+      const driver = elevateDriverLink.publish(true).drivers.find(item => item.name === record.person);
+      const programme = driver && driver.programmes.find(item => item.id === record.categoryId);
+      return programme ? programme.score : null;
+    };
+    const before = scoreFor();
+    elevateDriverLink.applyEvent({ id: 'directory-live-reply', type: 'message_sent', sessionId: 'cameron-following-manual', text: 'Ready to discuss.' });
+    return { before, after: scoreFor() };
+  });
+  assert.ok(Number.isFinite(reviewScores.before) && reviewScores.before < 75, 'A programme under open coaching sits below the fleet coaching threshold');
+  assert.equal(reviewScores.after, reviewScores.before, 'Requesting a review never creates a score penalty');
   assert.equal(new URL(page.url()).hash, '#drivers');
   assert.match(await cameron.textContent(), /Replied/);
 

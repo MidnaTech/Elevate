@@ -210,6 +210,9 @@
   }
 
   // Missing programme scores remain unavailable; a request for review never changes a score.
+  // Mirrors the manager's illustrative composite so an older snapshot still shows a number.
+  const OPEN_PENALTY = { Overdue: 34, Repeated: 30, Replied: 26, 'In progress': 26 };
+  const progScore = (status, events) => Math.max(0, Math.min(100, 100 - ((OPEN_PENALTY[status] || 0) + Number(events) * 4)));
   function progStatus(list) {
     const open = list.filter((s) => s.open);
     if (!open.length) return 'No coaching';
@@ -291,7 +294,7 @@
     // Ensure every programme carries a status and its own score, even from an older snapshot.
     programmes = programmes.map((p) => {
       const status = p.status || progStatus(sessions.filter((s) => s.categoryId === p.id));
-      return { ...p, status, score: Number.isFinite(p.score) ? p.score : null };
+      return { ...p, status, score: Number.isFinite(p.score) ? p.score : progScore(status, p.events) };
     });
     const behaviours = programmes.map((p) => {
       const progSessions = sessions.filter((s) => s.categoryId === p.id);
@@ -341,7 +344,7 @@
       lessons: Array.isArray(link.lessons) && link.lessons.length ? link.lessons : LIBRARY,
       analytics: { ranges: false, rangeMap: null, composition: null, behaviours, groupAvg: null, gain: completed.length ? { title: completed.length + (completed.length === 1 ? ' coaching session completed' : ' coaching sessions completed'), body: 'Completed coaching is measured over the following 14 days.' } : null,
         measured: (link.programs || []).map((p) => ({ name: p.name, rule: 'Threshold set by your fleet in Elevate', weight: '' })), notMeasured: DESIGN.notMeasured,
-        intro: 'The overall score is a recorded prototype value. Driver programme scores and the scoring formula are not available. Requesting a review never creates a score penalty.', bhRange: 'Current sessions', showWeights: false },
+        intro: 'The overall score is a recorded prototype value. Programme scores are an illustrative composite of your recorded events and current coaching, not a calculated fleet formula, and they do not add up to the overall score. Requesting a review never creates a score penalty.', bhRange: 'Current sessions', showWeights: false },
       threads, quickAsks: null,
       roster: (link.drivers || []).map((d) => {
         const open = (d.sessions || []).filter((s) => !['completed', 'archived'].includes(s.state));
@@ -423,7 +426,7 @@
       ? (m.programmeRows && m.programmeRows.length
         ? '<div class="gap-9" style="padding-top:4px">' + standHead('Your programmes', 'Full breakdown') +
           '<div class="card" style="overflow:hidden"><div class="card-head card-head--row">Programme' + scoreCol + '</div>' + rows(m.programmeRows, false) + '</div>' +
-          (m.scoresRecorded ? '' : '<p class="list-note">Coaching opens only when a programme flags an event. Your fleet has not recorded a score for each programme yet.</p>') + '</div>'
+          '<p class="list-note">' + (m.scoresRecorded ? 'Coaching opens only when a programme flags an event. Programme scores are illustrative in this prototype and do not add up to your Elevate score.' : 'Coaching opens only when a programme flags an event. Your fleet has not recorded a score for each programme yet.') + '</p></div>'
         : '')
       : (m.focusRows.length || (m.winRows && m.winRows.length))
         ? '<div class="gap-9" style="padding-top:4px">' + standHead('Where you stand', 'All behaviours') +

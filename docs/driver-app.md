@@ -64,12 +64,21 @@ now (`Overdue`, `Repeated`, `Replied`, `In progress` while coaching is open; `No
 open; `Not coached` when the driver has no history in it) plus the recorded events. The old
 "Worth a look / Completed" grouping and the `Done` value in the score column are gone.
 
-**Per-programme score.** Elevate stores one Elevate score per driver, not one per programme. The score
-column therefore prints the programme score the manager publishes and, when none is recorded, an explicit
-`—` with one caption saying so. No composite is invented, and the Program breakdown column is headed
-"Events · state" rather than "Current score" while scores are unavailable. The quarterly reset of a
-programme score is not modelled yet: nothing in the snapshot records a period boundary, so the app
-labels no period. Publish per-programme period scores and boundaries to fill both in.
+**Per-programme score.** Elevate records one score per driver, not one per programme, so the manager
+publishes an illustrative composite per programme: 100, minus four per recorded event, minus an open-coaching
+penalty (Overdue 34, Repeated 30, Replied 26, In progress 26). Two rules shape that table. Open coaching
+means the score already fell below the fleet's default 75 threshold, so any coached programme reads below
+75. Replied costs exactly what In progress costs, so **requesting a review is never a score penalty**, which
+the driver suite asserts on Cameron Davis. Priya reads Speeding 62 (overdue, one event) and 96 where an event
+is recorded but no coaching is open. `scoreSource` names it a composite, no scoring engine runs, and the
+numbers do not add up to the driver's Elevate score, which stays a separate recorded fixture value.
+`driver.js` recomputes the same composite when an older snapshot carries no score, and the column falls back
+to an explicit `—` plus a caption if a score is ever missing. Replace `programmeScore` in `driver-link.js`
+with the recorded per-programme period score when Elevate publishes one.
+
+**Not modelled: the quarterly reset.** A programme score is continuous and resets each quarter, but nothing
+in the snapshot records a period boundary, so no period is labelled anywhere in the app. Publishing the
+period with its score fills in both the label and the reset.
 
 ## Two data modes
 
@@ -152,9 +161,14 @@ Corrected after review: the driver Home grouped programmes into "Worth a look" a
 `Done` in the score column, which framed a programme as a task that finishes. A programme is a continuous
 score that is coached only when it flags an event. Home now shows one programme list with the current
 state and an honest score column, `programmeStatus` returns `No coaching` instead of `Completed`, and the
-Program breakdown column is labelled for what it shows.
+Program breakdown column is labelled for what it shows. Each programme row carries its own score on Home
+and in the Program breakdown.
 
 Learn gained a **Completed** tab between Assigned and All. Completions are timestamped (`Completed today at
 9:41 AM`, or the date for earlier days) from the app's own actions or from `lessonWatchedAt` in the manager
 snapshot, which now also carries `lessonAcknowledgedAt`, `quizPassed` and `quizPassedAt`. Page ledes on
 Coaching and Learn and the Home action card were cut to one line each.
+
+**Cache busting.** Driver app assets carry a version query (`driver.js?v=driver-app-4`,
+`driver.css?v=driver-app-4`, `driver-link.js?v=driver-app-4`). Bump it whenever one of those files changes,
+or browsers keep serving the previous copy from cache.

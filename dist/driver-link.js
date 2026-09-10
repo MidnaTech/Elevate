@@ -65,6 +65,17 @@
     return insight ? { score: insight.safetyScore, change: insight.scoreChange, group: insight.group || '' } : { score: null, change: null, group: '' };
   }
   // Driver programme scores need recorded period observations; workflow states never assign score penalties.
+  /* Illustrative programme score. Elevate records one score per driver, not one per programme, so this
+     composite starts at 100, deducts a little per recorded event, and deducts enough while coaching is
+     open to sit below the fleet's default 75 coaching threshold, because open coaching means the score
+     fell below it. Replied costs exactly what In progress costs: asking for a review is never a penalty.
+     It is not a scoring engine and does not roll up to the driver's Elevate score. Replace it with the
+     recorded per-programme period score as soon as Elevate publishes one. */
+  const OPEN_PENALTY = { Overdue: 34, Repeated: 30, Replied: 26, 'In progress': 26 };
+  function programmeScore(status, events) {
+    const penalty = (OPEN_PENALTY[status] || 0) + Number(events) * 4;
+    return Math.max(0, Math.min(100, 100 - penalty));
+  }
   // A programme is continuous. With no open coaching it is simply not being coached; it is never "completed".
   function programmeStatus(open) {
     if (!open.length) return 'No coaching';
@@ -84,7 +95,7 @@
       const events = list.reduce((n, s) => n + Math.max(1, (s.evidence || []).length), 0);
       const status = list.length ? programmeStatus(open) : 'Not coached';
       const lesson = (list.find((s) => isOpen(s) && s.lesson) || list.find((s) => s.lesson) || {}).lesson || null;
-      return { id, name: cat ? cat.name : id, score: null, scoreSource: 'No recorded driver programme-period score', events, open: open.length, completed: list.length - open.length, status, lesson, sessionIds: list.map((s) => s.id) };
+      return { id, name: cat ? cat.name : id, score: programmeScore(status, events), scoreSource: 'Illustrative composite from recorded events and coaching state; no scoring engine runs', events, open: open.length, completed: list.length - open.length, status, lesson, sessionIds: list.map((s) => s.id) };
     });
   }
   function snapshotSession(session) {
