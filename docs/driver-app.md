@@ -49,19 +49,27 @@ The app is organized by **programme** (the manager's behaviour categories: Follo
 Harsh braking, Distracted driving, Seat belt use, and so on), not by an anonymous "session to action".
 
 - **Home** leads with the programme that needs the driver ("1 programme needs you · Speeding") and lists
-  "Your programmes" with each programme's own score.
+  "Your programmes": one continuous list of every programme the driver has activity in, flagged ones
+  first, each with its state for now and its own score column.
 - **Your score** shows the Program breakdown: one row per programme the driver has activity in, with the
   programme's score, event count and status, ordered as the fleet orders its categories.
 - Tapping a programme opens its **breakdown**: the score, what was recorded, the mapped lesson, and every
   session and event attributed to that programme.
-- **Learn** lists the assigned lesson first, then the whole library grouped by programme.
+- **Learn** has three tabs: **Assigned** (current work), **Completed** (what the driver finished, each
+  with the time it was finished) and **All** (the whole library grouped by programme).
 
-**Per-programme score.** Elevate stores one Elevate score per driver, not one per programme, so the
-per-programme number is an illustrative composite: it starts at 100 and subtracts a penalty for the
-programme's worst open status (Overdue 34, Repeated 24, Replied 18, In progress 12, Completed 4) plus a
-small amount per event beyond the first. A coached programme reads in the 90s (green); an overdue one
-reads lower (orange). The manager publishes it in the snapshot and the app recomputes it if a snapshot
-predates the value. When Elevate publishes real per-programme scores, swap this composite for them.
+**A programme is continuous; only its coaching completes.** A programme holds a score and is coached
+only when it flags an event, so no programme row is ever "done". Home shows one list with the state for
+now (`Overdue`, `Repeated`, `Replied`, `In progress` while coaching is open; `No coaching` when none is
+open; `Not coached` when the driver has no history in it) plus the recorded events. The old
+"Worth a look / Completed" grouping and the `Done` value in the score column are gone.
+
+**Per-programme score.** Elevate stores one Elevate score per driver, not one per programme. The score
+column therefore prints the programme score the manager publishes and, when none is recorded, an explicit
+`—` with one caption saying so. No composite is invented, and the Program breakdown column is headed
+"Events · state" rather than "Current score" while scores are unavailable. The quarterly reset of a
+programme score is not modelled yet: nothing in the snapshot records a period boundary, so the app
+labels no period. Publish per-programme period scores and boundaries to fill both in.
 
 ## Two data modes
 
@@ -138,3 +146,15 @@ reset, and the mobile More sheet.
 
 When a session's lesson is a produced course (currently the three heavy-truck speeding levels under `dist/media/courses/speeding/`), the lesson player shows the real captioned video with a native player instead of the placeholder. Below it, **Take the quiz** walks through the course's three questions one at a time: choosing an answer and pressing **Check answer** shows the source feedback; a wrong answer offers **Try again** without advancing; when every question is correct the player shows *Quiz passed* and only then offers **Mark lesson complete**. Passing sends a `quiz_passed` event to the manager workspace, which records it in the session history. Learn lists each produced course with its runtime and "3-question quiz"; library viewing and quizzes there stay local to the phone. The standalone app loads `speeding-course-pack.js` and `coaching-engine.js` for the questions; linked mode receives them in the snapshot. The manager snapshot is republished only when its content changes, so the phone no longer re-renders (or restarts a video) every two seconds.
 
+## Programme concept and Learn tabs (September 10, 2026)
+
+Corrected after review: the driver Home grouped programmes into "Worth a look" and "Completed" and printed
+`Done` in the score column, which framed a programme as a task that finishes. A programme is a continuous
+score that is coached only when it flags an event. Home now shows one programme list with the current
+state and an honest score column, `programmeStatus` returns `No coaching` instead of `Completed`, and the
+Program breakdown column is labelled for what it shows.
+
+Learn gained a **Completed** tab between Assigned and All. Completions are timestamped (`Completed today at
+9:41 AM`, or the date for earlier days) from the app's own actions or from `lessonWatchedAt` in the manager
+snapshot, which now also carries `lessonAcknowledgedAt`, `quizPassed` and `quizPassedAt`. Page ledes on
+Coaching and Learn and the Home action card were cut to one line each.

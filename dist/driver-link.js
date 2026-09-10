@@ -65,8 +65,9 @@
     return insight ? { score: insight.safetyScore, change: insight.scoreChange, group: insight.group || '' } : { score: null, change: null, group: '' };
   }
   // Driver programme scores need recorded period observations; workflow states never assign score penalties.
+  // A programme is continuous. With no open coaching it is simply not being coached; it is never "completed".
   function programmeStatus(open) {
-    if (!open.length) return 'Completed';
+    if (!open.length) return 'No coaching';
     if (open.some((s) => s.attentionReason === 'reminders_exhausted')) return 'Overdue';
     if (open.some((s) => s.attentionReason === 'repeat_after_coaching')) return 'Repeated';
     if (open.some((s) => s.attentionReason === 'driver_reply')) return 'Replied';
@@ -91,6 +92,8 @@
       id: session.id, categoryId: session.categoryId, category: session.category, eventType: session.eventType || session.category,
       state: session.state, stateLabel: session.stateLabel, attentionReason: session.attentionReason || null, origin: session.origin, deliveryMode: sessionDeliveryMode(session),
       lessonWatched: Boolean(session.lessonWatched), lessonAcknowledged: Boolean(session.lessonAcknowledged), reviewRequested: Boolean(session.reviewRequested),
+      lessonWatchedAt: session.lessonWatchedAt || '', lessonAcknowledgedAt: session.lessonAcknowledgedAt || '',
+      quizPassed: Boolean(session.quizPassed), quizPassedAt: session.quizPassedAt || '',
       due: session.due || '', latest: session.latest || '', summary: session.summary || '', lesson: lessonFor(session),
       // Locations are kept as text only; fixture coordinates never leave the manager page.
       evidence: sessionEvidenceEvents(session).map(e => ({ id: e.id, title: e.title, meta: [e.source, e.time].filter(Boolean).join(' · '), duration: eventClips(e).map(clip => clip.duration).filter(Boolean).join(' / '), location: e.location?.label || '', video: eventClips(e).length > 0, clips: eventClips(e).map(clip => ({ id: clip.id, title: clip.title, duration: clip.duration })) })),

@@ -16,6 +16,17 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[c]);
   const initialsOf = (name) => String(name || '').split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
   const firstName = (name) => String(name || '').split(' ')[0];
+  const stamp = () => new Date().toISOString();
+  // "Completed" always carries when, so a driver can see what they finished and at what time.
+  const whenLabel = (iso) => {
+    if (!iso || iso === true) return '';
+    const at = new Date(iso);
+    if (Number.isNaN(at.getTime())) return '';
+    const time = at.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return at.toDateString() === new Date().toDateString() ? 'today at ' + time : at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + time;
+  };
+  const completedLabel = (iso) => { const when = whenLabel(iso); return when ? 'Completed ' + when : 'Completed'; };
+  const lessonDoneAt = (session) => state.lessonDone[session.id] || (session.raw && session.raw.lessonWatchedAt) || (session.lessonDone ? true : '');
   const safeParse = (raw, fallback) => { try { return raw ? JSON.parse(raw) : fallback; } catch (error) { return fallback; } };
   const storage = {
     get(key, fallback) { try { return safeParse(window.localStorage.getItem(key), fallback); } catch (error) { return fallback; } },
@@ -30,7 +41,7 @@
     sessionId: null, thread: null, behaviour: null,
     filter: 'Open', range: 'Week',
     acked: {}, lessonDone: {}, opened: {}, readThreads: {},
-    lessonTitle: null, watched: {}, quizDone: {}, quiz: null,
+    lessonTitle: null, watched: {}, quizDone: {}, quiz: null, learnTab: 'assigned',
     localMsgs: {}, draft: '',
     playing: false, progress: 62, timer: null
   };
@@ -201,7 +212,7 @@
   // Missing programme scores remain unavailable; a request for review never changes a score.
   function progStatus(list) {
     const open = list.filter((s) => s.open);
-    if (!open.length) return 'Completed';
+    if (!open.length) return 'No coaching';
     if (open.some((s) => s.raw.attentionReason === 'reminders_exhausted' || s.status === 'overdue')) return 'Overdue';
     if (open.some((s) => s.raw.attentionReason === 'repeat_after_coaching' || s.status === 'followup')) return 'Repeated';
     if (open.some((s) => s.raw.attentionReason === 'driver_reply' || s.status === 'waiting')) return 'Replied';
@@ -295,6 +306,17 @@
         reminders: [], events, lesson: p.lesson || (openSession && openSession.lesson) || null,
         sessionId: openSession ? openSession.id : (progSessions[0] && progSessions[0].id) };
     });
+    // Home lists every programme the driver has activity in, flagged ones first. The right-hand
+    // column is the programme's own score; when the fleet records none it stays an explicit dash
+    // rather than borrowing coaching-completion language.
+    const programmeRow = (p) => {
+      const eventsLabel = p.events ? p.events + (p.events === 1 ? ' event' : ' events') + ' recorded' : 'No events recorded';
+      const scored = Number.isFinite(p.score);
+      return { name: p.name, note: (p.open ? p.status : 'No coaching') + ' · ' + eventsLabel,
+        delta: scored ? String(p.score) : '—', tone: scored ? (p.score >= 90 ? 'good' : p.score < 70 ? 'bad' : 'muted') : 'muted', key: p.id };
+    };
+    const withActivity = programmes.filter((p) => p.open || p.completed || p.events);
+    const programmeRows = [...withActivity.filter((p) => p.open), ...withActivity.filter((p) => !p.open)].map(programmeRow);
     const completed = sessions.filter((s) => s.status === 'completed');
     const score = Number.isFinite(driver.score) ? driver.score : null;
     const change = Number.isFinite(driver.scoreChange) ? driver.scoreChange : null;
@@ -309,8 +331,12 @@
       streaks: null,
       programmes,
       sessions,
-      focusRows: programmes.filter((p) => p.open).map((p) => ({ name: p.name, note: p.status + ' · ' + p.events + (p.events === 1 ? ' event' : ' events'), delta: p.score === null ? p.open + ' open' : String(p.score), tone: p.score !== null && p.score >= 90 ? 'good' : 'bad', key: p.id })),
-      winRows: programmes.filter((p) => !p.open && p.completed).map((p) => ({ name: p.name, note: 'Coaching completed', delta: p.score === null ? 'Done' : String(p.score), tone: 'good', key: p.id })),
+      // A programme is continuous: it holds a score and is coached only when it flags an event.
+      // One list, flagged programmes first. A programme never "completes"; its coaching episodes do.
+      focusRows: programmeRows,
+      winRows: [],
+      programmeRows,
+      scoresRecorded: programmes.some((p) => Number.isFinite(p.score)),
       lesson: openLesson ? { title: openLesson.lesson.title, remaining: openLesson.lesson.length || 'Assigned', sessionId: openLesson.id } : null,
       lessons: Array.isArray(link.lessons) && link.lessons.length ? link.lessons : LIBRARY,
       analytics: { ranges: false, rangeMap: null, composition: null, behaviours, groupAvg: null, gain: completed.length ? { title: completed.length + (completed.length === 1 ? ' coaching session completed' : ' coaching sessions completed'), body: 'Completed coaching is measured over the following 14 days.' } : null,
@@ -380,7 +406,7 @@
     const action = first
       ? '<div class="card card--tint action-card"><div class="label"><i class="dot" aria-hidden="true"></i><span class="eyebrow eyebrow--accent">' + (m.linked ? openProgrammes.length + (openProgrammes.length === 1 ? ' programme needs you' : ' programmes need you') : toAction.length + (toAction.length === 1 ? ' session' : ' sessions') + ' to action') + '</span></div>' +
         '<div class="action-title">' + (m.linked && actionProgramme ? esc(actionTitle) : actionTitle) + '</div>' +
-        '<p class="lede">' + (m.linked ? esc(first.title) + (first.dueLabel ? ' · ' + esc(first.dueLabel) : '') + '. ' + (first.lesson ? 'Read it, watch the lesson, tell ' + esc(m.coach.name) + ' you\'ve got it.' : 'Read it and reply to ' + esc(m.coach.name) + '.') : (first.lesson ? 'Two minutes: read the moment, watch a ' + esc(first.lesson.length || 'short') + ' clip, tell your coach you\'ve got it.' : 'Read the moment and tell your coach you\'ve got it.')) + '</p>' +
+        '<p class="lede">' + (m.linked ? esc([first.title, first.dueLabel, first.lesson ? 'lesson assigned' : 'reply to ' + m.coach.name].filter(Boolean).join(' · ')) : (first.lesson ? 'Two minutes: read the moment, watch a ' + esc(first.lesson.length || 'short') + ' clip, tell your coach you\'ve got it.' : 'Read the moment and tell your coach you\'ve got it.')) + '</p>' +
         '<button class="btn btn--dark btn--row" type="button" data-act="open-session" data-id="' + esc(first.id) + '"><span>Open session</span><em>' + esc(first.dueLabel || '') + '</em></button></div>'
       : waiting.length
         ? '<div class="card card--good action-card"><div class="label"><span class="eyebrow eyebrow--good">Nothing to action</span></div><div class="action-title">' + esc(waiting[0].title) + '</div><p class="lede">' + (waiting[0].status === 'waiting' ? esc(m.coach.name) + ' has your reply and will come back to you.' : 'Reviewed. Finish the assigned lesson to close it out.') + '</p><button class="btn btn--outline" type="button" data-act="open-session" data-id="' + esc(waiting[0].id) + '">Open session</button></div>'
@@ -392,11 +418,18 @@
         : '<div class="row' + (soft ? ' row--soft' : '') + '">' + inner + '</div>';
     }).join('');
     const scoreCol = m.linked ? '<span class="card-head-note">Current score</span>' : '';
-    const stand = (m.focusRows.length || (m.winRows && m.winRows.length))
-      ? '<div class="gap-9" style="padding-top:4px"><div class="section-head"><h2 class="title-sm">' + (m.linked ? 'Your programmes' : 'Where you stand') + '</h2><button class="link-btn" type="button" data-act="go" data-route="analytics">' + (m.linked ? 'Full breakdown' : 'All behaviours') + '</button></div>' +
-        '<div class="card" style="overflow:hidden">' + (m.focusRows.length ? '<div class="card-head card-head--row">' + (m.linked ? 'Worth a look' : 'Worth a look') + scoreCol + '</div>' + rows(m.focusRows, false) : '') +
-        (m.winRows && m.winRows.length ? '<div class="card-head card-head--soft card-head--row">' + (m.linked ? 'Completed' : 'Improved') + scoreCol + '</div>' + rows(m.winRows, true) : '') + '</div></div>'
-      : '';
+    const standHead = (title, link) => '<div class="section-head"><h2 class="title-sm">' + title + '</h2><button class="link-btn" type="button" data-act="go" data-route="analytics">' + link + '</button></div>';
+    const stand = m.linked
+      ? (m.programmeRows && m.programmeRows.length
+        ? '<div class="gap-9" style="padding-top:4px">' + standHead('Your programmes', 'Full breakdown') +
+          '<div class="card" style="overflow:hidden"><div class="card-head card-head--row">Programme' + scoreCol + '</div>' + rows(m.programmeRows, false) + '</div>' +
+          (m.scoresRecorded ? '' : '<p class="list-note">Coaching opens only when a programme flags an event. Your fleet has not recorded a score for each programme yet.</p>') + '</div>'
+        : '')
+      : (m.focusRows.length || (m.winRows && m.winRows.length))
+        ? '<div class="gap-9" style="padding-top:4px">' + standHead('Where you stand', 'All behaviours') +
+          '<div class="card" style="overflow:hidden">' + (m.focusRows.length ? '<div class="card-head card-head--row">Worth a look' + scoreCol + '</div>' + rows(m.focusRows, false) : '') +
+          (m.winRows && m.winRows.length ? '<div class="card-head card-head--soft card-head--row">Improved' + scoreCol + '</div>' + rows(m.winRows, true) : '') + '</div></div>'
+        : '';
     const lesson = m.lesson ? '<div class="card lesson-row"><div class="play-tile" aria-hidden="true"><i class="tri"></i></div><div class="row-text"><span class="eyebrow eyebrow--sm">' + (m.linked ? 'Lesson assigned' : 'Lesson in progress') + '</span><span class="row-title">' + esc(m.lesson.title) + '</span><span class="meta">' + esc(m.lesson.remaining) + '</span></div><button class="btn btn--outline" type="button" data-act="player" data-id="' + esc(m.lesson.sessionId) + '">' + (m.linked ? 'Watch' : 'Resume') + '</button></div>' : '';
     return '<div class="page">' +
       '<div class="greet"><div><span class="eyebrow">' + esc(m.dateLabel) + '</span><h1 class="title-md">Morning, ' + esc(firstName(m.driver.name)) + '</h1></div><div class="avatar" aria-label="' + esc(m.driver.name) + '">' + esc(m.driver.initials) + '</div></div>' +
@@ -409,7 +442,7 @@
     const history = m.sessions.filter((s) => !s.open);
     const rows = state.filter === 'Open' ? openList : history;
     return '<div class="page gap-18">' +
-      '<div class="head-block"><h1 class="title-xl">Coaching</h1><p class="lede">Sessions are short. Action the open one, keep the rest for reference.</p></div>' +
+      '<div class="head-block"><h1 class="title-xl">Coaching</h1><p class="lede">Coaching opens when a programme flags an event.</p></div>' +
       '<div class="pills" role="tablist" aria-label="Session filter">' + ['Open', 'History'].map((f) => '<button class="pill' + (state.filter === f ? ' is-on' : '') + '" type="button" role="tab" aria-selected="' + (state.filter === f) + '" data-act="filter" data-filter="' + f + '">' + f + (f === 'Open' && openList.length ? ' · ' + openList.length : '') + '</button>').join('') + '</div>' +
       (rows.length ? rows.map((s) => '<button class="card session-card' + (['action', 'overdue', 'followup'].includes(s.status) ? ' is-live' : '') + '" type="button" data-act="open-session" data-id="' + esc(s.id) + '"><div class="top">' + chipHtml(s.chip, s.statusLabel) + '<span class="when">' + esc(s.dateShort) + '</span></div><div class="title">' + esc(s.title) + '</div><div class="sub">' + esc(s.meta) + '</div></button>').join('')
         : '<div class="card empty">' + (state.filter === 'Open' ? 'No open sessions. Anything new lands here first.' : 'No completed sessions yet.') + '</div>') +
@@ -458,6 +491,8 @@
     const rangeTrend = rv ? rv[1] : m.score.changeLabel;
     const ranges = a.ranges ? '<div class="ranges" role="tablist" aria-label="Range">' + Object.keys(a.rangeMap).map((r) => '<button class="range' + (state.range === r ? ' is-on' : '') + '" type="button" role="tab" aria-selected="' + (state.range === r) + '" data-act="range" data-range="' + esc(r) + '">' + esc(r) + '</button>').join('') + '</div>' : '';
     const composition = a.composition ? '<div class="composition"><div class="bar" aria-hidden="true">' + a.composition.map(([, color, w]) => '<i style="width:' + w + '%;background:' + color + '"></i>').join('') + '</div><div class="legend">' + a.composition.map(([label, color]) => '<span><i style="background:' + color + '"></i>' + esc(label) + '</span>').join('') + '</div></div>' : '';
+    // The column is only headed "score" when scores exist; otherwise it says what it actually shows.
+    const breakdownCol = m.linked && !m.scoresRecorded ? 'Events · state' : rangeLabel;
     const behaviours = a.behaviours.map((b) => {
       const fill = b.score === null ? (b.tone === 'low' ? 'fill--low' : 'fill--good') : b.score < 70 ? 'fill--low' : b.score < 90 ? 'fill--mid' : 'fill--good';
       const w = b.score === null ? b.w : b.score;
@@ -466,7 +501,7 @@
     return '<div class="page" style="gap:17px">' +
       '<div class="head-block"><h1 class="title-xl">Your score</h1><p class="lede">' + (m.linked ? 'The programs your fleet tracks in Elevate, and where your sessions sit.' : "Every point comes from somewhere. Here's the breakdown.") + '</p></div>' + ranges +
       '<div class="card card--dark range-card"><div class="top"><div><span class="eyebrow eyebrow--light">' + esc(rangeLabel) + '</span><div class="score-num score-num--md num">' + (rangeScore === null ? '—' : rangeScore) + '</div></div><span class="trend trend--' + (m.linked && m.score.change !== null && m.score.change < 0 ? 'bad' : rangeScore === null ? 'flat' : 'good') + '">' + esc(rangeTrend) + '</span></div>' + composition + '</div>' +
-      '<div class="card" style="overflow:hidden"><div class="card-head card-head--split"><span style="font:600 11px/1.2 var(--text);letter-spacing:.12em;text-transform:uppercase;color:var(--faint)">' + (m.linked ? 'Program breakdown' : 'Behaviour breakdown') + '</span><span>' + esc(rangeLabel) + '</span></div>' + (behaviours || '<div class="empty">No program evidence recorded.</div>') +
+      '<div class="card" style="overflow:hidden"><div class="card-head card-head--split"><span style="font:600 11px/1.2 var(--text);letter-spacing:.12em;text-transform:uppercase;color:var(--faint)">' + (m.linked ? 'Program breakdown' : 'Behaviour breakdown') + '</span><span>' + esc(breakdownCol) + '</span></div>' + (behaviours || '<div class="empty">No program evidence recorded.</div>') +
       (a.groupAvg ? '<div class="card-foot"><span>Group average</span><strong>' + esc(a.groupAvg) + '</strong></div>' : '') + '</div>' +
       '<button class="card link-card" type="button" data-act="go" data-route="scoring"><span class="q-mark" aria-hidden="true">?</span><span class="row-text"><span class="row-title">How your score works</span><span class="row-note">What\'s measured, what isn\'t, and who sees it</span></span><span class="chev" aria-hidden="true"></span></button>' +
       (a.gain ? '<div class="card card--good gain-card"><span class="eyebrow eyebrow--good">' + (m.linked ? 'Completed coaching' : 'Biggest gain') + '</span><strong>' + esc(a.gain.title) + '</strong><p>' + esc(a.gain.body) + '</p></div>' : '') +
@@ -532,18 +567,43 @@
     if (!rows.length) return '<div class="gap-9"><span class="eyebrow eyebrow--sm">All lessons</span><div class="card empty">No lessons published yet.</div></div>';
     const groups = [];
     rows.forEach((l) => { const key = l.category || 'Other'; let g = groups.find((x) => x.key === key); if (!g) { g = { key, items: [] }; groups.push(g); } g.items.push(l); });
-    const lessonBtn = (l) => '<button class="row lesson-lib" type="button" data-act="play-lesson" data-title="' + esc(l.title) + '"><span class="play-tile play-tile--sm" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(l.title) + '</span><span class="row-note">' + esc([l.length, l.questions && l.questions.length ? l.questions.length + '-question quiz' : ''].filter(Boolean).join(' · ')) + '</span></span>' + (state.watched[l.title] ? '<span class="delta delta--good">Watched</span>' : '<span class="chev" aria-hidden="true"></span>') + '</button>';
+    const lessonBtn = (l) => '<button class="row lesson-lib" type="button" data-act="play-lesson" data-title="' + esc(l.title) + '"><span class="play-tile play-tile--sm" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(l.title) + '</span><span class="row-note">' + esc([l.length, l.questions && l.questions.length ? l.questions.length + '-question quiz' : ''].filter(Boolean).join(' · ')) + '</span></span>' + (state.watched[l.title] ? '<span class="delta delta--good">Completed</span>' : '<span class="chev" aria-hidden="true"></span>') + '</button>';
     return '<div class="gap-9"><span class="eyebrow eyebrow--sm">All lessons · by programme</span>' +
       groups.map((g) => '<div class="lesson-group"><div class="lesson-group-head">' + esc(g.key) + '</div><div class="card" style="overflow:hidden">' + g.items.map(lessonBtn).join('') + '</div></div>').join('') + '</div>';
   }
 
+  // Learn has three tabs: assigned work, what the driver finished and when, then the whole library.
+  // A course completes; a programme never does.
   function learnHtml(m) {
     const assigned = m.sessions.filter((s) => s.lesson && s.open);
-    const rows = m.lessons || [];
+    const library = m.lessons || [];
+    const doneLibrary = library.filter((l) => state.watched[l.title]);
+    const doneAssigned = m.sessions.filter((s) => s.lesson && lessonDoneAt(s));
+    const counts = { assigned: assigned.length, completed: doneAssigned.length + doneLibrary.length, all: library.length };
+    const tab = state.learnTab === 'assigned' && !counts.assigned ? 'all' : state.learnTab;
+    const lede = tab === 'assigned' ? 'Finish this, then the library is yours any time.'
+      : tab === 'completed' ? 'What you have finished, with the time you finished it.'
+      : 'Every lesson your fleet publishes, by programme.';
+    const tabs = '<div class="pills" role="tablist" aria-label="Learn filter">' + [['assigned', 'Assigned'], ['completed', 'Completed'], ['all', 'All']]
+      .map(([key, label]) => '<button class="pill' + (tab === key ? ' is-on' : '') + '" type="button" role="tab" aria-selected="' + (tab === key) + '" data-act="learn-tab" data-tab="' + key + '">' + label + (counts[key] ? ' · ' + counts[key] : '') + '</button>').join('') + '</div>';
+    const assignedCard = (s) => {
+      const done = Boolean(lessonDoneAt(s));
+      const meta = [s.lesson.length, done ? completedLabel(lessonDoneAt(s)) : s.dueLabel || ''].filter(Boolean).join(' · ');
+      return '<button class="card lesson-row" type="button" data-act="player" data-id="' + esc(s.id) + '"><span class="play-tile" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(s.lesson.title) + '</span><span class="meta">' + esc(meta) + '</span></span><span class="chip chip--' + (done ? 'good' : 'live') + '">' + (done ? 'Completed' : 'Assigned') + '</span></button>';
+    };
+    const doneRow = (title, meta, at, attrs) => '<button class="row lesson-lib" type="button" ' + attrs + '><span class="play-tile play-tile--sm" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(title) + '</span><span class="row-note">' + esc([meta, completedLabel(at)].filter(Boolean).join(' · ')) + '</span></span><span class="chev" aria-hidden="true"></span></button>';
+    const body = tab === 'assigned'
+      ? (counts.assigned ? '<div class="gap-9">' + assigned.map(assignedCard).join('') + '</div>'
+        : '<div class="card empty">Nothing is assigned. A course arrives when one of your programmes flags an event.</div>')
+      : tab === 'completed'
+        ? (counts.completed ? '<div class="card" style="overflow:hidden">' +
+            doneAssigned.map((s) => doneRow(s.lesson.title, s.lesson.length, lessonDoneAt(s), 'data-act="player" data-id="' + esc(s.id) + '"')).join('') +
+            doneLibrary.map((l) => doneRow(l.title, l.length, state.watched[l.title], 'data-act="play-lesson" data-title="' + esc(l.title) + '"')).join('') + '</div>'
+          : '<div class="card empty">Nothing completed yet. Anything you finish is listed here with the time.</div>')
+        : libraryHtml(library);
     return '<div class="page gap-18">' +
-      '<div class="head-block"><h1 class="title-xl">Learn</h1><p class="lede">' + (assigned.length ? 'Your assigned lesson comes first. Everything else is yours to watch any time.' : 'Nothing is assigned right now. Every lesson is yours to watch any time.') + '</p></div>' +
-      (assigned.length ? '<div class="gap-9"><span class="eyebrow eyebrow--sm">Assigned</span>' + assigned.map((s) => '<button class="card lesson-row" type="button" data-act="player" data-id="' + esc(s.id) + '"><span class="play-tile" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(s.lesson.title) + '</span><span class="meta">' + esc([s.lesson.length, 'For ' + s.title].filter(Boolean).join(' · ')) + '</span></span><span class="chip chip--' + (s.lessonDone ? 'good' : 'live') + '">' + (s.lessonDone ? 'Done' : 'Assigned') + '</span></button>').join('') + '</div>' : '') +
-      libraryHtml(rows) + '</div>';
+      '<div class="head-block"><h1 class="title-xl">Learn</h1><p class="lede">' + lede + '</p></div>' +
+      tabs + body + '</div>';
   }
 
   function coachViewHtml(m) {
@@ -787,6 +847,7 @@
     'play-lesson': (el) => { state.lessonTitle = el.dataset.title; state.sessionId = null; state.progress = 0; openOverlay('player'); },
     'close-player': () => { stopTimer(); state.playing = false; state.overlay = null; render(); syncHash(); notifyRoute(); },
     'toggle-play': () => { if (state.playing) { stopTimer(); state.playing = false; } else { state.playing = true; tick(); } render({ silent: true, keepScroll: true }); },
+    'learn-tab': (el) => { state.learnTab = el.dataset.tab; render({ keepScroll: true }); },
     'start-quiz': (el) => { state.quiz = { key: el.dataset.key, index: 0, choice: null, checked: false }; render({ silent: true, keepScroll: true }); document.getElementById('quiz-title')?.focus(); },
     'quiz-choose': (el) => { if (!state.quiz || state.quiz.checked) return; state.quiz.choice = Number(el.dataset.index); render({ silent: true, keepScroll: true }); },
     'quiz-check': () => { if (!state.quiz || state.quiz.choice === null) return; state.quiz.checked = true; render({ silent: true, keepScroll: true }); },
@@ -806,12 +867,12 @@
       if (!id && title) {
         // Library lessons are the driver's own viewing: watched locally, nothing recorded in Elevate.
         if (state.watched[title]) { state.playing = false; state.overlay = null; go('learn'); return; }
-        state.watched[title] = true; state.progress = 100; state.playing = false;
+        state.watched[title] = stamp(); state.progress = 100; state.playing = false;
         render({ silent: true, keepScroll: true });
         return;
       }
       if (id && state.lessonDone[id]) { state.playing = false; state.overlay = null; go('detail', { sessionId: id }); return; }
-      if (id) { state.lessonDone[id] = true; const m = model(); const s = m.sessions.find((x) => x.id === id); emit('lesson_watched', { sessionId: id, lesson: s && s.lesson ? s.lesson.title : '', title: s ? s.title : '' }); }
+      if (id) { state.lessonDone[id] = stamp(); const m = model(); const s = m.sessions.find((x) => x.id === id); emit('lesson_watched', { sessionId: id, lesson: s && s.lesson ? s.lesson.title : '', title: s ? s.title : '' }); }
       state.progress = 100; state.playing = false;
       render({ silent: true, keepScroll: true });
     },

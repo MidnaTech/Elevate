@@ -64,6 +64,7 @@ try {
   await page.locator('.tab', { hasText: 'Learn' }).click();
   assert.equal(await heading(), 'Learn', 'Learn is a learning module, not a direct jump into one video');
   assert.equal(await page.locator('.lesson-row').count(), 1, 'The assigned lesson comes first');
+  await page.locator('[data-act="learn-tab"][data-tab="all"]').click();
   assert.equal(await page.locator('.lesson-lib').count(), 8, 'The whole Elevate lesson library is browsable, including the three delivered speeding course videos');
   await page.locator('.lesson-lib', { hasText: 'Eyes Forward' }).click();
   assert.equal(await page.locator('.player .title').textContent(), 'Eyes Forward');
@@ -72,7 +73,11 @@ try {
   assert.equal(await page.locator('[data-act="complete-lesson"]').textContent(), 'Watched · back to Learn');
   await page.locator('[data-act="complete-lesson"]').click();
   assert.equal(await heading(), 'Learn');
-  assert.equal(await page.locator('.lesson-lib', { hasText: 'Eyes Forward' }).locator('.delta--good').textContent(), 'Watched', 'Self-directed viewing is remembered locally');
+  const watchedRow = page.locator('.lesson-lib', { hasText: 'Eyes Forward' });
+  assert.equal(await watchedRow.locator('.delta--good').textContent(), 'Completed', 'Self-directed viewing is remembered locally');
+  await page.locator('[data-act="learn-tab"][data-tab="completed"]').click();
+  assert.match(await page.locator('.lesson-lib', { hasText: 'Eyes Forward' }).locator('.row-note').textContent(), /Completed today at \d/, 'The Completed tab sits between Assigned and All and records when each lesson was finished');
+  await page.locator('[data-act="learn-tab"][data-tab="assigned"]').click();
   await page.locator('.lesson-row').click();
   assert.equal(await page.locator('.player').count(), 1, 'The assigned lesson opens the player');
   assert.equal(new URL(page.url()).hash, '#player');
@@ -115,6 +120,13 @@ try {
   await frame.locator('h1', { hasText: 'Morning, Priya' }).waitFor();
   assert.equal(await frame.locator('.score-num').first().textContent(), '58', 'The phone shows the Elevate score');
   assert.equal(await frame.locator('.stat-pair').count(), 0, 'Streaks stay hidden without trip exposure data');
+  // A programme is a continuous score coached only when it flags an event: no programme "completes".
+  const programmeNotes = await frame.locator('[data-act="behaviour"] .row-note').allTextContents();
+  assert.ok(programmeNotes.length >= 2, 'Home lists the programmes the driver has activity in');
+  assert.ok(programmeNotes.every(note => !/completed/i.test(note)), 'No programme row is described as completed');
+  assert.equal(await frame.locator('.card-head', { hasText: 'Completed' }).count(), 0, 'Home has no completed-programme group');
+  const programmeScores = await frame.locator('[data-act="behaviour"] .delta').allTextContents();
+  assert.ok(programmeScores.every(value => value === '—' || /^\d{1,3}$/.test(value)), 'The score column is a score or an explicit dash, never Done');
   assert.equal((await priya()).state, 'manager_attention');
   // The produced Level 1 speeding course is assigned even before a manager approves a course pool.
   assert.equal(await page.evaluate(() => elevateDriverLink.publish(true).drivers.flatMap(d => d.sessions).find(s => s.id === 'priya-speeding').lesson.title), 'Reset your speed', 'The delivered course video replaces imported lesson metadata');
