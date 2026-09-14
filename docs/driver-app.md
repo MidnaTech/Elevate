@@ -120,7 +120,7 @@ hides it; Design mode still shows it for review.
 |---|---|---|---|
 | In-trip nudge (live speed, posted limit, "ease off") | No live telemetry; flagged events arrive after the trip | Hidden | Take out until a telematics stream exists. Needs a vehicle-side integration, not an app change. |
 | Post-trip review sheet ("trip complete · 42 min · 31 km", per-trip moments) | No trip records or per-trip event lists | Hidden | Take out. Could return as "new session" push once sessions are created per trip. |
-| Daily score sparkline (M–S bars) | One Elevate score per driver with a previous value, no dated history | Replaced by a meter against the fleet target | Keep the meter; add the sparkline when the score is stored per week. |
+| Daily score sparkline (M–S bars) | One Elevate score per driver with a previous value, no dated history | Meter against the fleet target, plus an eight-week trend line labelled “Sample trend”: only this week and the previous score are recorded, earlier points are derived sample values | Replace the sample points with stored weekly scores when they exist. |
 | Per-behaviour trends (−3 pts vs last period) and dated verdicts | Per-rule evidence counts only; no stored per-rule score or trend | Program breakdown shows an illustrative per-programme score (see Programme model) plus event count and status; no trend arrow | Replace the composite with real per-program scores and add trends when the scoring model publishes them. |
 | Score composition bar (Speed −7, Braking −4 …) | Not derivable | Hidden | Take out until per-program point attribution exists. |
 | Streak and clean-trip tiles, "Top 22% of your group" | No per-driver trip exposure or group percentile | Hidden | Take out for now; group averages exist at fleet level only. |

@@ -9,7 +9,7 @@ function sessionWorkspaceState(session) {
     sessionWorkspaceStates.set(session.id, {
       drafts: { reply: '', note: '' }, carets: { reply: [0, 0], note: [0, 0] }, mode: sessionDeliveryMode(session) === 'automated' ? 'note' : 'reply',
       selectedEvents: new Set(events.filter(event => !shared.has(event.id)).map(event => event.id)),
-      eventId: events[0]?.id || null, clipId: eventClips(events[0])[0]?.id || null, viewerOpen: false, breakdownOpen: false
+      eventId: events[0]?.id || null, clipId: eventClips(events[0])[0]?.id || null, viewerOpen: false, breakdownOpen: true
     });
   }
   return sessionWorkspaceStates.get(session.id);
@@ -275,7 +275,26 @@ function updateWorkspaceConversation(session) {
     const attachments = clips ? clips + (clips === 1 ? ' video' : ' videos') + ' attached' : shared.length + (shared.length === 1 ? ' event' : ' events') + ' attached';
     return '<article class="sw-message ' + (note ? 'is-note' : message.author === 'driver' ? 'is-driver' : 'is-manager') + '"><header><strong>' + escapeHtml(author) + '</strong><time>' + escapeHtml(message.time || '') + '</time></header>' + (text ? '<div class="sw-message-body"><p>' + escapeHtml(text) + '</p></div>' : '') +
       (shared.length ? '<details class="sw-message-attachments"><summary>' + attachments + '</summary><div>' + shared.map(event => '<button type="button" class="sw-shared-event" data-session-event="' + escapeHtml(event.id) + '">' + uiIcon(event.kind === 'video' ? 'play' : 'chart') + '<span>' + escapeHtml([event.time, event.title].filter(Boolean).join(' · ')) + '</span><small>' + workspaceSelectionLabel([event]) + '</small></button>').join('') + '</div></details>' : '') + '</article>';
-  }).join('') : '<p class="sw-conversation-empty">' + 'No messages yet' + '</p>';
+  }).join('') : workspaceConversationEmpty(session);
+}
+
+// Three editable openers so an empty thread is a starting point, not a blank wall.
+function workspaceReplyStarters(session) {
+  if (!sessionCanReply(session)) return [];
+  const first = session.person.split(' ')[0];
+  const category = String(session.category || 'coaching').toLowerCase();
+  const events = sessionEvidenceEvents(session);
+  const count = events.length;
+  return [
+    'Hi ' + first + ', I looked at the ' + category + (count ? ' events from the last few trips' : ' pattern from the last few trips') + ' and wanted to check in. Can we find ten minutes this week to go through them together?',
+    'Hi ' + first + ', the ' + category + ' lesson is still waiting on your side. Is anything getting in the way of finishing it?',
+    'Thanks for the trips this week, ' + first + '. One moment stood out that I would like your view on before we close this. When suits you?'
+  ];
+}
+
+function workspaceConversationEmpty(session) {
+  const starters = workspaceReplyStarters(session);
+  return '<div class="sw-conversation-empty"><p>No messages yet</p>' + (starters.length ? '<p class="caption">Start with one of these and edit it before sending.</p><div class="sw-starters">' + starters.map(text => '<button class="sw-starter" type="button" data-reply-starter="' + escapeHtml(text) + '">' + escapeHtml(text) + '</button>').join('') + '</div>' : '') + '</div>';
 }
 
 function mountSessionWorkspace(session) {
@@ -423,6 +442,16 @@ document.addEventListener('click', event => {
   if (scope && sessionEventBrowser) { sessionEventBrowser.scope = scope.dataset.eventScope; sessionEventBrowser.previewId = null; sessionEventBrowser.clipId = null; updateSessionEventBrowser(true); }
   const preview = target.closest('[data-preview-event]');
   if (preview && sessionEventBrowser) { sessionEventBrowser.previewId = preview.dataset.previewEvent; sessionEventBrowser.clipId = null; updateSessionEventBrowser(true); document.getElementById('sw-browser-preview').setAttribute('tabindex', '-1'); document.getElementById('sw-browser-preview').focus(); }
+  const starter = target.closest('[data-reply-starter]');
+  if (starter && session && sessionCanReply(session)) {
+    const state = sessionWorkspaceState(session);
+    state.mode = 'reply';
+    state.drafts.reply = starter.dataset.replyStarter;
+    state.carets.reply = [state.drafts.reply.length, state.drafts.reply.length];
+    updateWorkspaceComposer(session, true);
+    document.getElementById('reply-text')?.focus();
+    return;
+  }
   const breakdownToggle = target.closest('[data-toggle-breakdown]');
   if (breakdownToggle && session) {
     const state = sessionWorkspaceState(session);

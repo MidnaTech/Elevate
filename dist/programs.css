@@ -140,3 +140,6 @@
 .landing-programs .program-section-heading { margin-block-end: var(--space-3); }
 #landing-programs-table tbody tr { cursor: pointer; }
 #landing-programs-table tbody tr:hover { background: var(--surface-soft); }
+
+/* Programs section heading: context link and All programs link sit together on the right. */
+.program-section-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-inline-start: auto; }

@@ -35,11 +35,36 @@ function uiSessionAttention(session) {
   return ({ reminders_exhausted: 'Overdue', repeat_after_coaching: 'Repeated', driver_reply: 'Replied' })[session.attentionReason] || '—';
 }
 
-function uiKpi({ label, value, context = '', action = '', meter }) {
+function uiKpiTrend({ delta, suffix = '', comparison = '', lowerIsBetter = false, neutral = false, unavailableLabel = 'No comparison yet' } = {}) {
+  if (!Number.isFinite(delta)) return '<small class="kpi-trend" data-tone="neutral" aria-label="' + escapeHtml(unavailableLabel) + '"><span>' + escapeHtml(unavailableLabel) + '</span></small>';
+  const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+  const improving = delta === 0 ? null : lowerIsBetter ? delta < 0 : delta > 0;
+  const tone = neutral || improving === null ? 'neutral' : improving ? 'positive' : 'negative';
+  const glyph = direction === 'flat' ? '<i class="kpi-trend-flat" aria-hidden="true"></i>' : uiIcon(direction === 'up' ? 'arrowUp' : 'arrowDown');
+  const magnitude = (delta > 0 ? '+' : delta < 0 ? '\u2212' : '') + Math.abs(delta) + suffix;
+  const label = (direction === 'flat' ? 'No change' : (direction === 'up' ? 'Up ' : 'Down ') + Math.abs(delta) + suffix) + (comparison ? ' ' + comparison : '');
+  return '<small class="kpi-trend" data-tone="' + tone + '" aria-label="' + escapeHtml(label) + '">' + glyph + '<b>' + magnitude + '</b><span>' + escapeHtml(comparison) + '</span></small>';
+}
+
+// Week-over-week deltas for the four shared session counts, matching the Automation Centre strip.
+function uiSessionCycleTrends(cycle, weekly) {
+  const weeks = typeof weeklyCoachingActivity !== 'undefined' ? weeklyCoachingActivity : [];
+  const previousWeek = weeks[weeks.length - 2] || {};
+  const trend = (current, prior, extra = {}) => ({ delta: weekly && Number.isFinite(prior) ? current - prior : NaN, comparison: 'vs last week', unavailableLabel: 'No prior window', ...extra });
+  return {
+    identified: trend(cycle.identified, previousWeek.identified, { neutral: true }),
+    inProgress: trend(cycle.inProgress, previousWeek.inProgress, { neutral: true }),
+    needsReview: trend(cycle.needsReview, previousWeek.escalated, { lowerIsBetter: true }),
+    completed: trend(cycle.completed, previousWeek.completed)
+  };
+}
+
+function uiKpi({ label, value, context = '', action = '', meter, trend }) {
   const valueHtml = action ? '<button class="kpi-link" type="button" ' + action + '>' + escapeHtml(String(value)) + '</button>' : escapeHtml(String(value));
   const hasMeter = meter && Number.isFinite(meter.value) && Number.isFinite(meter.max) && meter.max > 0;
   const help = context ? '<button class="info-hint hint-trigger" type="button" aria-label="About ' + escapeHtml(label) + '" data-tooltip="' + escapeHtml(context) + '">' + uiIcon('info') + '</button>' : '';
   return '<article class="kpi-tile"><div class="kpi-label"><span>' + escapeHtml(label) + '</span>' + help + '</div><div class="kpi-value">' + valueHtml + '</div>' +
+    (trend ? '<div class="kpi-trend-row">' + uiKpiTrend(trend) + '</div>' : '') +
     (hasMeter ? '<div class="meter" role="meter" aria-label="' + escapeHtml(label) + '" aria-valuemin="0" aria-valuemax="' + meter.max + '" aria-valuenow="' + meter.value + '"><div class="meter__fill" style="width:' + Math.max(0, Math.min(100, meter.value / meter.max * 100)) + '%"></div></div>' : '') + '</article>';
 }
 
@@ -65,11 +90,12 @@ function renderDesignLibraryKpis() {
   const action = (filter, programId = 'all') => 'data-view-link="inbox" data-inbox-filter="' + filter + '" data-inbox-program="' + programId + '"';
   const sessionCycle = currentCycleCounts(coachingPeriod, activeSessionProgram);
   const sessionScope = (activeSessionProgram === 'all' ? 'All programs' : categoryNameFor(activeSessionProgram)) + ' · ' + periodLabel();
+  const sessionTrends = activeSessionProgram === 'all' ? uiSessionCycleTrends(sessionCycle, coachingPeriod === 1) : {};
   update('sessions-kpis', 'Sessions · ' + sessionScope, [
-    { label: 'Identified', value: sessionCycle.identified, context: sessionScope + '. Coaching sessions in scope.', action: action('all', activeSessionProgram) },
-    { label: 'In progress', value: sessionCycle.inProgress, context: sessionScope + '. Automated and one-on-one.', action: action('system_handling', activeSessionProgram) },
-    { label: 'Needs review', value: sessionCycle.needsReview, context: sessionScope + '. Current review backlog.', action: action('attention', activeSessionProgram) },
-    { label: 'Completed', value: sessionCycle.completed, context: sessionScope + '. Of ' + sessionCycle.identified + ' identified.', action: action('completed', activeSessionProgram), meter: { value: sessionCycle.completed, max: sessionCycle.identified } }
+    { label: 'Identified', value: sessionCycle.identified, context: sessionScope + '. Coaching sessions in scope.', action: action('all', activeSessionProgram), trend: sessionTrends.identified },
+    { label: 'In progress', value: sessionCycle.inProgress, context: sessionScope + '. Automated and one-on-one.', action: action('system_handling', activeSessionProgram), trend: sessionTrends.inProgress },
+    { label: 'Needs review', value: sessionCycle.needsReview, context: sessionScope + '. Current review backlog.', action: action('attention', activeSessionProgram), trend: sessionTrends.needsReview },
+    { label: 'Completed', value: sessionCycle.completed, context: sessionScope + '. Of ' + sessionCycle.identified + ' identified.', action: action('completed', activeSessionProgram), trend: sessionTrends.completed, meter: { value: sessionCycle.completed, max: sessionCycle.identified } }
   ]);
   update('drivers-kpis', 'Driver directory summary', [
     { label: 'Drivers', value: '1,024', context: 'Fleet total' },

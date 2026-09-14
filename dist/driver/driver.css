@@ -63,7 +63,13 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 button { font: inherit; color: inherit; appearance: none; border: 0; background: none; padding: 0; margin: 0; cursor: pointer; text-align: left; }
-button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
+/* One focus ring for every interactive element; programmatic focus (headings after a tab switch) shows none. */
+button:focus-visible, input:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visible, video:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; border-radius: 6px; }
+.card:focus-visible, .btn:focus-visible, .tab:focus-visible, .pill:focus-visible, .range:focus-visible { border-radius: inherit; }
+[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
+/* Headings receive focus only so screen readers announce the new page; they are not interactive, so no ring. */
+h1[tabindex="-1"]:focus { outline: none; }
+[role="dialog"][tabindex="-1"]:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 4px; border-radius: 6px; }
 a { color: var(--accent-deep); text-decoration: none; }
 a:hover { color: var(--accent); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -196,6 +202,8 @@ h1, h2, h3 { margin: 0; font-family: var(--display); letter-spacing: -.02em; col
 .delta--bad { color: var(--accent-deep); }
 .delta--good { color: var(--good); }
 .delta--muted { color: var(--muted); font-size: 12px; }
+.delta-trend { font: 600 10.5px/1 var(--text); white-space: nowrap; flex: none; margin-right: -5px; }
+.row--btn .row-note, .row .row-note { color: var(--muted); }
 .card-foot { padding: 15px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .card-foot span { font: 400 12.5px/1.4 var(--text); color: var(--muted); }
 .card-foot strong { font: 600 13px/1.2 var(--text); white-space: nowrap; }
@@ -230,6 +238,11 @@ h1, h2, h3 { margin: 0; font-family: var(--display); letter-spacing: -.02em; col
 .meter i.is-low { background: var(--accent); }
 .meter i.is-mid { background: var(--amber); }
 .meter-scale { display: flex; justify-content: space-between; font: 400 11px/1.2 var(--text); color: rgba(245, 242, 236, .45); }
+.score-spark { display: block; width: 100%; height: auto; overflow: visible; }
+.score-spark-line { fill: none; stroke: var(--on-dark); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.score-spark-end { fill: var(--accent); stroke: var(--ink); stroke-width: 1.5; }
+.score-spark-target { stroke: rgba(245, 242, 236, .38); stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.score-spark-label { font: 500 10px var(--text); fill: rgba(245, 242, 236, .5); letter-spacing: .02em; }
 .score-foot { border-top: 1px solid rgba(245, 242, 236, .12); padding-top: 15px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .score-foot p { margin: 0; font: 400 12.5px/1.4 var(--text); color: rgba(245, 242, 236, .62); }
 .stat-pair { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 11px; }
@@ -257,6 +270,40 @@ h1, h2, h3 { margin: 0; font-family: var(--display); letter-spacing: -.02em; col
 .session-card .title { font: 600 16px/1.3 var(--text); color: var(--ink); }
 .session-card .sub { font: 400 12.5px/1.5 var(--text); color: var(--muted); }
 .empty { padding: 26px 18px; text-align: center; font: 400 13px/1.6 var(--text); color: var(--faint); }
+
+/* ── Step lists: session progress (compact) and course steps ───────── */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.steps--session { margin-top: 2px; padding-top: 11px; border-top: 1px solid rgba(20, 38, 31, .08); gap: 0; }
+.steps--session .step { position: relative; display: flex; align-items: center; gap: 9px; min-height: 20px; padding: 0 0 6px; font: 500 11.5px/1.2 var(--text); color: var(--faint); }
+.steps--session .step:last-child { padding-bottom: 0; }
+.steps--session .step::before { content: ''; position: absolute; left: 6.5px; top: 14px; bottom: -6px; width: 1px; background: var(--line-2); }
+.steps--session .step:last-child::before { display: none; }
+.steps--session .step.is-done::before { background: var(--ink); }
+.step-dot { position: relative; z-index: 1; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--line-2); background: var(--card); display: flex; align-items: center; justify-content: center; flex: none; color: var(--on-dark); }
+.session-card.is-live .step-dot { background: var(--accent-tint); }
+.step.is-done .step-dot { background: var(--ink); border-color: var(--ink); }
+.step.is-done .step-label { color: var(--body); }
+.step.is-now .step-dot { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2.5px var(--accent-chip); }
+.step.is-now .step-dot::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.step.is-now .step-label { color: var(--ink); font-weight: 600; }
+
+.course-card { overflow: hidden; display: flex; flex-direction: column; }
+.course-card .lesson-row { width: 100%; }
+.course-card .lesson-row:hover { background: var(--sand); }
+.course-card .lesson-row .row-text { gap: 3px; }
+.steps--course { border-top: 1px solid var(--line-soft); padding: 6px 17px 4px; }
+.steps--course .step { position: relative; display: flex; align-items: center; gap: 13px; padding: 10px 0; }
+.steps--course .step::before { content: ''; position: absolute; left: 12.5px; top: 36px; bottom: -10px; width: 1px; background: var(--line-2); }
+.steps--course .step:last-child::before { display: none; }
+.steps--course .step.is-done::before { background: var(--ink); }
+.step-n { position: relative; z-index: 1; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line-2); background: var(--card); color: var(--muted); display: flex; align-items: center; justify-content: center; font: 600 12px/1 var(--text); flex: none; }
+.steps--course .step.is-done .step-n { background: var(--ink); border-color: var(--ink); color: var(--on-dark); }
+.steps--course .step.is-done .step-n svg { width: 11px; height: 11px; }
+.steps--course .step.is-now .step-n { border-color: var(--accent); color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-chip); }
+.steps--course .step.is-now .row-title { color: var(--ink); }
+.steps--course .step:not(.is-now):not(.is-done) .row-title { color: var(--muted); font-weight: 500; }
+.steps--course .row-text { gap: 3px; }
+.course-cta { margin: 8px 17px 17px; width: auto; border-radius: 14px; min-height: 50px; font-size: 14.5px; }
 
 /* ── Session detail ────────────────────────────────────────────────── */
 .detail-head { padding: 0 20px; display: flex; flex-direction: column; gap: 9px; }
@@ -447,11 +494,11 @@ body.is-narrow .composer { padding-bottom: calc(var(--safe-bottom) + 14px); }
 body.is-narrow .tabbar { padding-bottom: calc(var(--safe-bottom) + 8px); }
 .tab { flex: 1; padding: 8px 4px; min-height: 52px; display: flex; flex-direction: column; align-items: center; gap: 6px; border-radius: 12px; color: var(--faint); font: 500 10.5px/1 var(--text); white-space: nowrap; }
 .tab:hover { background: var(--hover); }
-.tab i { width: 22px; height: 22px; border-radius: 7px; border: 2px solid currentColor; display: flex; align-items: center; justify-content: center; }
-.tab i::after { content: ''; width: 6px; height: 6px; border-radius: 2px; background: currentColor; }
+.tab-ico { display: block; width: 22px; height: 22px; flex: none; }
+.tab-ico .ico-fill { fill: transparent; transition: fill .15s; }
 .tab.is-on { color: var(--ink); font-weight: 600; }
-.tab.is-on i { background: var(--ink); border-color: var(--ink); }
-.tab.is-on i::after { background: var(--accent); }
+.tab.is-on .tab-ico { stroke-width: 2.4; }
+.tab.is-on .tab-ico .ico-fill { fill: var(--ink); fill-opacity: .14; }
 
 /* ── Overlays ──────────────────────────────────────────────────────── */
 .overlay { position: absolute; inset: 0; animation: evFade .2s ease; }

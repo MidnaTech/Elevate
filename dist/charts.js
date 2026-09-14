@@ -31,7 +31,7 @@ function chartTableMarkup(caption, headers, rows) {
 }
 
 function chartSummaryMarkup(summary, table) {
-  return '<details class="chart-summary chart-data-summary"><summary>Summary and data</summary><p>' + escapeHtml(summary) + '</p>' + table + '</details>';
+  return '<details class="chart-summary chart-data-summary"><summary><span>Summary and data</span>' + uiIcon('chevron') + '</summary><p>' + escapeHtml(summary) + '</p>' + table + '</details>';
 }
 
 function chartHorizontalBar(x, y, width, height = 12) {
@@ -141,7 +141,7 @@ function chartMountSummary(card, summary, table, footnote) {
     // changes. Rebuilding the equivalent table must not discard them.
     const notes = [...details.querySelectorAll('.chart-footnote:not([data-chart-source-note])')];
     details.classList.add('chart-summary');
-    details.innerHTML = '<summary>Summary and data</summary><p>' + escapeHtml(summary) + '</p>' + table;
+    details.innerHTML = '<summary><span>Summary and data</span>' + uiIcon('chevron') + '</summary><p>' + escapeHtml(summary) + '</p>' + table;
     details.append(...notes);
     details.open = wasOpen;
   }

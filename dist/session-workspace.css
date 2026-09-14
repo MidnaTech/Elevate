@@ -125,6 +125,11 @@
 #session-activity li { display: flex; justify-content: space-between; gap: 10px; }
 #session-activity li small { flex: 0 0 auto; color: var(--ink-500); font-size: var(--font-1); white-space: nowrap; }
 .sw-conversation-empty { margin-top: 16px !important; color: var(--ink-500); font-size: var(--font-1); line-height: 1.6; }
+.sw-conversation-empty p { margin: 0; }
+.sw-conversation-empty .caption { margin-top: var(--space-1); }
+.sw-starters { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.sw-starter { display: block; width: 100%; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); color: var(--ink-700); font-size: var(--font-1); line-height: var(--line-1); text-align: left; cursor: pointer; }
+.sw-starter:where(:hover, :focus-visible) { border-color: var(--ink-300); background: var(--surface-strong); color: var(--ink); }
 .sw-message + .sw-message { margin-top: 20px; }
 .sw-message > header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 8px; font-size: var(--font-2); }
 .sw-message > header strong { font-weight: 600; }

@@ -19,12 +19,14 @@ function programPageLink(program, tab = 'activity') {
 function programPageSummary(program) {
   const counts = programPageCounts(program.id);
   const scope = program.name + ' · ' + periodScopeLabel() + '. ';
+  // All programmes shares the week-over-week deltas the Automation Centre and Sessions strips show; programme histories have no prior snapshot.
+  const trends = program.id === 'all' ? uiSessionCycleTrends({ identified: counts.total, inProgress: counts.automated + counts.one_to_one, needsReview: counts.needs_review, completed: counts.completed }, coachingPeriod === 1) : {};
   const sessionsLink = (filter, origin = '') => 'data-view-link="inbox" data-inbox-filter="' + filter + '" data-inbox-program="' + escapeHtml(program.id) + '"' + (origin ? ' data-inbox-origin="' + origin + '"' : '');
   return uiKpiStrip(program.name + ' coaching summary', [
-    { label: 'Identified', value: counts.total, context: scope + 'Coaching sessions automation opened in this period. Opens Sessions.', action: sessionsLink('all') },
-    { label: 'In progress', value: counts.automated + counts.one_to_one, context: scope + counts.automated + ' automated and ' + counts.one_to_one + ' one-on-one sessions in progress. Sessions needing review and completed sessions are counted separately. Opens Sessions.', action: sessionsLink('system_handling') },
-    { label: 'Needs review', value: counts.needs_review, context: scope + 'Sessions waiting on a person: Overdue, Repeated or Replied. Shows the drivers needing attention below Activity.', action: 'data-program-attention' },
-    { label: 'Completed', value: counts.completed, context: scope + (counts.total ? counts.completed + ' of ' + counts.total + ' identified records completed (' + Math.round(counts.completed / counts.total * 100) + '%). Includes archived completions.' : 'No identified records; completion rate unavailable.'), action: sessionsLink('completed'), meter: { value: counts.completed, max: counts.total } },
+    { label: 'Identified', value: counts.total, context: scope + 'Coaching sessions automation opened in this period. Opens Sessions.', action: sessionsLink('all'), trend: trends.identified },
+    { label: 'In progress', value: counts.automated + counts.one_to_one, context: scope + counts.automated + ' automated and ' + counts.one_to_one + ' one-on-one sessions in progress. Sessions needing review and completed sessions are counted separately. Opens Sessions.', action: sessionsLink('system_handling'), trend: trends.inProgress },
+    { label: 'Needs review', value: counts.needs_review, context: scope + 'Sessions waiting on a person: Overdue, Repeated or Replied. Shows the drivers needing attention below Activity.', action: 'data-program-attention', trend: trends.needsReview },
+    { label: 'Completed', value: counts.completed, context: scope + (counts.total ? counts.completed + ' of ' + counts.total + ' identified records completed (' + Math.round(counts.completed / counts.total * 100) + '%). Includes archived completions.' : 'No identified records; completion rate unavailable.'), action: sessionsLink('completed'), trend: trends.completed, meter: { value: counts.completed, max: counts.total } },
     { label: 'Automated sessions', value: counts.automatedTotal, context: scope + 'All automated sessions, including in progress, needing review and completed. Opens Sessions.', action: sessionsLink('all', 'automated') },
     { label: 'One-on-one sessions', value: counts.oneOnOneTotal, context: scope + 'All one-on-one sessions, including escalations, across in progress, needing review and completed. Opens Sessions.', action: sessionsLink('all', 'manual_override') },
     program.id === 'all'

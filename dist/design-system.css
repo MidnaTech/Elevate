@@ -413,6 +413,11 @@ button { cursor: pointer; }
 .chart-summary { margin: var(--space-3) 0 0; border-block-start: 1px solid var(--border); padding-block-start: var(--space-2); }
 .chart-summary summary { min-block-size: var(--control-height); padding: var(--space-2); color: var(--ink-700); cursor: pointer; }
 .chart-summary summary:where(:hover) { background: var(--surface-strong); color: var(--ink); }
+.chart-summary summary { display: flex; align-items: center; gap: var(--space-1); list-style: none; font-weight: var(--weight-control); }
+.chart-summary summary::-webkit-details-marker { display: none; }
+.chart-summary summary .ui-icon { flex: none; width: 14px; height: 14px; transition: transform .15s ease; }
+.chart-summary[open] > summary .ui-icon { transform: rotate(90deg); }
+.kpi-trend-row { margin-block-start: var(--space-2); }
 
 @media (max-width: 48rem) { .page { padding: var(--space-4); } }
 @media (prefers-reduced-motion: reduce) {

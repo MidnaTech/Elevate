@@ -315,8 +315,11 @@
     const programmeRow = (p) => {
       const eventsLabel = p.events ? p.events + (p.events === 1 ? ' event' : ' events') + ' recorded' : 'No events recorded';
       const scored = Number.isFinite(p.score);
+      // Only a published previous value yields a trend; the composite alone carries none.
+      const previous = Number.isFinite(p.previousScore) ? p.previousScore : Number.isFinite(p.previous) ? p.previous : null;
+      const change = Number.isFinite(p.scoreChange) ? p.scoreChange : scored && previous !== null ? p.score - previous : null;
       return { name: p.name, note: (p.open ? p.status : 'No coaching') + ' · ' + eventsLabel,
-        delta: scored ? String(p.score) : '—', tone: scored ? (p.score >= 90 ? 'good' : p.score < 70 ? 'bad' : 'muted') : 'muted', key: p.id };
+        delta: scored ? String(p.score) : '—', tone: scored ? (p.score >= 90 ? 'good' : p.score < 70 ? 'bad' : 'muted') : 'muted', key: p.id, change };
     };
     const withActivity = programmes.filter((p) => p.open || p.completed || p.events);
     const programmeRows = [...withActivity.filter((p) => p.open), ...withActivity.filter((p) => !p.open)].map(programmeRow);
@@ -388,18 +391,52 @@
   const backHtml = (act, label) => '<div class="back-row"><button class="back" type="button" data-act="' + act + '"><span class="chev chev--back" aria-hidden="true"></span><span>' + esc(label) + '</span></button></div>';
   const illustrative = (label) => '<span class="tag-ill">' + esc(label || 'Illustrative') + '</span>';
 
+  // Eight weeks of score history for the demo, derived deterministically from the current score and
+  // its change: the last point is the score, the one before it the previous score, earlier points drift
+  // toward the trend with a small fixed wobble. Elevate stores no dated history yet (docs/driver-app.md).
+  const FLEET_TARGET = 85;
+  function scoreHistory(score, change) {
+    if (!Number.isFinite(score)) return null;
+    const delta = Number.isFinite(change) ? change : 0;
+    const prev = score - delta;
+    const wobble = [2, -1, 3, 0, -2, 1];
+    const drift = delta >= 0 ? 0.6 : -0.6;
+    const points = wobble.map((w, i) => prev - drift * (wobble.length - i) + w);
+    return points.concat([prev, score]).map((v) => Math.max(0, Math.min(100, Math.round(v))));
+  }
+  function sparklineHtml(history) {
+    if (!history || history.length < 2) return '';
+    const W = 320, H = 52, padX = 4, top = 8, bottom = 6;
+    const lo = Math.min(...history, FLEET_TARGET) - 4;
+    const hi = Math.max(...history, FLEET_TARGET) + 4;
+    const x = (i) => padX + (i * (W - padX * 2)) / (history.length - 1);
+    const y = (v) => top + ((hi - v) / (hi - lo)) * (H - top - bottom);
+    const d = history.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+    const ty = y(FLEET_TARGET);
+    const last = history[history.length - 1];
+    const labelAbove = FLEET_TARGET >= last;
+    return '<svg class="score-spark" viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Illustrative score trend: ' + last + ' this week and ' + history[history.length - 2] + ' the week before are recorded; earlier points are sample values. Fleet target ' + FLEET_TARGET + '.">' +
+      '<line class="score-spark-target" x1="' + padX + '" y1="' + ty.toFixed(1) + '" x2="' + (W - padX) + '" y2="' + ty.toFixed(1) + '"></line>' +
+      '<text class="score-spark-label" x="' + padX + '" y="' + (ty + (labelAbove ? -4 : 11)).toFixed(1) + '">Fleet target ' + FLEET_TARGET + '</text>' +
+      '<path class="score-spark-line" d="' + d + '"></path>' +
+      '<circle class="score-spark-end" cx="' + x(history.length - 1).toFixed(1) + '" cy="' + y(last).toFixed(1) + '" r="3.5"></circle></svg>' +
+      '<div class="meter-scale"><span>Sample trend · previous ' + history[history.length - 2] + '</span><span>This week · ' + last + '</span></div>';
+  }
+
   function homeHtml(m) {
     const toAction = m.sessions.filter((s) => ['action', 'overdue', 'followup'].includes(s.status));
     const waiting = m.sessions.filter((s) => s.status === 'waiting' || s.status === 'reviewed');
     const first = toAction[0] || null;
     const s = m.score;
+    const history = scoreHistory(s.value, s.change);
     const scoreTop = s.value === null
       ? '<div><div class="eyebrow eyebrow--light">Elevate score</div><div class="score-num-row"><div class="score-num">—</div></div></div><div class="score-side"><span class="standing standing--watch">Not enough data</span></div>'
       : '<div><div class="eyebrow eyebrow--light">Elevate score</div><div class="score-num-row"><div class="score-num num">' + s.value + '</div><div class="score-den">/ 100</div></div></div>' +
         '<div class="score-side"><span class="standing standing--' + (s.standingTone === 'none' ? 'watch' : s.standingTone) + '">' + esc(s.standingLabel) + '</span><span class="trend trend--' + (s.change === null || s.change === 0 ? 'flat' : s.change > 0 ? 'good' : 'bad') + '">' + esc(s.changeLabel) + '</span></div>';
-    const spark = s.spark
-      ? '<div class="spark" aria-label="Score by day, this week">' + s.spark.map(([label, h, hot]) => '<div><i style="height:' + h + 'px" class="' + (hot ? 'is-hot' : '') + '"></i><small>' + label + '</small></div>').join('') + '</div>'
-      : s.value !== null ? '<div class="gap-8"><div class="meter" aria-hidden="true"><i class="' + (s.standingTone === 'risk' ? 'is-low' : s.standingTone === 'watch' ? 'is-mid' : '') + '" style="width:' + s.value + '%"></i></div><div class="meter-scale"><span>0</span><span>Fleet target 85</span><span>100</span></div></div>' : '';
+    // The eight-week sparkline replaces the daily bars (design) and the meter's 0/100 axis (linked).
+    const spark = s.value !== null
+      ? '<div class="gap-8">' + (s.spark ? '' : '<div class="meter" aria-hidden="true"><i class="' + (s.standingTone === 'risk' ? 'is-low' : s.standingTone === 'watch' ? 'is-mid' : '') + '" style="width:' + s.value + '%"></i></div>') + sparklineHtml(history) + '</div>'
+      : '';
     const foot = '<div class="score-foot"><p>' + (s.groupLine ? esc(s.groupLine) : m.linked ? 'Scored by your fleet in Elevate' : '') + '</p><button class="btn btn--ghost-light" type="button" data-act="go" data-route="analytics">What\'s moving it</button></div>';
     const streaks = m.streaks ? '<div class="stat-pair">' + m.streaks.map((t) => '<div class="card card--18 stat"><span class="eyebrow eyebrow--sm">' + esc(t.label) + '</span><strong>' + esc(t.value) + (t.small ? ' <small>' + esc(t.small) + '</small>' : '') + '</strong><span>' + esc(t.sub) + '</span></div>').join('') + '</div>' : '';
     // Attention is framed by programme (behaviour), not by an anonymous "session to action".
@@ -415,7 +452,11 @@
         ? '<div class="card card--good action-card"><div class="label"><span class="eyebrow eyebrow--good">Nothing to action</span></div><div class="action-title">' + esc(waiting[0].title) + '</div><p class="lede">' + (waiting[0].status === 'waiting' ? esc(m.coach.name) + ' has your reply and will come back to you.' : 'Reviewed. Finish the assigned lesson to close it out.') + '</p><button class="btn btn--outline" type="button" data-act="open-session" data-id="' + esc(waiting[0].id) + '">Open session</button></div>'
         : '<div class="card card--good action-card"><div class="label"><span class="eyebrow eyebrow--good">Nothing to action</span></div><div class="action-title">All caught up</div><p class="lede">No open coaching sessions right now.</p></div>';
     const rows = (list, soft) => list.map((r) => {
-      const inner = '<div class="row-text"><span class="row-title">' + esc(r.name) + '</span><span class="row-note">' + esc(r.note) + '</span></div><span class="delta delta--' + (r.tone || 'muted') + ' num">' + esc(r.delta) + '</span>' + (r.key ? '<span class="chev" aria-hidden="true"></span>' : '');
+      // A trend arrow appears only when the data carries a previous value; nothing is invented.
+      const trend = Number.isFinite(r.change) && r.change !== 0
+        ? '<span class="delta-trend ' + (r.change > 0 ? 't-good' : 't-bad') + ' num" aria-label="' + (r.change > 0 ? 'Up ' : 'Down ') + Math.abs(r.change) + ' since previous">' + (r.change > 0 ? '▲ +' : '▼ −') + Math.abs(r.change) + '</span>'
+        : '';
+      const inner = '<div class="row-text"><span class="row-title">' + esc(r.name) + '</span><span class="row-note">' + esc(r.note) + '</span></div>' + trend + '<span class="delta delta--' + (r.tone || 'muted') + ' num">' + esc(r.delta) + '</span>' + (r.key ? '<span class="chev" aria-hidden="true"></span>' : '');
       return r.key
         ? '<button class="row row--btn' + (soft ? ' row--soft' : '') + '" type="button" data-act="behaviour" data-key="' + esc(r.key) + '">' + inner + '</button>'
         : '<div class="row' + (soft ? ' row--soft' : '') + '">' + inner + '</div>';
@@ -440,6 +481,27 @@
       streaks + action + stand + lesson + '</div>';
   }
 
+  // Where an open session sits: event flagged → lesson assigned → your reply → coach review → closed.
+  // The current step comes from the session's state, attention reason, lesson and messages.
+  const SESSION_STEPS = ['Event flagged', 'Lesson assigned', 'Your reply', 'Coach review', 'Closed'];
+  function sessionStep(s) {
+    if (!s.open) return SESSION_STEPS.length;
+    const raw = s.raw || {};
+    const driverReplied = s.acked || s.lessonDone || (raw.messages || []).some((msg) => msg.author === 'driver');
+    if (['waiting', 'followup', 'reviewed'].includes(s.status) || (driverReplied && raw.state === 'manager_attention')) return 3;
+    if (driverReplied && s.status === 'action') return 3;
+    if (s.lesson) return 2;
+    return 1;
+  }
+  function stepsHtml(s) {
+    const current = sessionStep(s);
+    return '<ol class="steps steps--session" aria-label="Where this session is">' + SESSION_STEPS.map((label, i) => {
+      const cls = i < current ? 'is-done' : i === current ? 'is-now' : '';
+      return '<li class="step ' + cls + '"' + (i === current ? ' aria-current="step"' : '') + '><span class="step-dot" aria-hidden="true">' + (i < current ? TICK : '') + '</span><span class="step-label">' + label + '</span>' + (i < current ? '<span class="sr-only">, done</span>' : i === current ? '<span class="sr-only">, current</span>' : '') + '</li>';
+    }).join('') + '</ol>';
+  }
+  const TICK = '<svg viewBox="0 0 12 12" width="8" height="8" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
   function sessionsHtml(m) {
     const openList = m.sessions.filter((s) => s.open);
     const history = m.sessions.filter((s) => !s.open);
@@ -447,7 +509,7 @@
     return '<div class="page gap-18">' +
       '<div class="head-block"><h1 class="title-xl">Coaching</h1><p class="lede">Coaching opens when a programme flags an event.</p></div>' +
       '<div class="pills" role="tablist" aria-label="Session filter">' + ['Open', 'History'].map((f) => '<button class="pill' + (state.filter === f ? ' is-on' : '') + '" type="button" role="tab" aria-selected="' + (state.filter === f) + '" data-act="filter" data-filter="' + f + '">' + f + (f === 'Open' && openList.length ? ' · ' + openList.length : '') + '</button>').join('') + '</div>' +
-      (rows.length ? rows.map((s) => '<button class="card session-card' + (['action', 'overdue', 'followup'].includes(s.status) ? ' is-live' : '') + '" type="button" data-act="open-session" data-id="' + esc(s.id) + '"><div class="top">' + chipHtml(s.chip, s.statusLabel) + '<span class="when">' + esc(s.dateShort) + '</span></div><div class="title">' + esc(s.title) + '</div><div class="sub">' + esc(s.meta) + '</div></button>').join('')
+      (rows.length ? rows.map((s) => '<button class="card session-card' + (['action', 'overdue', 'followup'].includes(s.status) ? ' is-live' : '') + '" type="button" data-act="open-session" data-id="' + esc(s.id) + '"><div class="top">' + chipHtml(s.chip, s.statusLabel) + '<span class="when">' + esc(s.dateShort) + '</span></div><div class="title">' + esc(s.title) + '</div><div class="sub">' + esc(s.meta) + '</div>' + (s.open ? stepsHtml(s) : '') + '</button>').join('')
         : '<div class="card empty">' + (state.filter === 'Open' ? 'No open sessions. Anything new lands here first.' : 'No completed sessions yet.') + '</div>') +
       '</div>';
   }
@@ -566,11 +628,11 @@
   }
 
   // The library, grouped by programme so a driver can find lessons the way the fleet organizes coaching.
+  const lessonBtn = (l) => '<button class="row lesson-lib" type="button" data-act="play-lesson" data-title="' + esc(l.title) + '"><span class="play-tile play-tile--sm" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(l.title) + '</span><span class="row-note">' + esc([l.length, l.questions && l.questions.length ? l.questions.length + '-question quiz' : ''].filter(Boolean).join(' · ')) + '</span></span>' + (state.watched[l.title] ? '<span class="delta delta--good">Completed</span>' : '<span class="chev" aria-hidden="true"></span>') + '</button>';
   function libraryHtml(rows) {
     if (!rows.length) return '<div class="gap-9"><span class="eyebrow eyebrow--sm">All lessons</span><div class="card empty">No lessons published yet.</div></div>';
     const groups = [];
     rows.forEach((l) => { const key = l.category || 'Other'; let g = groups.find((x) => x.key === key); if (!g) { g = { key, items: [] }; groups.push(g); } g.items.push(l); });
-    const lessonBtn = (l) => '<button class="row lesson-lib" type="button" data-act="play-lesson" data-title="' + esc(l.title) + '"><span class="play-tile play-tile--sm" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(l.title) + '</span><span class="row-note">' + esc([l.length, l.questions && l.questions.length ? l.questions.length + '-question quiz' : ''].filter(Boolean).join(' · ')) + '</span></span>' + (state.watched[l.title] ? '<span class="delta delta--good">Completed</span>' : '<span class="chev" aria-hidden="true"></span>') + '</button>';
     return '<div class="gap-9"><span class="eyebrow eyebrow--sm">All lessons · by programme</span>' +
       groups.map((g) => '<div class="lesson-group"><div class="lesson-group-head">' + esc(g.key) + '</div><div class="card" style="overflow:hidden">' + g.items.map(lessonBtn).join('') + '</div></div>').join('') + '</div>';
   }
@@ -589,14 +651,34 @@
       : 'Every lesson your fleet publishes, by programme.';
     const tabs = '<div class="pills" role="tablist" aria-label="Learn filter">' + [['assigned', 'Assigned'], ['completed', 'Completed'], ['all', 'All']]
       .map(([key, label]) => '<button class="pill' + (tab === key ? ' is-on' : '') + '" type="button" role="tab" aria-selected="' + (tab === key) + '" data-act="learn-tab" data-tab="' + key + '">' + label + (counts[key] ? ' · ' + counts[key] : '') + '</button>').join('') + '</div>';
+    // The assigned course: its header row opens the player, then an ordered step list (watch, quiz when
+    // the course has one, mark complete) with the current step highlighted, then a full-width Continue.
     const assignedCard = (s) => {
       const done = Boolean(lessonDoneAt(s));
+      const questions = Array.isArray(s.lesson.questions) ? s.lesson.questions.length : 0;
+      const quizDone = Boolean(state.quizDone[s.id] || (s.raw && s.raw.quizPassed));
       const meta = [s.lesson.length, done ? completedLabel(lessonDoneAt(s)) : s.dueLabel || ''].filter(Boolean).join(' · ');
-      return '<button class="card lesson-row" type="button" data-act="player" data-id="' + esc(s.id) + '"><span class="play-tile" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(s.lesson.title) + '</span><span class="meta">' + esc(meta) + '</span></span><span class="chip chip--' + (done ? 'good' : 'live') + '">' + (done ? 'Completed' : 'Assigned') + '</span></button>';
+      const steps = [{ title: 'Watch · ' + s.lesson.title, note: s.lesson.length || 'Video', done: done || quizDone }]
+        .concat(questions ? [{ title: 'Quiz', note: questions + (questions === 1 ? ' question' : ' questions') + ' · pass to finish', done: done || quizDone }] : [])
+        .concat([{ title: 'Mark complete', note: done ? completedLabel(lessonDoneAt(s)) : 'Tells ' + s.coach.name + ' you are done', done }]);
+      const current = steps.findIndex((st) => !st.done);
+      const list = '<ol class="steps steps--course" aria-label="Course steps">' + steps.map((st, i) => '<li class="step' + (st.done ? ' is-done' : i === current ? ' is-now' : '') + '"' + (i === current ? ' aria-current="step"' : '') + '><span class="step-n" aria-hidden="true">' + (st.done ? TICK : i + 1) + '</span><span class="row-text"><span class="row-title row-title--sm">' + esc(st.title) + '</span><span class="row-note row-note--sm">' + esc(st.note) + '</span></span>' + (st.done ? '<span class="sr-only">Done</span>' : '') + '</li>').join('') + '</ol>';
+      return '<div class="card course-card"><button class="lesson-row" type="button" data-act="player" data-id="' + esc(s.id) + '"><span class="play-tile" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="eyebrow eyebrow--sm">' + (questions ? 'Assigned course' : 'Assigned lesson') + '</span><span class="row-title">' + esc(s.lesson.title) + '</span><span class="meta">' + esc(meta) + '</span></span><span class="chip chip--' + (done ? 'good' : 'live') + '">' + (done ? 'Completed' : 'Assigned') + '</span></button>' +
+        list + '<button class="btn btn--dark course-cta" type="button" data-act="player" data-id="' + esc(s.id) + '">' + (done ? 'Open again' : current > 0 ? 'Continue' : 'Start') + '</button></div>';
     };
+    // Up to three library rows so the page is never nearly empty: the assigned programme's first.
+    const suggested = (() => {
+      const assignedTitles = new Set(assigned.map((s) => s.lesson.title));
+      const cats = new Set(assigned.map((s) => s.category || (s.lesson && s.lesson.category)).filter(Boolean));
+      const pool = library.filter((l) => !assignedTitles.has(l.title));
+      return pool.filter((l) => cats.has(l.category)).concat(pool.filter((l) => !cats.has(l.category))).slice(0, 3);
+    })();
+    const fromLibrary = suggested.length
+      ? '<div class="gap-9"><div class="section-head"><span class="eyebrow eyebrow--sm">From the library</span><button class="link-btn" type="button" data-act="learn-all">See all · ' + counts.all + '</button></div><div class="card" style="overflow:hidden">' + suggested.map(lessonBtn).join('') + '</div><p class="list-note">Library viewing stays on your phone; nothing is recorded in Elevate.</p></div>'
+      : '';
     const doneRow = (title, meta, at, attrs) => '<button class="row lesson-lib" type="button" ' + attrs + '><span class="play-tile play-tile--sm" aria-hidden="true"><i class="tri"></i></span><span class="row-text"><span class="row-title">' + esc(title) + '</span><span class="row-note">' + esc([meta, completedLabel(at)].filter(Boolean).join(' · ')) + '</span></span><span class="chev" aria-hidden="true"></span></button>';
     const body = tab === 'assigned'
-      ? (counts.assigned ? '<div class="gap-9">' + assigned.map(assignedCard).join('') + '</div>'
+      ? (counts.assigned ? '<div class="gap-9">' + assigned.map(assignedCard).join('') + '</div>' + fromLibrary
         : '<div class="card empty">Nothing is assigned. A course arrives when one of your programmes flags an event.</div>')
       : tab === 'completed'
         ? (counts.completed ? '<div class="card" style="overflow:hidden">' +
@@ -620,8 +702,17 @@
     if (state.route === 'thread' || state.route === 'coachview') return '';
     const homeish = ['home', 'analytics', 'behaviour', 'scoring'].includes(state.route);
     const defs = [['home', 'Home', homeish && state.overlay !== 'player'], ['sessions', 'Coaching', ['sessions', 'detail'].includes(state.route) && state.overlay !== 'player'], ['learn', 'Learn', state.route === 'learn' || state.overlay === 'player'], ['coach', 'Messages', ['coach', 'thread'].includes(state.route)]];
-    return '<nav class="tabbar" aria-label="App sections">' + defs.map(([key, label, on]) => '<button class="tab' + (on ? ' is-on' : '') + '" type="button" data-act="tab" data-tab="' + key + '"' + (on ? ' aria-current="page"' : '') + '><i aria-hidden="true"></i><span>' + label + '</span></button>').join('') + '</nav>';
+    return '<nav class="tabbar" aria-label="App sections">' + defs.map(([key, label, on]) => '<button class="tab' + (on ? ' is-on' : '') + '" type="button" data-act="tab" data-tab="' + key + '"' + (on ? ' aria-current="page"' : '') + '>' + TAB_ICONS[key] + '<span>' + label + '</span></button>').join('') + '</nav>';
   }
+
+  // Tab glyphs: 24×24, 1.75px stroke, currentColor. The active tab strokes heavier and tints the fill.
+  const tabIcon = (paths) => '<svg class="tab-ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+  const TAB_ICONS = {
+    home: tabIcon('<path class="ico-fill" d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/>'),
+    sessions: tabIcon('<path class="ico-fill" d="M12 3.5 5 6v5.5c0 4.3 3 7.6 7 9 4-1.4 7-4.7 7-9V6z"/><path d="m9.2 12.2 2 2 3.8-4"/>'),
+    learn: tabIcon('<path class="ico-fill" d="M12 6.6c-1.6-1.2-3.8-1.7-7-1.5v13c3.2-.2 5.4.3 7 1.5 1.6-1.2 3.8-1.7 7-1.5v-13c-3.2-.2-5.4.3-7 1.5z"/><path d="M12 6.6v13"/>'),
+    coach: tabIcon('<path class="ico-fill" d="M12 4.5c-4.7 0-8 3-8 6.7 0 1.9.9 3.6 2.3 4.8L5.5 19.5l3.9-1.3c.8.2 1.7.3 2.6.3 4.7 0 8-3 8-6.7s-3.3-6.7-8-6.7z"/>')
+  };
 
   function nudgeHtml() {
     return '<div class="overlay nudge" role="dialog" aria-label="In-trip nudge"><div class="nudge-top"><span class="eyebrow">On trip · 214 North</span><div class="nudge-speed num">48</div><div class="nudge-limit"><b>40</b><span>School zone until 3rd</span></div></div>' +
@@ -851,6 +942,7 @@
     'close-player': () => { stopTimer(); state.playing = false; state.overlay = null; render(); syncHash(); notifyRoute(); },
     'toggle-play': () => { if (state.playing) { stopTimer(); state.playing = false; } else { state.playing = true; tick(); } render({ silent: true, keepScroll: true }); },
     'learn-tab': (el) => { state.learnTab = el.dataset.tab; render({ keepScroll: true }); },
+    'learn-all': () => { state.learnTab = 'all'; render(); },
     'start-quiz': (el) => { state.quiz = { key: el.dataset.key, index: 0, choice: null, checked: false }; render({ silent: true, keepScroll: true }); document.getElementById('quiz-title')?.focus(); },
     'quiz-choose': (el) => { if (!state.quiz || state.quiz.checked) return; state.quiz.choice = Number(el.dataset.index); render({ silent: true, keepScroll: true }); },
     'quiz-check': () => { if (!state.quiz || state.quiz.choice === null) return; state.quiz.checked = true; render({ silent: true, keepScroll: true }); },
